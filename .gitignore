@@ -1,0 +1,36 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Node
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+
+# Python
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Databases & session data
+*.db
+*.db-shm
+*.db-wal
+backend/data/
+
+# Logs
+logs/
+
+# Dev tooling
+.dev_pids
+*.log
