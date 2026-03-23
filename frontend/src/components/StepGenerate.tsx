@@ -262,35 +262,29 @@ export default function StepGenerate({
   const { gap, draft } = activeRecord
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: draftHistory.length > 1 ? '220px 1fr' : '1fr', gap: 16, alignItems: 'start' }}>
-
-      {/* History sidebar — only visible when >1 record */}
+    <div>
+      {/* History tabs — only visible when >1 record */}
       {draftHistory.length > 1 && (
-        <div className="section-card" style={{ padding: 0, overflow: 'hidden', position: 'sticky', top: 16 }}>
-          <div style={{ padding: '12px 14px', fontWeight: 600, fontSize: 12, color: 'var(--m3-on-surface-variant)', borderBottom: '1px solid var(--m3-outline-variant)', background: 'var(--m3-surface-container-low)' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>history</span>
-            历史稿件 ({draftHistory.length})
-          </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
           {draftHistory.map(r => (
-            <div
+            <button
               key={r.id}
               onClick={() => setActiveId(r.id)}
               style={{
-                padding: '10px 14px',
-                cursor: 'pointer',
-                borderBottom: '1px solid var(--m3-outline-variant)',
-                background: r.id === activeId ? 'rgba(0,84,205,0.06)' : 'white',
-                borderLeft: r.id === activeId ? '3px solid var(--m3-primary)' : '3px solid transparent',
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 16px', borderRadius: 999, cursor: 'pointer',
+                border: 'none',
+                background: r.id === activeId ? 'var(--m3-primary)' : 'var(--m3-surface-container-low)',
+                boxShadow: r.id === activeId ? '0 2px 8px rgba(0,84,205,0.25)' : 'none',
+                transition: 'all 0.15s',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: r.gap.priority === 'P0' ? '#fee2e2' : r.gap.priority === 'P1' ? '#fff7ed' : '#dbeafe', color: r.gap.priority === 'P0' ? 'var(--m3-error)' : r.gap.priority === 'P1' ? '#e65100' : 'var(--m3-primary)' }}>{r.gap.priority}</span>
-                <span style={{ fontWeight: 600, fontSize: 13, color: r.id === activeId ? 'var(--m3-primary)' : 'var(--m3-on-surface)' }}>
-                  {r.gap.section}
-                </span>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>{formatTime(r.generatedAt)}</div>
-            </div>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: r.id === activeId ? 'rgba(255,255,255,0.25)' : r.gap.priority === 'P0' ? '#fee2e2' : r.gap.priority === 'P1' ? '#fff7ed' : '#dbeafe', color: r.id === activeId ? 'white' : r.gap.priority === 'P0' ? 'var(--m3-error)' : r.gap.priority === 'P1' ? '#e65100' : 'var(--m3-primary)' }}>{r.gap.priority}</span>
+              <span style={{ fontWeight: 600, fontSize: 13, color: r.id === activeId ? 'white' : 'var(--m3-on-surface)' }}>
+                {r.gap.section}
+              </span>
+              <span style={{ fontSize: 11, color: r.id === activeId ? 'rgba(255,255,255,0.75)' : 'var(--m3-on-surface-variant)' }}>{formatTime(r.generatedAt)}</span>
+            </button>
           ))}
         </div>
       )}

@@ -1166,7 +1166,7 @@ async def generate_plan_from_gap(
         if active_needs:
             needs_text += f"\n【{sg.section_heading}】\n"
             for nc in active_needs:
-                coverage_label = "待补充" if nc.coverage_level == "missing" else "需完善"
+                coverage_label = "内容缺失" if nc.coverage_level == "missing" else "需完善"
                 mark = "【已确认】" if nc.status == "confirmed" else "【AI识别】"
                 freq_note = f"（用户提问约{nc.qa_frequency}次）" if nc.qa_frequency else ""
                 suggestion = f" → {nc.revision_suggestion}" if nc.revision_suggestion else ""

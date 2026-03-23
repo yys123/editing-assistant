@@ -13,7 +13,7 @@ interface Props {
 const COVERAGE_CONFIG = {
   full:    { label: '已覆盖', color: 'var(--green)',  bg: '#f0fdf4', icon: '✓' },
   partial: { label: '需完善', color: 'var(--orange)', bg: '#fff7ed', icon: '◑' },
-  missing: { label: '待补充', color: 'var(--red)',    bg: '#fff1f1', icon: '✗' },
+  missing: { label: '内容缺失', color: 'var(--red)',    bg: '#fff1f1', icon: '✗' },
 } as const
 
 export default function StepExpertReview({ sectionAnalyses, setSectionAnalyses, gapAnalysis, onNext, onBack }: Props) {
@@ -83,7 +83,7 @@ export default function StepExpertReview({ sectionAnalyses, setSectionAnalyses, 
         {[
           { label: '章节数',     value: sectionAnalyses.length, color: 'var(--blue)' },
           { label: '质量问题',   value: totalQuality,            color: 'var(--orange)' },
-          { label: '待补充需求', value: totalMissing,            color: 'var(--red)' },
+          { label: '内容缺失', value: totalMissing,            color: 'var(--red)' },
           { label: '需完善需求', value: totalPartial,            color: 'var(--orange)' },
           { label: '已确认/补充', value: totalConfirmed,         color: 'var(--green)' },
         ].map(s => (
@@ -206,7 +206,7 @@ export default function StepExpertReview({ sectionAnalyses, setSectionAnalyses, 
                         </span>
                         <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>
                           {[
-                            missingCount > 0 ? `${missingCount} 待补充` : '',
+                            missingCount > 0 ? `${missingCount} 内容缺失` : '',
                             partialCount > 0 ? `${partialCount} 需完善` : '',
                           ].filter(Boolean).join('，')}
                         </span>

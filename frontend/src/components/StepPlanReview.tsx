@@ -158,7 +158,7 @@ export default function StepPlanReview({
   const priorityBg: Record<string, string> = { P0: '#fee2e2', P1: '#fff7ed', P2: '#dbeafe' }
   const coverageBg: Record<string, string> = { partial: '#fff7ed', missing: '#fee2e2' }
   const coverageColor: Record<string, string> = { partial: '#e65100', missing: 'var(--m3-error)' }
-  const coverageLabel: Record<string, string> = { partial: '部分覆盖', missing: '未覆盖' }
+  const coverageLabel: Record<string, string> = { partial: '部分覆盖', missing: '内容缺失' }
   const severityColor: Record<string, string> = { high: 'var(--m3-error)', medium: '#e65100', low: 'var(--m3-primary)' }
   const severityLabel: Record<string, string> = { high: '高', medium: '中', low: '低' }
   const issueTypeLabel: Record<string, string> = {

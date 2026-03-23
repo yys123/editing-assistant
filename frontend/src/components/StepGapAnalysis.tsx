@@ -20,7 +20,7 @@ interface Props {
 const COVERAGE_CONFIG = {
   full:    { label: '已覆盖', color: 'var(--m3-tertiary)',  bg: '#f0fdf4', icon: 'check_circle' },
   partial: { label: '需完善', color: '#e65100', bg: '#fff7ed', icon: 'pending' },
-  missing: { label: '待补充', color: 'var(--m3-error)',    bg: '#fff1f1', icon: 'cancel' },
+  missing: { label: '内容缺失', color: 'var(--m3-error)',    bg: '#fff1f1', icon: 'cancel' },
 } as const
 
 // ── NeedCard sub-component ────────────────────────────────────────────────────
@@ -183,7 +183,7 @@ function NeedCard({ cluster, sections, missingCount, partialCount, fullCount, is
                         </span>
                       </div>
                       {/* Coverage badge */}
-                      <div style={{ flexShrink: 0, paddingTop: 2, width: 68 }}>
+                      <div style={{ flexShrink: 0, paddingTop: 2, width: 82 }}>
                         <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
                           background: isRejected ? 'var(--m3-surface-container-low)' : cfg.bg,
                           color: isRejected ? 'var(--m3-on-surface-variant)' : cfg.color,
@@ -292,63 +292,84 @@ function NeedCard({ cluster, sections, missingCount, partialCount, fullCount, is
 // ── SectionIndex sub-component ────────────────────────────────────────────────
 import { ArticleSection } from '../types'
 
-function SectionIndex({ level1Sections, displayGaps, sectionErrors, retrySectionGap }: {
+function SectionIndex({ level1Sections, allSections, displayGaps, sectionErrors, retrySectionGap }: {
   level1Sections: ArticleSection[]
+  allSections: ArticleSection[]
   displayGaps: SectionNeedsGap[]
   sectionErrors: Record<string, string>
   retrySectionGap: (id: string) => void
 }) {
-  const [open, setOpen] = useState(false)
   return (
     <div style={{ marginBottom: 16 }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0', fontSize: 13,
-          fontWeight: 600, color: 'var(--m3-on-surface)', display: 'flex', alignItems: 'center', gap: 6 }}
-      >
-        <span className="material-symbols-outlined" style={{ fontSize: 18, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}>expand_more</span> 按章节查看
+      <div style={{ padding: '6px 0', fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>list_alt</span> 按章节查看
         <span style={{ fontWeight: 400, color: 'var(--m3-on-surface-variant)', fontSize: 12 }}>各章节需求覆盖一览</span>
-      </button>
-      {open && (
-        <div className="section-card" style={{ marginTop: 8 }}>
+      </div>
+      <div className="section-card" style={{ marginTop: 8 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '2px solid var(--m3-outline-variant)' }}>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>章节</th>
-                <th style={{ textAlign: 'center', color: 'var(--m3-error)', padding: '8px 12px', fontWeight: 600 }}>待补充</th>
+                <th style={{ textAlign: 'center', padding: '8px 12px', fontWeight: 600 }}>需求数</th>
+                <th style={{ textAlign: 'center', color: 'var(--m3-error)', padding: '8px 12px', fontWeight: 600 }}>内容缺失</th>
                 <th style={{ textAlign: 'center', color: '#e65100', padding: '8px 12px', fontWeight: 600 }}>需完善</th>
-                <th style={{ textAlign: 'center', color: 'var(--m3-tertiary)', padding: '8px 12px', fontWeight: 600 }}>已覆盖</th>
+                <th style={{ textAlign: 'center', color: 'var(--m3-primary)', padding: '8px 12px', fontWeight: 600 }}>已确认</th>
               </tr>
             </thead>
             <tbody>
-              {level1Sections.map((section, i) => {
-                const sg = displayGaps.find(g => g.section_id === section.id)
-                const coverages = (sg?.need_coverages ?? []).filter(nc => nc.status !== 'rejected')
-                const mc = coverages.filter(nc => nc.coverage_level === 'missing').length
-                const pc = coverages.filter(nc => nc.coverage_level === 'partial').length
-                const fc = coverages.filter(nc => nc.coverage_level === 'full').length
-                const hasError = !!sectionErrors[section.id]
-                const rowBg = hasError ? '#fff8f8' : mc > 0 ? '#fff8f8' : pc > 0 ? '#fffdf8' : 'white'
-                return (
-                  <tr key={section.id} style={{ background: rowBg, borderBottom: '1px solid var(--m3-outline-variant)' }}>
-                    <td style={{ fontWeight: 500, padding: '8px 12px' }}>
-                      <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)', marginRight: 8 }}>{i + 1}</span>
-                      {section.heading}
-                      {hasError && (
-                        <button className="btn-m3-outline" style={{ marginLeft: 8, padding: '1px 8px', fontSize: 11 }}
-                          onClick={() => retrySectionGap(section.id)}>重试</button>
-                      )}
-                    </td>
-                    <td style={{ textAlign: 'center', padding: '8px 12px' }}>{mc > 0 ? <span style={{ fontWeight: 700, color: 'var(--m3-error)' }}>{mc}</span> : <span style={{ color: 'var(--m3-outline)' }}>—</span>}</td>
-                    <td style={{ textAlign: 'center', padding: '8px 12px' }}>{pc > 0 ? <span style={{ fontWeight: 700, color: '#e65100' }}>{pc}</span> : <span style={{ color: 'var(--m3-outline)' }}>—</span>}</td>
-                    <td style={{ textAlign: 'center', padding: '8px 12px' }}>{fc > 0 ? <span style={{ color: 'var(--m3-tertiary)' }}>{fc}</span> : coverages.length === 0 ? <span style={{ color: 'var(--m3-outline)', fontSize: 11 }}>无需求</span> : <span style={{ color: 'var(--m3-outline)' }}>—</span>}</td>
+              {(() => {
+                let sumTotal = 0, sumMc = 0, sumPc = 0, sumConfirmed = 0
+                const rows = level1Sections.map((section, i) => {
+                  // Find child sections: from this level-1 to the next level-1
+                  const idx = allSections.findIndex(s => s.id === section.id)
+                  const childIds = [section.id]
+                  for (let j = idx + 1; j < allSections.length && allSections[j].level > 1; j++) {
+                    childIds.push(allSections[j].id)
+                  }
+                  // Aggregate coverages from this section and all children
+                  const allCoverages = childIds.flatMap(id => {
+                    const sg = displayGaps.find(g => g.section_id === id)
+                    return sg?.need_coverages ?? []
+                  })
+                  const coverages = allCoverages.filter(nc => nc.status !== 'rejected')
+                  const mc = coverages.filter(nc => nc.coverage_level === 'missing').length
+                  const pc = coverages.filter(nc => nc.coverage_level === 'partial').length
+                  const confirmed = allCoverages.filter(nc => nc.status === 'confirmed').length
+                  const total = coverages.length
+                  sumTotal += total; sumMc += mc; sumPc += pc; sumConfirmed += confirmed
+                  const hasError = !!sectionErrors[section.id]
+                  const rowBg = hasError ? '#fff8f8' : mc > 0 ? '#fff8f8' : pc > 0 ? '#fffdf8' : 'white'
+                  return (
+                    <tr key={section.id} style={{ background: rowBg, borderBottom: '1px solid var(--m3-outline-variant)' }}>
+                      <td style={{ fontWeight: 500, padding: '8px 12px' }}>
+                        <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)', marginRight: 8 }}>{i + 1}</span>
+                        {section.heading}
+                        {hasError && (
+                          <button className="btn-m3-outline" style={{ marginLeft: 8, padding: '1px 8px', fontSize: 11 }}
+                            onClick={() => retrySectionGap(section.id)}>重试</button>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--m3-on-surface-variant)' }}>{total > 0 ? total : <span style={{ color: 'var(--m3-outline)', fontSize: 11 }}>—</span>}</td>
+                      <td style={{ textAlign: 'center', padding: '8px 12px' }}>{mc > 0 ? <span style={{ fontWeight: 700, color: 'var(--m3-error)' }}>{mc}</span> : <span style={{ color: 'var(--m3-outline)' }}>—</span>}</td>
+                      <td style={{ textAlign: 'center', padding: '8px 12px' }}>{pc > 0 ? <span style={{ fontWeight: 700, color: '#e65100' }}>{pc}</span> : <span style={{ color: 'var(--m3-outline)' }}>—</span>}</td>
+                      <td style={{ textAlign: 'center', padding: '8px 12px' }}>{confirmed > 0 ? <span style={{ fontWeight: 600, color: 'var(--m3-primary)' }}>{confirmed}</span> : <span style={{ color: 'var(--m3-outline)' }}>—</span>}</td>
+                    </tr>
+                  )
+                })
+                return (<>
+                  {rows}
+                  <tr style={{ borderTop: '2px solid var(--m3-outline-variant)', background: 'var(--m3-surface-container-low)', fontWeight: 600 }}>
+                    <td style={{ padding: '8px 12px' }}>合计</td>
+                    <td style={{ textAlign: 'center', padding: '8px 12px' }}>{sumTotal}</td>
+                    <td style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--m3-error)' }}>{sumMc}</td>
+                    <td style={{ textAlign: 'center', padding: '8px 12px', color: '#e65100' }}>{sumPc}</td>
+                    <td style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--m3-primary)' }}>{sumConfirmed}</td>
                   </tr>
-                )
-              })}
+                </>)
+              })()}
             </tbody>
           </table>
         </div>
-      )}
     </div>
   )
 }
@@ -688,7 +709,7 @@ export default function StepGapAnalysis({
         {[
           { label: 'Q&A 总量',  value: qaItems.length || gapAnalysis.total_qa_count, color: 'var(--m3-primary)' },
           { label: '需求类型',  value: displayClusters.length,  color: 'var(--m3-primary)' },
-          { label: '待补充',    value: totalMissing,             color: 'var(--m3-error)' },
+          { label: '内容缺失',    value: totalMissing,             color: 'var(--m3-error)' },
           { label: '需完善',    value: totalPartial,             color: '#e65100' },
           { label: '已确认',    value: totalConfirmed,           color: 'var(--m3-tertiary)' },
         ].map(s => (
@@ -750,6 +771,7 @@ export default function StepGapAnalysis({
       {/* ── SECONDARY: section index (collapsed by default) ───────────────────── */}
       <SectionIndex
         level1Sections={level1Sections}
+        allSections={parsedArticle.sections}
         displayGaps={displayGaps}
         sectionErrors={sectionErrors}
         retrySectionGap={retrySectionGap}
