@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { QAItem, IterationPlan, GapItem, DraftRecord, IssueItem, QualityReport, FullAnalysisResult, DimOneReport, DimTwoReport, DimThreeReport, DimFourReport } from '../types'
+import { apiFetch } from '../api'
 
 type AnalyzePhase = 'analyzing' | 'reviewing' | 'planning' | 'done'
 type DimKey = 'dim_one' | 'dim_two' | 'dim_three' | 'dim_four'
@@ -300,7 +301,7 @@ export default function StepAnalyze({ disease, articleContent, qaItems, plan, se
     setPhase('analyzing')
     setError('')
     try {
-      const res = await fetch('/api/analyze/full', {
+      const res = await apiFetch('/api/analyze/full', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ disease, article_content: articleContent, qa_items: qaItems })
@@ -320,7 +321,7 @@ export default function StepAnalyze({ disease, articleContent, qaItems, plan, se
     setPhase('planning')
     setError('')
     try {
-      const res = await fetch('/api/analyze/plan', {
+      const res = await apiFetch('/api/analyze/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

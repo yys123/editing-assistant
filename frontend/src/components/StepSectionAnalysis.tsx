@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { ArticleSection, ParsedArticle, SectionAnalysis, SectionIssue, ReferenceDoc, StandardsOverride } from '../types'
+import { apiFetch } from '../api'
 
 interface Props {
   disease: string
@@ -8,8 +9,6 @@ interface Props {
   setSectionAnalyses: (analyses: SectionAnalysis[]) => void
   referenceDocs: ReferenceDoc[]
   standardsOverride: StandardsOverride
-  onNext: () => void
-  onBack: () => void
 }
 
 // Summary/overview sections that should NOT be analyzed as independent chapters.
@@ -33,13 +32,7 @@ function buildAnalysisGroups(sections: ArticleSection[]): AnalysisGroup[] {
 
   for (const section of sections) {
     if (isSummarySection(section.heading)) {
-      // Merge as contextual note, never create a standalone group
-      const ctx = `【${section.heading}（编辑概述参考，不作为独立评审章节）】\n${section.content}`
-      if (currentGroup) {
-        currentGroup.combinedContent += '\n\n' + ctx
-      } else {
-        pendingSummary += (pendingSummary ? '\n\n' : '') + ctx
-      }
+      // Editorial summaries — excluded from quality review entirely
       continue
     }
 
@@ -162,7 +155,7 @@ const RATING_CONFIG: Record<Rating, { label: string; color: string; bg: string }
 
 export default function StepSectionAnalysis({
   disease, parsedArticle, sectionAnalyses, setSectionAnalyses,
-  referenceDocs, standardsOverride, onNext, onBack
+  referenceDocs, standardsOverride
 }: Props) {
   // Per-section loading/error state; analysing=true means in-flight
   const [analysing, setAnalysing] = useState<Record<string, boolean>>({})
@@ -174,10 +167,10 @@ export default function StepSectionAnalysis({
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const updateIssue = (sectionId: string, issueId: string, changes: Partial<SectionIssue>) => {
-    setSectionAnalyses(sectionAnalyses.map(sa =>
+    setSectionAnalyses(sectionAnalyses.map((sa: SectionAnalysis) =>
       sa.section_id !== sectionId ? sa : {
         ...sa,
-        issues: sa.issues.map(i => i.id !== issueId ? i : { ...i, ...changes }),
+        issues: sa.issues.map((i: SectionIssue) => i.id !== issueId ? i : { ...i, ...changes }),
       }
     ))
   }
@@ -191,7 +184,7 @@ export default function StepSectionAnalysis({
       content: group.combinedContent,
       word_count: group.combinedContent.length,
     }
-    const res = await fetch('/api/analyze/section', {
+    const res = await apiFetch('/api/analyze/section', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -263,7 +256,7 @@ export default function StepSectionAnalysis({
   const totalIssues = sectionAnalyses.reduce((acc, a) => acc + a.issues.filter(i => i.status !== 'rejected').length, 0)
   const failedCount = Object.keys(errors).length
 
-  const dimStats = useMemo(() => computeDimStats(sectionAnalyses), [sectionAnalyses])
+  const dimStats = computeDimStats(sectionAnalyses)
 
   const overallRating: Rating | null = useMemo(() => {
     if (sectionAnalyses.length === 0) return null
@@ -275,33 +268,47 @@ export default function StepSectionAnalysis({
 
   return (
     <div>
+      {/* Page header */}
+      <div style={{ marginBottom: 24 }}>
+        <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 700, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
+          内容质量审评
+        </h2>
+        <p style={{ fontSize: 14, color: 'var(--m3-on-surface-variant)' }}>
+          AI 逐章节审核内容质量，识别问题并给出改进建议
+        </p>
+      </div>
+
       {/* Control bar */}
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="section-card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           {anyAnalysing ? (
             <>
               <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-              <span style={{ fontWeight: 700, fontSize: 14 }}>正在并行分析…</span>
-              <span style={{ color: 'var(--gray-500)', fontSize: 13 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--m3-on-surface)' }}>正在并行分析…</span>
+              <span style={{ color: 'var(--m3-on-surface-variant)', fontSize: 13 }}>
                 {doneCount} / {groups.length} 个章节组完成
               </span>
             </>
           ) : (
             <>
-              <span style={{ fontWeight: 700, fontSize: 14 }}>内容质量审评完成</span>
-              <span style={{ color: 'var(--green)' }}>✓ {groups.length} 个章节组已分析</span>
+              <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--m3-on-surface)' }}>内容质量审评完成</span>
+              <span style={{ color: 'var(--m3-tertiary)' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 4 }}>check_circle</span>
+                {groups.length} 个章节组已分析
+              </span>
             </>
           )}
-          {totalIssues > 0 && <span style={{ color: 'var(--orange)' }}>共发现 {totalIssues} 个问题</span>}
-          {failedCount > 0 && <span style={{ color: 'var(--red)' }}>{failedCount} 个章节失败</span>}
-          <button className="btn btn-sm btn-outline" style={{ marginLeft: 'auto' }} onClick={runAll}>
+          {totalIssues > 0 && <span style={{ color: '#e65100' }}>共发现 {totalIssues} 个问题</span>}
+          {failedCount > 0 && <span style={{ color: 'var(--m3-error)' }}>{failedCount} 个章节失败</span>}
+          <button className="btn-m3-outline" style={{ marginLeft: 'auto', fontSize: 12, padding: '5px 14px' }} onClick={runAll}>
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>refresh</span>
             重新分析全部
           </button>
         </div>
       </div>
 
       {/* Section detail */}
-      <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 600, color: 'var(--gray-600)' }}>
+      <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface-variant)' }}>
         章节详情
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
@@ -553,6 +560,22 @@ export default function StepSectionAnalysis({
                         })}
                       </div>
                     )}
+
+                    {!isAnalysing && analysis?.verification_summary && (
+                      <div style={{
+                        margin: '0 10px 8px',
+                        padding: '6px 10px',
+                        background: 'var(--blue-light)',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        color: 'var(--gray-600)',
+                        lineHeight: 1.7,
+                        borderLeft: '2px solid var(--blue)',
+                      }}>
+                        <span style={{ fontWeight: 600, color: 'var(--blue)' }}>二次核验：</span>
+                        {analysis.verification_summary}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -625,9 +648,12 @@ export default function StepSectionAnalysis({
         const SB = '1px solid var(--gray-100)'  // sub-row separator
 
         return (
-          <div className="card" style={{ marginBottom: 16 }}>
+          <div className="section-card" style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <span style={{ fontWeight: 700, fontSize: 14 }}>审评结论</span>
+              <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--m3-on-surface)' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, verticalAlign: -4, marginRight: 6 }}>analytics</span>
+                审评结论
+              </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>
                   总字数：{parsedArticle.total_words.toLocaleString()} 字
@@ -735,12 +761,6 @@ export default function StepSectionAnalysis({
         )
       })()}
 
-      <div className="flex justify-between items-center mt-4">
-        <button className="btn btn-outline" onClick={onBack}>← 返回</button>
-        <button className="btn btn-primary" onClick={onNext}>
-          下一步：用户需求分析 →
-        </button>
-      </div>
     </div>
   )
 }

@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from models import GenerationRequest
 from services.generator import generate_section_draft
 
-router = APIRouter(prefix="/api/generate", tags=["generate"])
+from auth import get_current_user
+
+router = APIRouter(prefix="/api/generate", tags=["generate"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("/draft")

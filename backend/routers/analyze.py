@@ -1,12 +1,12 @@
 import asyncio
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 
 from models import (
     QAItem, NeedsAnalysis, QualityReport, FullAnalysisResult,
     ArticleSection, SectionAnalysis, ParsedArticle, GapAnalysis,
-    NeedCluster, NeedSectionMapping,
+    NeedCluster, NeedSectionMapping, ReferenceDoc,
 )
 from services.analyzer import (
     evaluate_article_quality, analyze_user_needs, generate_iteration_plan,
@@ -14,8 +14,33 @@ from services.analyzer import (
     classify_user_needs, map_needs_to_sections, analyze_section_needs_gap,
     suggest_unmapped_placements,
 )
+from services.ref_evaluator import evaluate_references
 
-router = APIRouter(prefix="/api/analyze", tags=["analyze"])
+from auth import get_current_user
+
+router = APIRouter(prefix="/api/analyze", tags=["analyze"], dependencies=[Depends(get_current_user)])
+
+
+# ── Step 2: Reference evaluation ──────────────────────────────────────────────
+
+class RefEvalRequest(BaseModel):
+    disease: str
+    reference_docs: List[ReferenceDoc]
+    ref_eval_standard_text: Optional[str] = None
+
+
+@router.post("/ref-eval")
+async def run_ref_evaluation(req: RefEvalRequest):
+    """Step 2: Evaluate reference documents against quality criteria."""
+    if not req.reference_docs:
+        raise HTTPException(400, "请提供至少一篇参考文献")
+    try:
+        result = await evaluate_references(
+            req.disease, req.reference_docs, req.ref_eval_standard_text
+        )
+        return result.model_dump()
+    except Exception as e:
+        raise HTTPException(500, f"参考文献评估失败: {str(e)}")
 
 
 # ── New 7-step endpoints ──────────────────────────────────────────────────────

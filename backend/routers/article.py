@@ -1,12 +1,15 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from typing import List
-from services.scraper import fetch_article_from_url, parse_html_to_text, parse_html_structured, parse_txt_structured
+from services.scraper import fetch_article_from_url, parse_html_to_text, parse_html_structured, parse_txt_structured, extract_images_from_html
+from services.gemini import analyze_image
 from services.pdf import extract_pdf_text
 from services.section_parser import parse_article_sections
 from models import ReferenceDoc
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/api/article", tags=["article"])
+from auth import get_current_user
+
+router = APIRouter(prefix="/api/article", tags=["article"], dependencies=[Depends(get_current_user)])
 
 SUPPORTED_TYPES = {
     "text/plain", "text/markdown",
@@ -40,6 +43,10 @@ async def upload_article(file: UploadFile = File(...)):
         content = parse_html_structured(html)
         if not content.strip():
             raise HTTPException(400, "HTML 文件内容为空或无法提取正文")
+
+        # Extract and analyze embedded images using Gemini vision
+        content = await _inject_image_analysis(html, content)
+
         return {"content": content, "source": filename, "length": len(content)}
 
     if filename.endswith(".txt"):
@@ -114,6 +121,36 @@ async def upload_pdf(files: List[UploadFile] = File(...)):
         except Exception as e:
             raise HTTPException(500, f"解析 {filename} 失败: {str(e)}")
     return results
+
+
+async def _inject_image_analysis(html: str, structured_text: str) -> str:
+    """Analyze embedded images in HTML and inject extracted content into structured text.
+
+    For each [图片] marker in the structured text, calls Gemini vision on the
+    corresponding base64 image and inserts a [图片内容] block below it.
+    """
+    images = extract_images_from_html(html)
+    if not images:
+        return structured_text
+
+    # Analyze all images (in document order)
+    analyses = []
+    for img in images:
+        text = await analyze_image(img["data"], img["mime_type"], img["caption"])
+        analyses.append(text)
+
+    # Inject [图片内容] after each [图片] marker, matched positionally
+    lines = structured_text.split("\n")
+    result: List[str] = []
+    img_idx = 0
+    for line in lines:
+        result.append(line)
+        if line.startswith("[图片]") and img_idx < len(analyses):
+            analysis = analyses[img_idx]
+            img_idx += 1
+            if analysis:
+                result.append(f"[图片内容] {analysis}")
+    return "\n".join(result)
 
 
 @router.post("/upload-standard")

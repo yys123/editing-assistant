@@ -14,7 +14,58 @@ except FileNotFoundError:
 _SYSTEM_PROMPT = (
     "你是一位资深临床医学编辑，熟悉知识库词条的标准内容框架。"
     "请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+    "【绝对禁止】将中文词语替换为英文：「和」不得改为「and」，「或」不得改为「or」，"
+    "「包括」不得改为「include」——所有中文内容必须原样输出，严禁翻译或替换任何词语。"
 )
+
+# Headings that mark editorial summary sections (not subject to quality review)
+_SUMMARY_HEADINGS = frozenset({"更新要点", "诊断要点", "治疗要点"})
+
+# Top-level content framework field headings (7 canonical fields).
+# NOTE: 概述 intentionally excluded — it can also appear as a sub-section
+#       inside 基础知识, making blanket promotion unsafe.
+_LEVEL1_HEADINGS = frozenset({
+    "基础知识", "诊断", "鉴别诊断", "治疗", "控制目标", "预后", "预防",
+})
+
+
+def _is_summary_section(heading: str) -> bool:
+    return any(kw in heading for kw in _SUMMARY_HEADINGS)
+
+
+# 匹配「中文字符 + 空格? + and + 空格? + 中文字符」的模式
+_CJK_AND_CJK_RE = re.compile(
+    r'([\u4e00-\u9fff\uff00-\uffef])\s+and\s+([\u4e00-\u9fff\uff00-\uffef])',
+    re.IGNORECASE,
+)
+
+
+def _fix_cjk_and_replacement(text: str) -> str:
+    """将 Gemini 错误生成的「中文 and 中文」替换回「中文和中文」。"""
+    return _CJK_AND_CJK_RE.sub(r'\1和\2', text)
+
+
+def _fix_section_levels(sections: List[ArticleSection]) -> List[ArticleSection]:
+    """Post-parse normalization: correct known-wrong level assignments.
+
+    Context-aware rules:
+    1. _LEVEL1_HEADINGS: force level=1 ONLY when the section is NOT nested
+       inside a same-named level=1 parent (avoids misidentifying sub-sections
+       like a "诊断" step under the "诊断" field as a new top-level field).
+    2. _SUMMARY_HEADINGS (更新要点/诊断要点/治疗要点): always level=2.
+    3. All others: keep as-is.
+    """
+    last_level1_heading: str = ""
+    for s in sections:
+        if s.heading in _LEVEL1_HEADINGS:
+            if s.level != 1 and last_level1_heading != s.heading:
+                # Misidentified top-level field — correct it
+                s.level = 1
+            if s.level == 1:
+                last_level1_heading = s.heading
+        elif _is_summary_section(s.heading):
+            s.level = 2
+    return sections
 
 
 # ── Word-count helper ──────────────────────────────────────────────────────────
@@ -29,7 +80,9 @@ def count_chinese_words(text: str) -> int:
     - Punctuation and whitespace are not counted.
     """
     # Remove structural markers injected by parse_html_structured
-    clean = re.sub(r"\[H\d\]|\[图片\]|\[表格\]|\[图注\]|\[表格标题\]", "", text)
+    clean = re.sub(r"\[H\d\]|\[图片\]|\[表格\]|\[图注\]|\[表格标题\]|\[图片内容\]", "", text)
+    # Remove reference superscript markers, e.g. ^[2,3] ^[1-5]
+    clean = re.sub(r"\^\[\d[\d,，\-~～至]*\]", "", clean)
     # Remove Markdown table separators
     clean = re.sub(r"\|[-|: ]+\|", "", clean)
     # Remove pipe chars from table rows (but keep the cell content)
@@ -84,8 +137,8 @@ async def _parse_with_ai(text: str) -> ParsedArticle:
     for item in data.get("sections", []):
         if not isinstance(item, dict):
             continue
-        heading = str(item.get("heading", "")).strip()
-        content = str(item.get("content", "")).strip()
+        heading = _fix_cjk_and_replacement(str(item.get("heading", "")).strip())
+        content = _fix_cjk_and_replacement(str(item.get("content", "")).strip())
         level = int(item.get("level", 1))
         image_count = int(item.get("image_count", 0))
         table_count = int(item.get("table_count", 0))
@@ -103,20 +156,30 @@ async def _parse_with_ai(text: str) -> ParsedArticle:
     if not sections:
         raise ValueError("AI returned no sections")
 
-    total_words = sum(s.word_count for s in sections)
+    _fix_section_levels(sections)
+    total_words = sum(s.word_count for s in sections if not _is_summary_section(s.heading))
     return ParsedArticle(sections=sections, total_words=total_words)
 
 
 def _build_structured_prompt(structured_text: str, framework_summary: str) -> str:
     return f"""你收到的词条内容已经过结构化预处理，使用了以下标记格式：
-- [H1] 文章标题
-- [H2] / [H3] 章节标题（来自原始 HTML 的 h2/h3 标签）
+- [H1] 一级字段标题（基础知识/诊断/鉴别诊断/治疗/控制目标/预后/预防等）
+- [H2] 二级子章节标题
+- [H3] 三级子章节标题
 - [图片] 图片说明（例如「图 1 儿童 ADHD 诊治流程」）
-- [表格] 表格说明（例如「表 1 儿童 ADHD 不同年龄段表现」）
+- [图片内容] 紧跟在 [图片] 下方，为该图的视觉内容提取文字（Gemini 视觉分析）
+- [表格] 表格说明（来自 figcaption，例如「表 1 儿童 ADHD 不同年龄段表现」）
+- [表格标题] 表格标题（来自 HTML <caption> 标签，含表格内嵌标题及 ^[N] 引用）
 - Markdown 表格行（|...| 格式）
+- ^[N] 或 ^[N-M] 为参考文献上标角标（如 ^[2,3]、^[1-5]），是引用标注，不属于正文内容
 - 其余文字为正文段落
 
-⚠️ 重要提示：原始 HTML 中 h2 标签同时用于「一级字段」（如「基础知识」「诊断」「治疗」）和「二级子段」（如「定义」「临床表现」「药物治疗」），请结合内容框架判断正确的 level 值。
+⚠️ 内容复制要求（最高优先级）：
+- content 字段必须**原文逐字复制**，严禁总结、改写、翻译或替换任何词语
+- 中文词语不得替换为英文（如"和"不得改为"and"，"包括"不得改为"include"）
+- **严禁纠正原文任何错误**：错别字、拼写错误、医学术语错误（如"ADHA"即使疑似有误也须原样保留，不得自行改为"ADHD"）——发现并保留这些错误正是后续审核环节的职责
+- ^[N] 参考文献角标原样保留，不得删除或移动
+- **Markdown 表格须完整保留**：原文中的 `| col | col |` 表格行及其分隔行 `|---|---|` 须**原封不动**复制到 content 中，不得重新排列、合并、删减任何行或列
 
 ## 词条内容框架（参考标准）
 
@@ -135,14 +198,15 @@ def _build_structured_prompt(structured_text: str, framework_summary: str) -> st
 1. 一级字段（基础知识/诊断/鉴别诊断/治疗/控制目标/预后/预防）→ level=1
 2. 框架中一级字段的子级 → level=2
 3. 更细的子项 → level=3
-4. [H1] 标题行不作为章节输出
+4. [H1] 标题行 → level=1 章节，直接输出（不跳过）
 5. 若词条开头有无标题的引言段落，作为「概述」章节，level=1
-6. content 字段：填写该章节**直属**的正文内容（不含子章节内容）；保留 [图片] 和 [表格] 标记
+6. content 字段：**原文逐字复制**该章节直属的正文内容（不含子章节内容）；保留 [图片]、[表格]、[表格标题]、[图片内容] 标记及 ^[N] 角标，不得修改、删除或翻译任何词语
 7. image_count：该章节 content 中 [图片] 标记的数量
-8. table_count：该章节 content 中 [表格] 标记的数量
+8. table_count：该章节 content 中 [表格] 或 [表格标题] 标记的数量（二者均计入）
 9. 忽略纯导航性文字（「点击查看」「跳转至」等）
 10. 治疗字段的子级标题应为具体治疗类型（如"药物治疗""手术治疗"），不能以"治疗"作为子级标题
 11. 参考文献及其后内容不作为章节输出
+12. 「更新要点」「诊断要点」「治疗要点」是编辑摘要章节，level=2，作为独立章节正常输出（不嵌套、不合并、不跳过）
 
 请以 JSON 格式输出：
 {{
@@ -175,16 +239,24 @@ def _build_plain_prompt(text: str, framework_summary: str) -> str:
 
 ---
 
+⚠️ 内容复制要求（最高优先级）：
+- content 字段必须**原文逐字复制**，严禁总结、改写、翻译或替换任何词语
+- 中文词语不得替换为英文（如"和"不得改为"and"，"包括"不得改为"include"）
+- **严禁纠正原文任何错误**：错别字、拼写错误、医学术语错误（如"ADHA"即使疑似有误也须原样保留，不得自行改为"ADHD"）——发现并保留这些错误正是后续审核环节的职责
+- ^[N] 参考文献角标原样保留，不得删除或移动
+- **Markdown 表格须完整保留**：原文中的 `| col | col |` 表格行及其分隔行 `|---|---|` 须**原封不动**复制到 content 中，不得重新排列、合并、删减任何行或列
+
 ## 解析规则
 
 1. 参照框架要求中的「字段」和「子级内容」识别章节层级：
    一级字段（基础知识/诊断/鉴别诊断/治疗/控制目标/预后/预防）→ level=1，其下子级 → level=2，更细子项 → level=3
 2. 如果词条标题与框架略有不同（如「临床特征」对应「临床表现」），按实际标题记录，但按框架逻辑判断 level
 3. 忽略导航性文字（「点击查看」「跳转至」等）
-4. content 字段填写该章节直属的正文内容（不含子章节内容）
+4. content 字段**原文逐字复制**该章节直属的正文内容（不含子章节内容），保留 ^[N] 角标
 5. 若词条开头有无标题的引言段落，作为「概述」章节，level=1
 6. 参考文献及其后内容不作为章节输出
 7. image_count / table_count 统计该章节内的图片和表格数量
+8. 文中 ^[N] 或 ^[N-M] 为参考文献上标角标（如 ^[2,3]、^[1-5]），属于引用标注，不属于正文内容，解析时忽略
 
 请以 JSON 格式输出：
 {{
@@ -352,7 +424,7 @@ def _parse_structured_markers(text: str) -> ParsedArticle:
             return
         content = "\n".join(current_lines).strip()
         image_count = len(re.findall(r"\[图片\]", content))
-        table_count = len(re.findall(r"\[表格\]", content))
+        table_count = len(re.findall(r"\[表格\]|\[表格标题\]", content))
         sections.append(ArticleSection(
             heading=current_heading,
             content=content,
@@ -367,21 +439,16 @@ def _parse_structured_markers(text: str) -> ParsedArticle:
         if m:
             level = int(m.group(1))
             heading_text = m.group(2).strip()
-            if level == 1:
-                # Article title — skip as heading but flush previous
-                flush()
-                current_heading = None
-                current_lines = []
-                continue
             flush()
             current_heading = heading_text
-            current_level = min(3, level - 1)  # H2→1, H3→2, H4→3
+            current_level = min(3, level)    # H1→1, H2→2, H3→3
             current_lines = []
         else:
             current_lines.append(line)
 
     flush()
-    total_words = sum(s.word_count for s in sections)
+    _fix_section_levels(sections)
+    total_words = sum(s.word_count for s in sections if not _is_summary_section(s.heading))
     return ParsedArticle(sections=sections, total_words=total_words)
 
 
@@ -412,6 +479,7 @@ def _parse_markdown(text: str) -> ParsedArticle:
             current_lines.append(line)
 
     flush()
+    _fix_section_levels(sections)
     return ParsedArticle(sections=sections, total_words=sum(s.word_count for s in sections))
 
 
@@ -438,4 +506,5 @@ def _parse_html_fallback(text: str) -> ParsedArticle:
             word_count=count_chinese_words(content), level=level,
         ))
 
+    _fix_section_levels(sections)
     return ParsedArticle(sections=sections, total_words=sum(s.word_count for s in sections))

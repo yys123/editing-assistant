@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react'
 import { ParsedArticle } from '../types'
 import { isSummarySection } from './StepSectionAnalysis'
+import { apiFetch } from '../api'
 
 interface Props {
   articleContent: string
   parsedArticle: ParsedArticle | null
   setParsedArticle: (a: ParsedArticle) => void
-  onNext: () => void
   onBack: () => void
 }
 
-export default function StepSectionPreview({ articleContent, parsedArticle, setParsedArticle, onNext, onBack }: Props) {
+export default function StepSectionPreview({ articleContent, parsedArticle, setParsedArticle, onBack }: Props) {
   const [loading, setLoading] = useState(!parsedArticle)
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -19,7 +19,7 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/article/parse-sections', {
+      const res = await apiFetch('/api/article/parse-sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ article_content: articleContent }),
@@ -47,38 +47,58 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
     })
 
   if (loading) return (
-    <div className="loading">
-      <div className="spinner" />
-      <div>正在解析词条内容结构...</div>
+    <div className="section-card" style={{ textAlign: 'center', padding: 48 }}>
+      <div className="spinner" style={{ margin: '0 auto 12px' }} />
+      <div style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>正在解析词条内容结构...</div>
     </div>
   )
 
   if (error) return (
-    <div className="card">
-      <div className="alert alert-error">{error}</div>
-      <div className="flex gap-2">
-        <button className="btn btn-outline" onClick={onBack}>← 返回</button>
-        <button className="btn btn-primary" onClick={parse}>重试</button>
+    <div className="section-card">
+      <div style={{ padding: '12px 16px', background: 'var(--m3-error-container)', color: 'var(--m3-error)', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>error</span>
+        {error}
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button className="btn-m3-outline" onClick={onBack}>
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_back</span>
+          返回
+        </button>
+        <button className="btn-gradient" onClick={parse}>重试</button>
       </div>
     </div>
   )
 
   if (!parsedArticle) return null
 
-  const levelColor: Record<number, string> = { 1: 'var(--blue)', 2: 'var(--orange)', 3: 'var(--gray-500)' }
+  const levelColor: Record<number, string> = { 1: 'var(--m3-primary)', 2: '#e65100', 3: 'var(--m3-on-surface-variant)' }
   const levelLabel: Record<number, string> = { 1: 'H1', 2: 'H2', 3: 'H3' }
 
   return (
     <div>
-      <div className="card">
-        <div className="card-title">
-          <span className="icon" style={{ background: '#f0fdf4' }}>📑</span>
-          内容解析结果
-          <span className="tag">{parsedArticle.sections.length} 个章节</span>
-          <span className="tag text-muted">共 {parsedArticle.total_words} 字</span>
+      {/* Page header */}
+      <div style={{ marginBottom: 24 }}>
+        <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 700, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
+          内容解析
+        </h2>
+        <p style={{ fontSize: 14, color: 'var(--m3-on-surface-variant)' }}>
+          AI 自动解析词条结构，确认章节划分后进入质量审评
+        </p>
+      </div>
+
+      <div className="section-card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--m3-primary)' }}>account_tree</span>
+          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--m3-on-surface)' }}>解析结果</span>
+          <span style={{ fontSize: 11, padding: '2px 10px', borderRadius: 999, background: 'rgba(0,84,205,0.08)', color: 'var(--m3-primary)', fontWeight: 600 }}>
+            {parsedArticle.sections.length} 个章节
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>
+            共 {parsedArticle.total_words} 字
+          </span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
             <button
-              className="btn btn-outline btn-sm"
+              className="btn-m3-outline" style={{ fontSize: 12, padding: '4px 12px' }}
               onClick={() => {
                 const nonEmpty = parsedArticle.sections.filter(s => s.content.trim())
                 setExpanded(new Set(nonEmpty.map(s => s.id)))
@@ -87,16 +107,21 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
               展开全部
             </button>
             <button
-              className="btn btn-outline btn-sm"
+              className="btn-m3-outline" style={{ fontSize: 12, padding: '4px 12px' }}
               onClick={() => setExpanded(new Set())}
             >
               收起全部
             </button>
+            <button className="btn-m3-outline" style={{ fontSize: 12, padding: '4px 12px' }} onClick={parse}>
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>refresh</span>
+              重新解析
+            </button>
           </div>
         </div>
 
-        <div className="alert alert-info" style={{ marginBottom: 16 }}>
-          以下为词条自动解析的内容结构，点击章节标题可展开查看原始内容。确认无误后点击「确认内容 · 开始分析」。
+        <div style={{ padding: '12px 16px', background: 'rgba(0,84,205,0.04)', borderRadius: 8, marginBottom: 16, fontSize: 13, color: 'var(--m3-on-surface-variant)', lineHeight: 1.7 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6, color: 'var(--m3-primary)' }}>info</span>
+          点击章节标题可展开查看原始内容。确认无误后点击「确认内容 · 开始分析」。
           若章节拆分有误，可返回调整原文格式（建议使用 Markdown 标题 ## / ###）。
           <br />
           <span style={{ fontSize: 12 }}>
@@ -112,80 +137,67 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
             const indent = (sec.level - 1) * 20
 
             return (
-              <div key={sec.id} style={{
-                borderRadius: 4,
-                border: '1px solid transparent',
-                transition: 'background 0.1s',
-              }}>
-                {/* Header row */}
+              <div key={sec.id} style={{ borderRadius: 6, transition: 'background 0.1s' }}>
                 <div
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '7px 10px',
-                    paddingLeft: 10 + indent,
+                    padding: '8px 12px',
+                    paddingLeft: 12 + indent,
                     cursor: isEmpty ? 'default' : 'pointer',
-                    borderRadius: 4,
-                    background: isOpen ? 'var(--blue-light)' : 'transparent',
+                    borderRadius: 6,
+                    background: isOpen ? 'rgba(0,84,205,0.04)' : 'transparent',
                   }}
                   onClick={() => !isEmpty && toggle(sec.id)}
                 >
-                  {/* Level badge */}
                   <span style={{
-                    fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+                    fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
                     flexShrink: 0,
-                    background: `${levelColor[sec.level] ?? 'var(--gray-400)'}22`,
-                    color: levelColor[sec.level] ?? 'var(--gray-500)',
+                    background: `${levelColor[sec.level] ?? 'var(--m3-on-surface-variant)'}15`,
+                    color: levelColor[sec.level] ?? 'var(--m3-on-surface-variant)',
                   }}>
                     {levelLabel[sec.level] ?? `H${sec.level}`}
                   </span>
 
-                  {/* Heading */}
                   <span style={{
                     fontWeight: sec.level === 1 ? 700 : sec.level === 2 ? 600 : 500,
                     fontSize: sec.level === 1 ? 14 : 13,
-                    color: 'var(--gray-900)',
+                    color: 'var(--m3-on-surface)',
                     flex: 1,
                   }}>
                     {sec.heading}
                   </span>
 
-                  {/* Summary badge */}
                   {isSummary && (
                     <span style={{
-                      fontSize: 10, padding: '1px 6px', borderRadius: 3,
-                      background: 'var(--gray-100)', color: 'var(--gray-500)', flexShrink: 0,
+                      fontSize: 10, padding: '2px 8px', borderRadius: 999,
+                      background: 'var(--m3-surface-container-low)', color: 'var(--m3-on-surface-variant)', flexShrink: 0,
                     }}>
-                      概要参考·不独立分析
+                      概要参考
                     </span>
                   )}
 
-                  {/* Word count — only if non-empty */}
                   {!isEmpty && (
-                    <span style={{ fontSize: 11, color: 'var(--gray-400)', flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)', flexShrink: 0 }}>
                       {sec.word_count} 字
                     </span>
                   )}
 
-                  {/* Expand toggle — only if has content */}
                   {!isEmpty && (
-                    <span style={{ fontSize: 11, color: 'var(--gray-400)', flexShrink: 0 }}>
-                      {isOpen ? '▲' : '▼'}
-                    </span>
+                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-on-surface-variant)', flexShrink: 0, transition: 'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'none' }}>expand_more</span>
                   )}
                 </div>
 
-                {/* Expanded content */}
                 {isOpen && !isEmpty && (
                   <div style={{
-                    marginLeft: 10 + indent + 28,
-                    marginRight: 10,
+                    marginLeft: 12 + indent + 28,
+                    marginRight: 12,
                     marginBottom: 8,
-                    padding: '10px 14px',
-                    background: 'var(--gray-50)',
-                    border: '1px solid var(--gray-200)',
-                    borderRadius: 4,
+                    padding: '12px 16px',
+                    background: 'var(--m3-surface-container-low)',
+                    border: '1px solid var(--m3-outline-variant)',
+                    borderRadius: 8,
                     fontSize: 12,
-                    color: 'var(--gray-700)',
+                    color: 'var(--m3-on-surface)',
                     lineHeight: 1.8,
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-all',
@@ -201,15 +213,6 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
         </div>
       </div>
 
-      <div className="flex justify-between items-center mt-4">
-        <button className="btn btn-outline" onClick={onBack}>← 返回修改</button>
-        <div className="flex gap-2">
-          <button className="btn btn-outline btn-sm" onClick={parse}>重新解析</button>
-          <button className="btn btn-primary" onClick={onNext}>
-            确认内容 · 开始分析 →
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

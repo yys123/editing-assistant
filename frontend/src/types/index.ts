@@ -143,6 +143,7 @@ export interface SectionAnalysis {
   section_id: string
   section_heading: string
   issues: SectionIssue[]
+  verification_summary?: string
 }
 
 export interface NeedSectionMapping {
@@ -185,12 +186,40 @@ export interface ReferenceDoc {
   char_count: number
 }
 
+export interface RefEvalItemResult {
+  filename: string
+  authority_rating: string
+  authority_note: string
+  evidence_level: string
+  evidence_note: string
+  timeliness_rating: string
+  timeliness_note: string
+  overall_recommendation: string
+  summary: string
+}
+
+export interface RefEvalResult {
+  item_evaluations: RefEvalItemResult[]
+  comprehensiveness: string
+  localization: string
+  overall_assessment: string
+  coverage_gaps: string[]
+  suggestions: string[]
+}
+
 export interface StandardsOverride {
   qualityText?: string
   specText?: string
+  refEvalText?: string
 }
 
-export type Step = 1 | 2 | 3 | 4 | 5 | 6
+export type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7
+
+export interface User {
+  id: string
+  email: string
+  display_name: string
+}
 
 export interface SessionRecord {
   id: string
@@ -199,6 +228,7 @@ export interface SessionRecord {
   articleSnippet: string
   articleContent?: string
   qaCount: number
+  qaItems?: QAItem[]
   currentStep?: Step
   // New fields
   parsedArticle?: ParsedArticle | null
@@ -206,7 +236,11 @@ export interface SessionRecord {
   gapAnalysis?: GapAnalysis | null
   gapItems?: GapItem[]
   referenceDocs?: ReferenceDoc[]
+  refEvalResult?: RefEvalResult | null
   draftHistory: DraftRecord[]
   // Legacy field
   plan?: IterationPlan | null
+  // Ownership
+  owner_id?: string
+  owner_email?: string
 }

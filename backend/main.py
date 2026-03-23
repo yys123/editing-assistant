@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
-from routers import article, qa, analyze, generate, history, standards
+from routers import article, qa, analyze, generate, history, standards, auth
 import db
 
 app = FastAPI(title="Editing Assistant API", version="1.0.0")
@@ -17,6 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(article.router)
 app.include_router(qa.router)
 app.include_router(analyze.router)

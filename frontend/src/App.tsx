@@ -1,26 +1,125 @@
 import { useState, useEffect, useRef } from 'react'
 import StepUpload from './components/StepUpload'
+import StepRefReview from './components/StepRefReview'
 import StepSectionPreview from './components/StepSectionPreview'
 import StepSectionAnalysis from './components/StepSectionAnalysis'
 import StepGapAnalysis from './components/StepGapAnalysis'
 import StepPlanReview from './components/StepPlanReview'
 import StepGenerate from './components/StepGenerate'
 import HistoryView from './components/HistoryView'
+import AuthPage from './components/AuthPage'
+import { AuthProvider, useAuth } from './AuthContext'
+import { apiFetch } from './api'
 import {
   QAItem, DraftRecord, SessionRecord,
-  ParsedArticle, SectionAnalysis, GapAnalysis, GapItem, ReferenceDoc, StandardsOverride, Step,
+  ParsedArticle, SectionAnalysis, GapAnalysis, GapItem, ReferenceDoc, RefEvalResult, StandardsOverride, Step,
 } from './types'
 
 const STEP_LABELS: Record<Step, string> = {
   1: '上传数据',
-  2: '内容解析',
-  3: '内容质量审评',
-  4: '用户需求分析',
-  5: '审核与迭代计划',
-  6: '生成稿件',
+  2: '参考文献审核',
+  3: '内容解析',
+  4: '内容质量审评',
+  5: '用户需求分析',
+  6: '审核与迭代计划',
+  7: '生成稿件',
 }
 
-export default function App() {
+const STEP_ICONS: Record<Step, string> = {
+  1: 'cloud_upload',
+  2: 'library_books',
+  3: 'psychology',
+  4: 'fact_check',
+  5: 'group',
+  6: 'edit_note',
+  7: 'auto_awesome',
+}
+
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (next !== confirm) { setError('两次输入的新密码不一致'); return }
+    if (next.length < 6) { setError('新密码长度不能少于6位'); return }
+    setLoading(true)
+    try {
+      const r = await apiFetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_password: current, new_password: next }),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.detail || '修改失败')
+      setSuccess(true)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--m3-on-surface)', margin: 0 }}>修改密码</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--m3-on-surface-variant)' }}>close</span>
+          </button>
+        </div>
+        {success ? (
+          <>
+            <div style={{ padding: '12px 16px', background: 'var(--m3-tertiary-container)', color: 'var(--m3-tertiary)', borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 18, verticalAlign: -4, marginRight: 6 }}>check_circle</span>
+              密码修改成功
+            </div>
+            <button className="btn-gradient" style={{ width: '100%', justifyContent: 'center' }} onClick={onClose}>关闭</button>
+          </>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>当前密码</label>
+              <input className="m3-input" type="password" value={current} onChange={e => setCurrent(e.target.value)} required />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>新密码</label>
+              <input className="m3-input" type="password" placeholder="至少6位" value={next} onChange={e => setNext(e.target.value)} required />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>确认新密码</label>
+              <input className="m3-input" type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required />
+            </div>
+            {error && (
+              <div style={{ padding: '10px 14px', background: 'var(--m3-error-container)', color: 'var(--m3-error)', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>error</span>
+                {error}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="button" className="btn-m3-outline" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>取消</button>
+              <button type="submit" className="btn-gradient" style={{ flex: 1, justifyContent: 'center' }} disabled={loading}>
+                {loading && <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />}
+                确认修改
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AppContent() {
+  const { user, loading: authLoading, logout } = useAuth()
+  const [showChangePwd, setShowChangePwd] = useState(false)
+
   // Capture URL session param immediately at render time, before any effect can modify the URL
   const initialUrlSession = useRef(new URLSearchParams(window.location.search).get('session'))
 
@@ -31,44 +130,51 @@ export default function App() {
   const [disease, setDisease] = useState('')
   const [articleContent, setArticleContent] = useState('')
   const [qaItems, setQaItems] = useState<QAItem[]>([])
-  // qaCount is stored separately so it survives session resume (qaItems is reset to [] on resume)
   const [qaCount, setQaCount] = useState(0)
   const [referenceDocs, setReferenceDocs] = useState<ReferenceDoc[]>([])
   const [standardsOverride, setStandardsOverride] = useState<StandardsOverride>({})
 
   // Step 2
-  const [parsedArticle, setParsedArticle] = useState<ParsedArticle | null>(null)
+  const [refEvalResult, setRefEvalResult] = useState<RefEvalResult | null>(null)
 
   // Step 3
-  const [sectionAnalyses, setSectionAnalyses] = useState<SectionAnalysis[]>([])
+  const [parsedArticle, setParsedArticle] = useState<ParsedArticle | null>(null)
 
   // Step 4
-  const [gapAnalysis, setGapAnalysis] = useState<GapAnalysis | null>(null)
+  const [sectionAnalyses, setSectionAnalyses] = useState<SectionAnalysis[]>([])
 
   // Step 5
-  const [gapItems, setGapItems] = useState<GapItem[]>([])
+  const [gapAnalysis, setGapAnalysis] = useState<GapAnalysis | null>(null)
 
   // Step 6
+  const [gapItems, setGapItems] = useState<GapItem[]>([])
+
+  // Step 7
   const [selectedGap, setSelectedGap] = useState<GapItem | null>(null)
   const [draftHistory, setDraftHistory] = useState<DraftRecord[]>([])
 
   // Session tracking
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [sessionOwnerId, setSessionOwnerId] = useState<string | null>(null)
   const [allSessions, setAllSessions] = useState<SessionRecord[]>([])
   const [sessionsLoaded, setSessionsLoaded] = useState(false)
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Whether current session is read-only (belongs to another user)
+  const readOnly = !!(sessionOwnerId && user && sessionOwnerId !== user.id)
+
   // ── Load history ────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch('/api/history')
+    if (!user) return
+    apiFetch('/api/history')
       .then(r => r.json())
       .then((data: SessionRecord[]) => {
         setAllSessions(Array.isArray(data) ? data : [])
         setSessionsLoaded(true)
       })
       .catch(() => setSessionsLoaded(true))
-  }, [])
+  }, [user])
 
   // ── URL session restore: after sessions loaded, use the captured initial param
   useEffect(() => {
@@ -101,7 +207,8 @@ export default function App() {
 
   // ── Auto-save (debounced) ────────────────────────────────────────────────────
   useEffect(() => {
-    const hasProgress = parsedArticle || sectionAnalyses.length > 0 || gapAnalysis || draftHistory.length > 0
+    if (readOnly) return  // Don't save others' sessions
+    const hasProgress = refEvalResult || parsedArticle || sectionAnalyses.length > 0 || gapAnalysis || draftHistory.length > 0
     if (!sessionId || !hasProgress) return
 
     const record: SessionRecord = {
@@ -111,12 +218,14 @@ export default function App() {
       articleSnippet: articleContent.slice(0, 150),
       articleContent,
       qaCount: qaItems.length > 0 ? qaItems.length : qaCount,
+      qaItems,
       currentStep: step,
       parsedArticle,
       sectionAnalyses,
       gapAnalysis,
       gapItems,
       referenceDocs,
+      refEvalResult,
       draftHistory,
       plan: null,
     }
@@ -128,13 +237,32 @@ export default function App() {
 
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
-      fetch(`/api/history/${sessionId}`, {
+      apiFetch(`/api/history/${sessionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(record),
       }).catch(() => {})
     }, 1500)
-  }, [parsedArticle, sectionAnalyses, gapAnalysis, gapItems, draftHistory, step])
+  }, [refEvalResult, parsedArticle, sectionAnalyses, gapAnalysis, gapItems, draftHistory, qaItems, step])
+
+  // ── Article content helpers ──────────────────────────────────────────────────
+  const handleSetArticleContent = (content: string) => {
+    setArticleContent(content)
+    // Invalidate downstream caches when content actually changes
+    if (content !== articleContent) {
+      setParsedArticle(null)
+      setSectionAnalyses([])
+      setGapAnalysis(null)
+      setGapItems([])
+    }
+  }
+
+  // ── Reference docs change handler ──────────────────────────────────────────
+  const handleSetReferenceDocs = (docs: ReferenceDoc[]) => {
+    setReferenceDocs(docs)
+    // Invalidate ref eval when docs change
+    setRefEvalResult(null)
+  }
 
   // ── QA helpers ───────────────────────────────────────────────────────────────
   const handleSetQaItems = (items: QAItem[]) => {
@@ -164,12 +292,14 @@ export default function App() {
 
   const startNewTask = () => {
     setSessionId(null)
+    setSessionOwnerId(null)
     setDisease('')
     setArticleContent('')
     setQaItems([])
     setQaCount(0)
     setReferenceDocs([])
     setStandardsOverride({})
+    setRefEvalResult(null)
     setParsedArticle(null)
     setSectionAnalyses([])
     setGapAnalysis(null)
@@ -182,39 +312,46 @@ export default function App() {
 
   const deleteSession = (id: string) => {
     setAllSessions(prev => prev.filter(s => s.id !== id))
-    fetch(`/api/history/${id}`, { method: 'DELETE' }).catch(() => {})
+    apiFetch(`/api/history/${id}`, { method: 'DELETE' }).catch(() => {})
   }
 
   const resumeSession = (session: SessionRecord) => {
     setSessionId(session.id)
+    setSessionOwnerId(session.owner_id ?? null)
     setDisease(session.disease)
     setArticleContent(session.articleContent ?? '')
-    setQaItems([])
+    setQaItems(session.qaItems ?? [])
     setQaCount(session.qaCount)
     setReferenceDocs(session.referenceDocs ?? [])
     setStandardsOverride({})
+    setRefEvalResult(session.refEvalResult ?? null)
     setParsedArticle(session.parsedArticle ?? null)
     setSectionAnalyses(session.sectionAnalyses ?? [])
     setGapAnalysis(session.gapAnalysis ?? null)
     setGapItems(session.gapItems ?? [])
     setSelectedGap(null)
     setDraftHistory(session.draftHistory ?? [])
-    // Remap old 7-step session step numbers to new 6-step numbering
+    // Remap old step numbers to new 7-step numbering
     const remapStep = (s: number): Step => {
-      if (s <= 5) return s as Step  // steps 1-5: old expert review (5) maps to new merged step 5
-      if (s === 6) return 5         // old '迭代计划' → new merged '审核与迭代计划'
-      if (s === 7) return 6         // old '生成稿件' → new step 6
-      return 1
+      // Old 6-step: 1=上传, 2=解析, 3=质量, 4=需求, 5=计划, 6=生成
+      // New 7-step: 1=上传, 2=文献审核, 3=解析, 4=质量, 5=需求, 6=计划, 7=生成
+      if (s <= 1) return 1
+      // Old steps 2-6 map to new steps 3-7
+      return Math.min(s + 1, 7) as Step
     }
     // Determine a safe step to resume at based on available data
     let maxSafeStep: Step = 1
     if (session.articleContent) maxSafeStep = 2
-    if (session.parsedArticle) maxSafeStep = 3
-    if (session.sectionAnalyses?.length) maxSafeStep = 4
-    if (session.gapAnalysis) maxSafeStep = 5
-    if (session.draftHistory?.length) maxSafeStep = 6
-    const rawTarget = session.currentStep ?? (session.plan ? 6 : 1)
-    const target: Step = remapStep(rawTarget)
+    if (session.refEvalResult || (session.referenceDocs && session.referenceDocs.length === 0)) maxSafeStep = 3
+    if (session.parsedArticle) maxSafeStep = 4
+    if (session.sectionAnalyses?.length) maxSafeStep = 5
+    if (session.gapAnalysis) maxSafeStep = 6
+    if (session.draftHistory?.length) maxSafeStep = 7
+    const rawTarget = session.currentStep ?? (session.plan ? 7 : 1)
+    // If session was saved with old 6-step numbering (max 6 and no refEvalResult field),
+    // remap; otherwise use as-is
+    const isOldFormat = rawTarget <= 6 && !('refEvalResult' in session)
+    const target: Step = isOldFormat ? remapStep(rawTarget) : (rawTarget as Step)
     const resumeStep: Step = (Math.min(target, maxSafeStep) as Step)
     setStep(resumeStep)
     setAppView('main')
@@ -223,7 +360,7 @@ export default function App() {
   const handlePlanGapSelect = (gap: GapItem) => {
     if (!sessionId) setSessionId(new Date().toISOString())
     setSelectedGap(gap)
-    setStep(6)
+    setStep(7)
   }
 
   const goStep1 = () => {
@@ -233,102 +370,235 @@ export default function App() {
 
   const goStep2 = () => {
     if (!sessionId) setSessionId(new Date().toISOString())
-    setParsedArticle(null)
     setStep(2)
   }
 
   const goStep3 = () => {
-    setSectionAnalyses([])
+    if (!sessionId) setSessionId(new Date().toISOString())
     setStep(3)
+  }
+
+  const goStep4 = () => {
+    setSectionAnalyses([])
+    setStep(4)
   }
 
   // ── Step nav canClick logic ──────────────────────────────────────────────────
   const canClick = (s: Step): boolean => {
     if (s === 1) return true
     if (s === 2) return !!(disease && articleContent)
-    if (s === 3) return !!parsedArticle
-    if (s === 4) return sectionAnalyses.length > 0
-    if (s === 5) return !!gapAnalysis
-    if (s === 6) return draftHistory.length > 0
+    if (s === 3) return !!(disease && articleContent)
+    if (s === 4) return !!parsedArticle
+    if (s === 5) return sectionAnalyses.length > 0
+    if (s === 6) return !!gapAnalysis
+    if (s === 7) return draftHistory.length > 0
     return false
+  }
+
+  // ── Footer nav config per step ───────────────────────────────────────────────
+  type FooterConfig = {
+    backLabel: string | null
+    backAction: (() => void) | null
+    nextLabel: string | null
+    nextAction: (() => void) | null
+    extraLeft?: React.ReactNode
+    extraRight?: React.ReactNode
+  }
+
+  const getFooterConfig = (): FooterConfig => {
+    switch (step) {
+      case 1:
+        return {
+          backLabel: null, backAction: null,
+          nextLabel: canClick(2) ? '下一步' : null,
+          nextAction: canClick(2) ? goStep2 : null,
+        }
+      case 2:
+        return {
+          backLabel: '返回上传', backAction: () => setStep(1),
+          nextLabel: canClick(3) ? '继续下一步' : null,
+          nextAction: canClick(3) ? goStep3 : null,
+        }
+      case 3:
+        return {
+          backLabel: '返回修改', backAction: () => setStep(2),
+          nextLabel: canClick(4) ? '确认内容 · 开始分析' : null,
+          nextAction: canClick(4) ? goStep4 : null,
+        }
+      case 4:
+        return {
+          backLabel: '返回内容解析', backAction: () => setStep(3),
+          nextLabel: canClick(5) ? '下一步：用户需求分析' : null,
+          nextAction: canClick(5) ? () => setStep(5) : null,
+        }
+      case 5:
+        return {
+          backLabel: '返回质量审评', backAction: () => setStep(4),
+          nextLabel: canClick(6) ? '下一步：审核与迭代计划' : null,
+          nextAction: canClick(6) ? () => setStep(6) : null,
+        }
+      case 6:
+        return {
+          backLabel: '返回需求分析', backAction: () => setStep(5),
+          nextLabel: draftHistory.length > 0 ? '开始生成内容' : null,
+          nextAction: draftHistory.length > 0 ? () => handlePlanGapSelect(draftHistory[draftHistory.length - 1].gap) : null,
+          extraRight: (
+            <span style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)' }}>
+              {draftHistory.length > 0
+                ? `已生成 ${draftHistory.length} / ${gapItems.length} 条稿件`
+                : '点击各条目的「生成」按钮开始生成稿件'}
+            </span>
+          ),
+        }
+      case 7:
+        return {
+          backLabel: '返回迭代计划', backAction: () => setStep(6),
+          nextLabel: null, nextAction: null,
+        }
+      default:
+        return { backLabel: null, backAction: null, nextLabel: null, nextAction: null }
+    }
   }
 
   const steps = Object.entries(STEP_LABELS).map(([k, label]) => ({
     key: parseInt(k) as Step,
     label,
+    icon: STEP_ICONS[parseInt(k) as Step],
   }))
+
+  if (authLoading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="spinner" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <AuthPage />
+  }
+
+  const isHistoryView = appView === 'history'
 
   return (
     <div className="app">
-      <div className="header">
-        <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
-          ✏️
+      {showChangePwd && <ChangePasswordModal onClose={() => setShowChangePwd(false)} />}
+
+      {/* ── Fixed Header ── */}
+      <header className="app-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 26, color: 'var(--m3-primary)', fontVariationSettings: "'FILL' 1" }}>edit_note</span>
+          <span className="font-headline" style={{ fontSize: 18, fontWeight: 700, color: 'var(--m3-primary)' }}>DXY</span>
+          <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', borderLeft: '1px solid var(--m3-outline-variant)', paddingLeft: 12, marginLeft: 4 }}>
+            医学知识库编辑助手
+          </span>
+          {readOnly && (
+            <span className="btn-m3-pill" style={{ background: '#fff3e0', color: '#e65100', fontSize: 11, cursor: 'default' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>visibility</span>
+              只读模式
+            </span>
+          )}
         </div>
-        <h1>Editing Assistant</h1>
-        <span className="header-badge">医学知识库编辑助手</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <button className="btn btn-outline btn-sm" onClick={startNewTask}>
-            + 新建任务
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button className="btn-m3-icon-label" onClick={startNewTask}>
+            <span className="material-symbols-outlined">add</span>
+            <span>新建任务</span>
           </button>
           <button
-            className={`btn btn-sm ${appView === 'history' ? 'btn-primary' : 'btn-outline'}`}
+            className={`btn-m3-icon-label ${isHistoryView ? 'active' : ''}`}
             onClick={() => setAppView(v => v === 'history' ? 'main' : 'history')}
           >
-            历史记录
+            <span className="material-symbols-outlined">history</span>
+            <span>历史记录</span>
             {allSessions.length > 0 && (
-              <span style={{ background: appView === 'history' ? 'rgba(255,255,255,0.3)' : 'var(--blue)', color: 'white', borderRadius: 999, padding: '0 5px', fontSize: 10, marginLeft: 2 }}>
-                {allSessions.length}
-              </span>
+              <span className="btn-m3-icon-label-count">{allSessions.length}</span>
             )}
           </button>
+          <button className="btn-m3-icon-label" onClick={() => setShowChangePwd(true)}>
+            <span className="material-symbols-outlined">lock_reset</span>
+            <span>修改密码</span>
+          </button>
+          <button className="btn-m3-icon-label" onClick={logout}>
+            <span className="material-symbols-outlined">logout</span>
+            <span>退出</span>
+          </button>
+          <span style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)', marginLeft: 4 }}>{user.display_name || user.email}</span>
         </div>
-      </div>
+      </header>
 
-      {appView === 'history' ? (
-        <HistoryView
-          sessions={allSessions}
-          loading={!sessionsLoaded}
-          onClose={() => setAppView('main')}
-          onDelete={deleteSession}
-          onResume={resumeSession}
-        />
-      ) : (
-        <div className="main">
-          {/* 7-step progress bar */}
-          <div className="steps" style={{ flexWrap: 'wrap', rowGap: 4 }}>
-            {steps.map(s => (
-              <button
-                key={s.key}
-                className={`step-btn ${step === s.key ? 'active' : ''} ${
-                  s.key < step ? 'done' : ''
-                }`}
-                onClick={() => canClick(s.key) && setStep(s.key)}
-                disabled={!canClick(s.key)}
-                title={!canClick(s.key) ? '请先完成前置步骤' : undefined}
-              >
-                <span className="step-num">
-                  {s.key < step ? '✓' : s.key}
-                </span>
-                {s.label}
-                {s.key === 6 && draftHistory.length > 0 && (
-                  <span style={{ background: 'rgba(255,255,255,0.3)', borderRadius: 999, padding: '0 6px', fontSize: 11, marginLeft: 2 }}>
-                    {draftHistory.length}
-                  </span>
-                )}
-              </button>
-            ))}
+      {/* ── Left Sidebar (hidden in history view) ── */}
+      {!isHistoryView && (
+        <nav className="app-sidebar">
+          <div style={{ padding: '20px 20px 12px' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--m3-on-surface)' }}>任务进度</div>
+            <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>7步临床工作流</div>
           </div>
+          <div style={{ padding: '0 12px' }}>
+            {steps.map(s => {
+              const isActive = step === s.key
+              const isDone = s.key < step
+              const isDisabled = !canClick(s.key)
+              let cls = 'sidebar-nav-item'
+              if (isActive) cls += ' active'
+              else if (isDone) cls += ' done'
+              else if (isDisabled) cls += ' disabled'
+              return (
+                <button
+                  key={s.key}
+                  className={cls}
+                  onClick={() => canClick(s.key) && setStep(s.key)}
+                  disabled={isDisabled}
+                  title={isDisabled ? '请先完成前置步骤' : undefined}
+                >
+                  <span className="material-symbols-outlined sidebar-nav-icon">
+                    {isDone ? 'check_circle' : s.icon}
+                  </span>
+                  <span className="sidebar-nav-label">{s.label}</span>
+                  {s.key === 7 && draftHistory.length > 0 && (
+                    <span style={{
+                      marginLeft: 'auto',
+                      background: 'var(--m3-primary)',
+                      color: 'white',
+                      borderRadius: 999,
+                      padding: '0 7px',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      lineHeight: '18px',
+                    }}>
+                      {draftHistory.length}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </nav>
+      )}
 
+      {/* ── Main Content ── */}
+      {isHistoryView ? (
+        <div className="app-main" style={{ marginLeft: 0, maxWidth: '100%' }}>
+          <HistoryView
+            sessions={allSessions}
+            currentUserId={user.id}
+            loading={!sessionsLoaded}
+            onClose={() => setAppView('main')}
+            onDelete={deleteSession}
+            onResume={resumeSession}
+          />
+        </div>
+      ) : (
+        <main className="app-main">
           {step === 1 && (
             <StepUpload
               disease={disease}
               setDisease={setDisease}
               articleContent={articleContent}
-              setArticleContent={setArticleContent}
+              setArticleContent={handleSetArticleContent}
               qaItems={qaItems}
               setQaItems={handleSetQaItems}
               referenceDocs={referenceDocs}
-              setReferenceDocs={setReferenceDocs}
+              setReferenceDocs={handleSetReferenceDocs}
               standardsOverride={standardsOverride}
               setStandardsOverride={setStandardsOverride}
               onNext={goStep2}
@@ -336,16 +606,26 @@ export default function App() {
           )}
 
           {step === 2 && (
-            <StepSectionPreview
-              articleContent={articleContent}
-              parsedArticle={parsedArticle}
-              setParsedArticle={setParsedArticle}
-              onNext={goStep3}
+            <StepRefReview
+              disease={disease}
+              referenceDocs={referenceDocs}
+              refEvalResult={refEvalResult}
+              setRefEvalResult={setRefEvalResult}
+              refEvalStandardOverride={standardsOverride.refEvalText}
               onBack={() => setStep(1)}
             />
           )}
 
-          {step === 3 && parsedArticle && (
+          {step === 3 && (
+            <StepSectionPreview
+              articleContent={articleContent}
+              parsedArticle={parsedArticle}
+              setParsedArticle={setParsedArticle}
+              onBack={() => setStep(2)}
+            />
+          )}
+
+          {step === 4 && parsedArticle && (
             <StepSectionAnalysis
               disease={disease}
               parsedArticle={parsedArticle}
@@ -353,12 +633,10 @@ export default function App() {
               setSectionAnalyses={setSectionAnalyses}
               referenceDocs={referenceDocs}
               standardsOverride={standardsOverride}
-              onNext={() => setStep(4)}
-              onBack={() => setStep(2)}
             />
           )}
 
-          {step === 4 && parsedArticle && (
+          {step === 5 && parsedArticle && (
             <StepGapAnalysis
               disease={disease}
               qaItems={qaItems}
@@ -366,12 +644,11 @@ export default function App() {
               parsedArticle={parsedArticle}
               gapAnalysis={gapAnalysis}
               setGapAnalysis={setGapAnalysis}
-              onNext={() => setStep(5)}
-              onBack={() => setStep(3)}
+              onBack={() => setStep(4)}
             />
           )}
 
-          {step === 5 && gapAnalysis && (
+          {step === 6 && gapAnalysis && (
             <StepPlanReview
               disease={disease}
               parsedArticle={parsedArticle}
@@ -381,25 +658,61 @@ export default function App() {
               setGapItems={setGapItems}
               draftHistory={draftHistory}
               onNext={handlePlanGapSelect}
-              onBack={() => setStep(4)}
+              onBack={() => setStep(5)}
             />
           )}
 
-          {step === 6 && (selectedGap || draftHistory.length > 0) && (
+          {step === 7 && (selectedGap || draftHistory.length > 0) && (
             <StepGenerate
               disease={disease}
               articleContent={articleContent}
+              parsedArticle={parsedArticle}
               qaItems={qaItems}
               referenceDocs={referenceDocs}
               selectedGap={selectedGap}
               draftHistory={draftHistory}
               onAddDraft={addDraftRecord}
               onUpdateDraft={updateDraftRecord}
-              onBack={() => setStep(5)}
+              onBack={() => setStep(6)}
             />
           )}
-        </div>
+        </main>
       )}
+
+      {/* ── Fixed Footer (hidden in history view) ── */}
+      {!isHistoryView && (() => {
+        const fc = getFooterConfig()
+        return (
+          <footer className="app-footer">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {fc.backAction && (
+                <button className="btn-m3-outline" onClick={fc.backAction}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_back</span>
+                  {fc.backLabel}
+                </button>
+              )}
+              {fc.extraLeft}
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              {fc.extraRight}
+              {fc.nextAction && (
+                <button className="btn-gradient" onClick={fc.nextAction}>
+                  {fc.nextLabel}
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_forward</span>
+                </button>
+              )}
+            </div>
+          </footer>
+        )
+      })()}
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }

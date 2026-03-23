@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { QAItem } from '../types'
+import { apiFetch } from '../api'
 
 interface Props {
   disease: string
@@ -29,7 +30,7 @@ export default function StepInput({
     fd.append('file', file)
     setUrlError('')
     try {
-      const res = await fetch('/api/article/upload', { method: 'POST', body: fd })
+      const res = await apiFetch('/api/article/upload', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || '上传失败')
       setArticleContent(data.content)
@@ -44,7 +45,7 @@ export default function StepInput({
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch('/api/qa/upload', { method: 'POST', body: fd })
+      const res = await apiFetch('/api/qa/upload', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || '解析失败')
       setQaItems(data.items)

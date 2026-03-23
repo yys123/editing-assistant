@@ -37,6 +37,7 @@ class SectionAnalysis(BaseModel):
     section_id: str
     section_heading: str
     issues: List[SectionIssue] = []
+    verification_summary: str = ""  # second-pass verification summary
 
 
 class NeedSectionMapping(BaseModel):
@@ -77,6 +78,27 @@ class ReferenceDoc(BaseModel):
     filename: str
     text: str
     char_count: int
+
+
+class RefEvalItemResult(BaseModel):
+    filename: str
+    authority_rating: str = ""      # "高" | "中" | "低"
+    authority_note: str = ""
+    evidence_level: str = ""        # "临床实践指南" | "专家共识" | "权威综述" | "教材" | "其他"
+    evidence_note: str = ""
+    timeliness_rating: str = ""     # "最新" | "较新" | "陈旧"
+    timeliness_note: str = ""
+    overall_recommendation: str = ""  # "强烈推荐" | "推荐" | "可用" | "建议替换"
+    summary: str = ""
+
+
+class RefEvalResult(BaseModel):
+    item_evaluations: List[RefEvalItemResult] = []
+    comprehensiveness: str = ""     # 内容系统性与覆盖面评估
+    localization: str = ""          # 临床适用性与本地化评估
+    overall_assessment: str = ""    # 总体评估
+    coverage_gaps: List[str] = []   # 建议补充的文献类型
+    suggestions: List[str] = []     # 改进建议
 
 
 class StandardsOverride(BaseModel):
@@ -199,6 +221,12 @@ class FullAnalysisResult(BaseModel):
 
 # === Generation ===
 
+class ReferenceInput(BaseModel):
+    id: int          # 1-based，用作引用编号 [1], [2]
+    filename: str    # 文件名（常含年份/指南名，供模型判断权威性）
+    text: str
+
+
 class GenerationRequest(BaseModel):
     disease: str
     section: str
@@ -206,7 +234,7 @@ class GenerationRequest(BaseModel):
     original_content: str
     qa_references: List[QAItem]
     article_context: str
-    reference_texts: List[str] = []
+    reference_inputs: List[ReferenceInput] = []
 
 
 class GeneratedDraft(BaseModel):

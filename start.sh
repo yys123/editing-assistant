@@ -9,7 +9,7 @@ echo "Starting Editing Assistant..."
 # Backend
 cd "$ROOT/backend"
 python3 -m pip install -r requirements.txt -q 2>/dev/null || true
-python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8004 &
+PYTHONUNBUFFERED=1 python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8004 &
 BACKEND_PID=$!
 
 # Frontend

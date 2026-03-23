@@ -1,0 +1,21 @@
+services:
+  backend:
+    image: editing-assistant-backend:latest
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - backend-data:/app/data
+
+  frontend:
+    image: editing-assistant-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "5177:5177"
+    depends_on:
+      - backend
+
+volumes:
+  backend-data:

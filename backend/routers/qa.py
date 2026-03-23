@@ -1,7 +1,9 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from services.parser import parse_qa_file
 
-router = APIRouter(prefix="/api/qa", tags=["qa"])
+from auth import get_current_user
+
+router = APIRouter(prefix="/api/qa", tags=["qa"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("/upload")

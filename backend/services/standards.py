@@ -214,6 +214,58 @@ BUILTIN_CONTENT_SPEC = """# 医学知识库词条内容要求规范
 """
 
 
+BUILTIN_REF_EVAL_STANDARD = """# 参考信息源评估标准
+
+## 1. 机构与发布者的权威性 (Authority)
+
+入选的资料必须由该疾病领域公认的顶级学术组织、政府卫生机构或权威专家组发布。
+
+- 国际顶级权威组织：针对特定疾病的全球倡议组织（如针对COPD的GOLD、针对哮喘的GINA）、国际公认的专科学会（如心血管领域的AHA/ACC、ESC；肿瘤领域的NCCN、ESMO；糖尿病领域的ADA、EASD等）。
+- 国内核心卫生与学术机构：国家卫生健康委员会（卫健委）发布的诊疗规范、中华医学会及其各专科分会、中国医师协会、中国抗癌协会（CSCO）等出具的指南与共识。
+
+评级：
+- 高：由上述国际顶级组织或国内核心机构发布
+- 中：由省级学会、知名专科医院专家组、二级学会发布
+- 低：来源不明、无明确发布机构、或非医学专业机构
+
+## 2. 文献类型与证据等级 (Evidence Level)
+
+按照循证医学证据等级优先级排序：
+- 第一顺位：临床实践指南（Clinical Practice Guidelines, CPGs），特别是基于GRADE系统评估的指南
+- 第二顺位：权威专家共识（Expert Consensus），用于补充指南未覆盖的边缘问题、新兴疗法
+- 第三顺位：顶级期刊的权威综述（State-of-the-Art Reviews），发表在《The Lancet》《NEJM》《JAMA》等顶级医学期刊
+
+## 3. 时效性与版本追踪 (Timeliness)
+
+- 最新版本原则：核心指南必须纳入该机构发布的最新版本
+- 年度更新追踪：每年更新的全球策略需纳入近3-5年的更新要点
+- 国内最新版兜底原则：若国内权威指南更新较慢，依然必须纳入作为国内临床实践基准，但需用最新国际指南补充前沿知识
+
+评级：
+- 最新：近2年内发布/更新
+- 较新：2-5年内发布
+- 陈旧：超过5年未更新
+
+## 4. 内容系统性与覆盖面 (Comprehensiveness)
+
+纳入的资料组合必须能够无死角地支撑词条模块结构：
+- 全流程覆盖：必须包含从"预防/筛查"到"诊断/评估"，再到"综合管理/随访"的全局性文件
+- 分级诊疗覆盖：既要有面向三甲医院专科医生的综合指南，也要有面向基层的管理指南
+
+## 5. 临床适用性与本地化 (Localization & Applicability)
+
+- 本土化校准：国际指南虽然前沿，但在流行病学特征、药物可及性、医疗体制上可能存在差异，必须将国内最新权威指南作为诊断标准和用药推荐的本土化校准基准
+- 可操作性：优先纳入包含明确诊断流程图（Algorithms）、药物剂量表、疗效评估量表的文献
+
+## 总体推荐等级
+
+- 强烈推荐：权威性高 + 证据等级高（指南/共识） + 时效性最新
+- 推荐：满足大部分标准，有一项稍弱
+- 可用：权威性或时效性一般，但内容有补充价值
+- 建议替换：权威性低、内容陈旧、或有更优替代文献
+"""
+
+
 def _load_file(name: str) -> Optional[str]:
     path = os.path.join(_DATA_DIR, name)
     if os.path.exists(path):
@@ -225,9 +277,11 @@ def _load_file(name: str) -> Optional[str]:
 # Try loading from files at module load; fallback to built-in strings
 _file_quality = _load_file("quality_standard.txt")
 _file_spec = _load_file("content_spec.txt")
+_file_ref_eval = _load_file("ref_eval_standard.txt")
 
 QUALITY_STANDARD = _file_quality if _file_quality else BUILTIN_QUALITY_STANDARD
 CONTENT_SPEC = _file_spec if _file_spec else BUILTIN_CONTENT_SPEC
+REF_EVAL_STANDARD = _file_ref_eval if _file_ref_eval else BUILTIN_REF_EVAL_STANDARD
 
 
 def get_quality_standard(override: Optional[str] = None) -> str:
@@ -236,3 +290,7 @@ def get_quality_standard(override: Optional[str] = None) -> str:
 
 def get_content_spec(override: Optional[str] = None) -> str:
     return override if override else CONTENT_SPEC
+
+
+def get_ref_eval_standard(override: Optional[str] = None) -> str:
+    return override if override else REF_EVAL_STANDARD

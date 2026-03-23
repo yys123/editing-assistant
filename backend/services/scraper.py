@@ -1,7 +1,8 @@
 import re
+import base64
 import httpx
 from bs4 import BeautifulSoup, Tag, NavigableString
-from typing import List
+from typing import List, Dict, Any
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -19,6 +20,28 @@ _SKIP_TAGS = {
 }
 _HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 _REFERENCE_STOP_KEYWORDS = {"参考文献", "相关指南", "参考资料", "references"}
+
+
+def _extract_text_with_refs(tag: Tag) -> str:
+    """Recursively extract text, converting literature-sup elements to ^[N] notation.
+
+    <sup class="literature-sup">2,3</sup> → ^[2,3]
+
+    All other elements are traversed normally.  Whitespace is normalised.
+    """
+    parts: list[str] = []
+    for child in tag.children:
+        if isinstance(child, NavigableString):
+            parts.append(str(child))
+        elif isinstance(child, Tag):
+            classes = child.get("class") or []
+            if child.name == "sup" and "literature-sup" in classes:
+                ref = child.get_text(strip=True)
+                if ref:
+                    parts.append(f"^[{ref}]")
+            else:
+                parts.append(_extract_text_with_refs(child))
+    return re.sub(r"\s+", " ", "".join(parts)).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -114,9 +137,7 @@ def parse_html_structured(html: str) -> str:
 
             # ── Text blocks ────────────────────────────────────────────
             if tag in _TEXT_BLOCK_TAGS:
-                text = child.get_text(separator=" ", strip=True)
-                # Strip trailing reference numbers
-                text = re.sub(r"\s*\d+\s*$", "", text).strip()
+                text = _extract_text_with_refs(child)
                 if text and len(text) > 3:
                     lines.append(text)
                 continue
@@ -125,22 +146,137 @@ def parse_html_structured(html: str) -> str:
             if tag in _INLINE_TAGS:
                 continue
 
+            # ── Special editorial summary blocks (identified by CSS class) ──
+            classes = child.get("class") or []
+
+            # 更新要点: <section class="Update_section__*">
+            if any("Update_section" in c for c in classes):
+                lines.append("[H2] 更新要点")
+                content_el = child.find(
+                    lambda t: isinstance(t, Tag)
+                    and any("Update_content" in c for c in (t.get("class") or []))
+                )
+                if content_el:
+                    walk(content_el)
+                continue
+
+            # 诊断要点 / 治疗要点: <div class="dxy-card">
+            if "dxy-card" in classes:
+                # Determine heading: prefer <strong> containing "要点"
+                strong_tag = child.find(
+                    lambda t: isinstance(t, Tag) and t.name == "strong"
+                    and "要点" in t.get_text()
+                )
+                if strong_tag:
+                    heading = strong_tag.get_text(strip=True).rstrip("：:").strip()
+                else:
+                    anchor_span = child.find("span", attrs={"data-menu-anchor": True})
+                    if anchor_span:
+                        raw = anchor_span.get("data-menu-anchor", "")
+                        m = re.search(r"[\u4e00-\u9fff]+要点", raw)
+                        heading = m.group(0) if m else "编辑要点"
+                    else:
+                        heading = "编辑要点"
+                lines.append(f"[H2] {heading}")
+                full_text = _extract_text_with_refs(child)
+                # Strip heading prefix from content text
+                for prefix in (heading + "：", heading + ":", heading):
+                    if full_text.startswith(prefix):
+                        full_text = full_text[len(prefix):].strip()
+                        break
+                if full_text and len(full_text) > 3:
+                    lines.append(full_text)
+                continue
+
             # ── Generic containers (div, section, article …) ───────────
-            # Check whether this container has any block-level children.
+            # Only recurse when there are block-level children with actual text
+            # content.  Empty block children (e.g. <p class="new-line"/>) must
+            # NOT trigger recursion — otherwise the inline elements and bare
+            # NavigableStrings that hold the real content are silently dropped.
             has_block = any(
-                isinstance(c, Tag) and c.name not in _INLINE_TAGS
+                isinstance(c, Tag)
+                and c.name not in _INLINE_TAGS
+                and bool(c.get_text(strip=True))
                 for c in child.children
             )
             if not has_block:
-                # Leaf container – collect its text
-                text = child.get_text(separator=" ", strip=True)
-                text = re.sub(r"\s*\d+\s*$", "", text).strip()
+                # Leaf container – collect its text preserving ref markers
+                text = _extract_text_with_refs(child)
                 if text and len(text) > 3:
                     lines.append(text)
             else:
                 walk(child)
 
-    walk(soup.find("body") or soup)
+    # 检测 DXY 结构化词条（page_disease-section 特征）
+    disease_sections = [
+        t for t in soup.find_all("section")
+        if any("page_disease-section" in c for c in (t.get("class") or []))
+    ]
+
+    if disease_sections:
+        # ── 结构化模式 ────────────────────────────────────────
+        # 1. 先处理 Update_section（更新要点）
+        body = soup.find("body") or soup
+        for child in body.children:
+            if not isinstance(child, Tag):
+                continue
+            child_classes = child.get("class") or []
+            if any("Update_section" in c for c in child_classes):
+                # 提取含日期的完整标题
+                card = child.find(
+                    lambda t: isinstance(t, Tag)
+                    and any("Update_card" in c for c in (t.get("class") or []))
+                )
+                if card:
+                    title_h2 = card.find(
+                        lambda t: isinstance(t, Tag) and t.name == "h2"
+                        and any("Update_title" in c for c in (t.get("class") or []))
+                    )
+                    title_text = title_h2.get_text(strip=True) if title_h2 else "更新要点"
+                else:
+                    title_text = "更新要点"
+                lines.append(f"[H2] {title_text}")
+                content_el = child.find(
+                    lambda t: isinstance(t, Tag)
+                    and any("Update_content" in c for c in (t.get("class") or []))
+                )
+                if content_el:
+                    walk(content_el)
+
+        # 2. 依次处理每个 disease section
+        for sec in disease_sections:
+            if stopped[0]:
+                break
+            # 找 section 直接子 div（无 class 的外层容器）
+            outer_div = next(
+                (c for c in sec.children if isinstance(c, Tag) and c.name == "div"),
+                None,
+            )
+            if not outer_div:
+                continue
+
+            # 一级字段标题（outer_div 直接子 h2）
+            field_h2 = next(
+                (c for c in outer_div.children if isinstance(c, Tag) and c.name == "h2"),
+                None,
+            )
+            if field_h2:
+                text = field_h2.get_text(strip=True)
+                text = re.sub(r"\d+$", "", text).strip()
+                if any(kw in text for kw in _REFERENCE_STOP_KEYWORDS):
+                    stopped[0] = True
+                    break
+                if text:
+                    lines.append(f"[H1] {text}")
+
+            # 走 ck-content（现有 walk() 完全复用，h2→[H2], h3→[H3] 保持原逻辑）
+            ck = outer_div.find("div", class_="ck-content")
+            if ck:
+                walk(ck)
+
+    else:
+        # ── 兼容 fallback：原始平铺遍历 ──────────────────────
+        walk(soup.find("body") or soup)
 
     # De-duplicate consecutive identical lines
     deduped: list[str] = []
@@ -170,6 +306,62 @@ def parse_html_structured(html: str) -> str:
     cleaned = cleaned[first_heading_idx:]
 
     return "\n".join(cleaned)
+
+
+# ---------------------------------------------------------------------------
+# Public: extract embedded images from HTML (for vision analysis)
+# ---------------------------------------------------------------------------
+
+def extract_images_from_html(html: str) -> List[Dict[str, Any]]:
+    """Extract content images from HTML for Gemini vision analysis.
+
+    Only extracts images inside <figure class="image"> elements (content figures),
+    ignoring UI icons, footer badges, etc.
+
+    Returns a list of dicts in document order:
+        {caption: str, data: bytes, mime_type: str}
+    """
+    soup = BeautifulSoup(html, "lxml")
+
+    # Remove noise elements first (same as parse_html_structured)
+    for tag in soup.find_all(_SKIP_TAGS):
+        tag.decompose()
+    for tag in soup.find_all(id=re.compile(r"footer|sidebar|aside|nav|menu|right", re.I)):
+        tag.decompose()
+
+    images: List[Dict[str, Any]] = []
+
+    for figure in soup.find_all("figure", class_="image"):
+        # Get caption
+        cap_tag = figure.find("figcaption")
+        caption = cap_tag.get_text(strip=True) if cap_tag else ""
+        # Strip trailing reference numbers from caption
+        caption = re.sub(r"\d+$", "", caption).strip()
+
+        # Get the img element
+        img_tag = figure.find("img")
+        if not img_tag:
+            continue
+
+        src = img_tag.get("src", "")
+        if not src.startswith("data:"):
+            # URL-referenced image — skip for now (would need HTTP fetch)
+            continue
+
+        try:
+            # Parse "data:<mime>;base64,<data>"
+            header, encoded = src.split(",", 1)
+            mime_type = header.split(";")[0].replace("data:", "").strip()
+            img_bytes = base64.b64decode(encoded)
+            images.append({
+                "caption": caption,
+                "data": img_bytes,
+                "mime_type": mime_type,
+            })
+        except Exception:
+            continue
+
+    return images
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +427,10 @@ def parse_txt_structured(text: str) -> str:
 
         # ── Tab-delimited line → markdown table row ─────────────────────────
         if '\t' in stripped:
-            cells = [_REF_RE.sub('', c).strip() for c in stripped.split('\t')]
+            # Convert [N] / [N-M] ref markers to ^[N] notation instead of
+            # stripping them — reference citations in table cells must be kept.
+            cells = [_REF_RE.sub(lambda m: "^" + m.group(0), c).strip()
+                     for c in stripped.split('\t')]
             cells = [c for c in cells if c]
             if cells:
                 output.append('| ' + ' | '.join(cells) + ' |')
@@ -245,7 +440,8 @@ def parse_txt_structured(text: str) -> str:
             prev_was_empty = False
             continue
 
-        # For non-tab lines, strip reference markers
+        # For non-tab lines, strip reference markers (used for heading/caption
+        # pattern matching; see table-mode block below for ref-preserving output)
         clean = _REF_RE.sub('', stripped).strip()
         if not clean:
             prev_was_empty = True
@@ -281,9 +477,11 @@ def parse_txt_structured(text: str) -> str:
                 in_table = False
                 # Fall through to heading detection below
             else:
-                # Emit as table content (non-tab continuation or footnote)
-                if len(clean) > 1:
-                    output.append(clean)
+                # Emit as table content (non-tab continuation or footnote).
+                # Use ref-converted text so [N] citations are preserved as ^[N].
+                clean_with_refs = _REF_RE.sub(lambda m: "^" + m.group(0), stripped).strip()
+                if len(clean_with_refs) > 1:
+                    output.append(clean_with_refs)
                 prev_was_empty = False
                 continue
 
@@ -355,23 +553,66 @@ async def fetch_article_from_url(url: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _table_to_markdown(table_tag: Tag) -> str:
-    """Convert a <table> element to a Markdown-style text representation."""
+    """Convert a <table> element to a Markdown table, handling rowspan/colspan.
+
+    Each spanned cell's text is placed at its top-left position; continuation
+    positions are filled with an empty string so every row has the same column
+    count and the Markdown table stays properly aligned.
+
+    If the table has a <caption> element, its text (including ^[N] ref markers)
+    is prepended as a [表格标题] line.
+    """
     rows = table_tag.find_all("tr")
     if not rows:
         return ""
 
+    # Extract <caption> tag (HTML table title), preserving reference markers
+    caption_line = ""
+    caption_tag = table_tag.find("caption")
+    if caption_tag:
+        caption_text = _extract_text_with_refs(caption_tag).strip()
+        # Strip trailing bare digits (stray ref numbers stuck to caption text)
+        caption_text = re.sub(r"\d+$", "", caption_text).strip()
+        if caption_text:
+            caption_line = f"[表格标题] {caption_text}"
+
+    num_rows = len(rows)
+    # occupied[(r, c)] = cell text for that grid position
+    occupied: dict[tuple[int, int], str] = {}
+    max_col = 0
+
+    for r, row in enumerate(rows):
+        c = 0
+        for cell in row.find_all(["th", "td"]):
+            # Skip positions already filled by a rowspan from a previous row
+            while (r, c) in occupied:
+                c += 1
+            text = _extract_text_with_refs(cell).replace("|", "｜")
+            colspan = int(cell.get("colspan", 1))
+            rowspan = int(cell.get("rowspan", 1))
+            # Fill all positions covered by this cell's span
+            for dr in range(rowspan):
+                for dc in range(colspan):
+                    rr, cc = r + dr, c + dc
+                    if rr < num_rows:
+                        # Only the anchor position gets the real text;
+                        # continuation positions are left empty to preserve alignment
+                        occupied[(rr, cc)] = text if (dr == 0 and dc == 0) else ""
+            c += colspan
+        max_col = max(max_col, c)
+
+    if max_col == 0:
+        return ""
+
     result: list[str] = []
-    for i, row in enumerate(rows):
-        cells = row.find_all(["th", "td"])
-        # Escape pipe chars inside cells
-        cell_texts = [
-            re.sub(r"\s+", " ", c.get_text(separator=" ", strip=True)).replace("|", "｜")
-            for c in cells
-        ]
-        if not any(cell_texts):
+    if caption_line:
+        result.append(caption_line)
+    for r in range(num_rows):
+        cols = [occupied.get((r, c), "") for c in range(max_col)]
+        if not any(cols):
             continue
-        result.append("| " + " | ".join(cell_texts) + " |")
-        if i == 0:
-            result.append("|" + "---|" * len(cells))
+        result.append("| " + " | ".join(cols) + " |")
+        if r == 0:
+            result.append("|" + "---|" * max_col)
 
     return "\n".join(result)
