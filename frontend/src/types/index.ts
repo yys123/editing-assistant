@@ -110,6 +110,12 @@ export interface DraftRecord {
   draft: GeneratedDraft
   editedContent: string
   generatedAt: string
+  batchId?: string          // 联合生成时共享同一个 batchId
+}
+
+export interface BatchGeneratedDraft {
+  drafts: GeneratedDraft[]
+  coordination_notes: string
 }
 
 // === New 7-step workflow types ===

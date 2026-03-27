@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { QAItem, GapItem, GeneratedDraft, DraftRecord, ReferenceDoc, ParsedArticle } from '../types'
+import { QAItem, GapItem, GeneratedDraft, DraftRecord, ReferenceDoc, ParsedArticle, BatchGeneratedDraft } from '../types'
 import { apiFetch } from '../api'
 
 interface Props {
@@ -11,6 +11,8 @@ interface Props {
   qaItems: QAItem[]
   referenceDocs?: ReferenceDoc[]
   selectedGap: GapItem | null
+  selectedGaps?: GapItem[]         // 联合生成多选
+  batchProgress?: { running: boolean; done: number; total: number; failed: number }
   draftHistory: DraftRecord[]
   onAddDraft: (record: DraftRecord) => void
   onUpdateDraft: (id: string, editedContent: string) => void
@@ -19,15 +21,13 @@ interface Props {
 
 /**
  * Extract the content of the section (and its children) matching the gap section path.
- * gap.section may be like "诊断 > 实验室检查" or just "基础知识".
  */
-function extractSectionContent(parsedArticle: ParsedArticle | null | undefined, gapSection: string): string {
+export function extractSectionContent(parsedArticle: ParsedArticle | null | undefined, gapSection: string): string {
   if (!parsedArticle) return ''
   const parts = gapSection.split(' > ').map(s => s.trim())
   const sections = parsedArticle.sections
   const leafHeading = parts[parts.length - 1]
 
-  // Find the index of the target section
   let targetIdx = -1
   if (parts.length === 1) {
     targetIdx = sections.findIndex(s => s.heading === leafHeading)
@@ -35,7 +35,6 @@ function extractSectionContent(parsedArticle: ParsedArticle | null | undefined, 
     const parentHeading = parts[parts.length - 2]
     for (let i = 0; i < sections.length; i++) {
       if (sections[i].heading !== leafHeading) continue
-      // Walk back to find parent
       for (let j = i - 1; j >= 0; j--) {
         if (sections[j].level < sections[i].level) {
           if (sections[j].heading === parentHeading) targetIdx = i
@@ -44,7 +43,6 @@ function extractSectionContent(parsedArticle: ParsedArticle | null | undefined, 
       }
       if (targetIdx >= 0) break
     }
-    // Fallback: match by leaf heading alone
     if (targetIdx < 0) targetIdx = sections.findIndex(s => s.heading === leafHeading)
   }
 
@@ -53,7 +51,6 @@ function extractSectionContent(parsedArticle: ParsedArticle | null | undefined, 
   const target = sections[targetIdx]
   let combined = target.content
 
-  // Include immediate child sections
   for (let i = targetIdx + 1; i < sections.length; i++) {
     if (sections[i].level <= target.level) break
     const prefix = '#'.repeat(sections[i].level - target.level + 1)
@@ -65,15 +62,9 @@ function extractSectionContent(parsedArticle: ParsedArticle | null | undefined, 
 }
 
 /**
- * Normalize the "参考文献" section at the end of generated content:
- * ensure each reference ([1], [2], [Q1], etc.) starts on its own line as a list item.
- *
- * Handles heading variants: "### 参考文献", "## 参考文献", plain "参考文献"
- * Handles ref markers: [1], [Q1], [10-41], etc.
+ * Normalize the "参考文献" section at the end of generated content.
  */
 function formatReferences(content: string): string {
-  // Find the LAST occurrence of a line that is a "参考文献" heading
-  // Matches: "### 参考文献", "## 参考文献", "参考文献", "**参考文献**"
   const refRe = /^(#{1,4}\s*参考文献.*|\*{0,2}参考文献\*{0,2}\s*)$/gm
   let lastMatch: RegExpExecArray | null = null
   let m: RegExpExecArray | null
@@ -86,23 +77,16 @@ function formatReferences(content: string): string {
   const before = content.slice(0, headingIdx)
   const refSection = content.slice(headingIdx)
 
-  // Split heading line from body
   const newlineIdx = refSection.indexOf('\n')
   if (newlineIdx < 0) return content
   const headingLine = refSection.slice(0, newlineIdx).trim()
   const body = refSection.slice(newlineIdx + 1).trim()
   if (!body) return content
 
-  // Ensure heading is a markdown heading
   const heading = headingLine.startsWith('#') ? headingLine : `### ${headingLine.replace(/\*+/g, '').trim()}`
 
-  // Ref marker pattern: [1], [Q1], [10-41], etc.
   const refMarker = /\[(?:Q?\d+(?:-\d+)?)\]/
-
-  // First, join all body text into a single string, then split by ref markers
   const bodyOneLine = body.replace(/\n/g, ' ').replace(/\s+/g, ' ')
-
-  // Split keeping markers: produces ["", "[1]", " text...", "[2]", " text...", ...]
   const parts = bodyOneLine.split(/(\[(?:Q?\d+(?:-\d+)?)\])/).filter(Boolean)
 
   const entries: string[] = []
@@ -110,21 +94,16 @@ function formatReferences(content: string): string {
     const part = parts[i].trim()
     if (!part) continue
     if (refMarker.test(part) && part.length <= 10) {
-      // This is a ref marker — combine with the next part (the description)
       const desc = (i + 1 < parts.length) ? parts[i + 1].trim() : ''
-      // Strip leading list markers from desc
       const cleanDesc = desc.replace(/^[-•·]\s*/, '')
       entries.push(`${part} ${cleanDesc}`.trim())
-      i++ // skip desc part
+      i++
     } else if (entries.length === 0) {
-      // Text before first marker — could be "(见原文)" etc, skip or add as-is
       if (part.length > 2) entries.push(part)
     }
-    // else: already consumed as part of a marker+desc pair
   }
 
   if (entries.length === 0) return content
-
   const formattedBody = entries.map(e => `- ${e}`).join('\n')
   return before + heading + '\n\n' + formattedBody + '\n'
 }
@@ -136,22 +115,26 @@ function formatTime(iso: string) {
 
 export default function StepGenerate({
   disease, articleContent, parsedArticle, qaItems, referenceDocs = [],
-  selectedGap, draftHistory, onAddDraft, onUpdateDraft, onBack
+  selectedGap, selectedGaps = [], batchProgress, draftHistory, onAddDraft, onUpdateDraft, onBack
 }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [generatingGap, setGeneratingGap] = useState<GapItem | null>(null)
-  // Index into draftHistory of the currently viewed record
+  const [generatingLabel, setGeneratingLabel] = useState('')
   const [activeId, setActiveId] = useState<string | null>(null)
   const [view, setView] = useState<'diff' | 'edit' | 'preview'>('diff')
+  // 联合生成协调说明
+  const [coordinationNotes, setCoordinationNotes] = useState('')
+
+  const isBatchMode = selectedGaps.length >= 2
+  const isBatchRunning = batchProgress?.running ?? false
 
   const activeRecord = draftHistory.find(r => r.id === activeId) ?? draftHistory[draftHistory.length - 1] ?? null
 
+  // --- Single section generation ---
   const generate = async (gap: GapItem) => {
-    setGeneratingGap(gap)
+    setGeneratingLabel(gap.section)
     setLoading(true)
     setError('')
-    // Extract the actual content of the target section from the parsed article
     const sectionContent = extractSectionContent(parsedArticle, gap.section)
     try {
       const res = await apiFetch('/api/generate/draft', {
@@ -187,17 +170,93 @@ export default function StepGenerate({
       setError(e.message)
     } finally {
       setLoading(false)
-      setGeneratingGap(null)
+      setGeneratingLabel('')
+    }
+  }
+
+  // --- Multi-section batch generation ---
+  const generateBatch = async (gaps: GapItem[]) => {
+    const sectionLabels = gaps.map(g => g.section).join('、')
+    setGeneratingLabel(sectionLabels)
+    setLoading(true)
+    setError('')
+    setCoordinationNotes('')
+
+    const sections = gaps.map(g => ({
+      section: g.section,
+      gap_description: g.description,
+      original_content: extractSectionContent(parsedArticle, g.section) || '',
+    }))
+
+    try {
+      const res = await apiFetch('/api/generate/batch-draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          disease,
+          sections,
+          qa_references: qaItems.slice(0, 50),
+          article_context: articleContent.slice(0, 6000),
+          reference_inputs: referenceDocs.map((d, i) => ({
+            id: i + 1,
+            filename: d.filename,
+            text: d.text,
+          })),
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || '联合生成失败')
+
+      const result = data as BatchGeneratedDraft
+      setCoordinationNotes(result.coordination_notes || '')
+
+      const batchId = `batch-${Date.now()}`
+      let firstId = ''
+
+      for (const draft of result.drafts) {
+        // Find the matching gap for this draft
+        const matchGap = gaps.find(g => g.section === draft.section) || gaps[0]
+        const record: DraftRecord = {
+          id: `${draft.section}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          gap: matchGap,
+          draft,
+          editedContent: draft.generated_content,
+          generatedAt: new Date().toISOString(),
+          batchId,
+        }
+        onAddDraft(record)
+        if (!firstId) firstId = record.id
+      }
+      if (firstId) setActiveId(firstId)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+      setGeneratingLabel('')
     }
   }
 
   useEffect(() => {
-    if (!selectedGap) {
-      // No new gap selected, just show most recent history
+    if (isBatchMode) {
+      // 联合生成模式
+      const allGenerated = selectedGaps.every(g =>
+        draftHistory.some(r => r.gap.section === g.section && r.gap.priority === g.priority)
+      )
+      if (!allGenerated) {
+        generateBatch(selectedGaps)
+      } else if (draftHistory.length > 0) {
+        setActiveId(draftHistory[draftHistory.length - 1].id)
+      }
+      return
+    }
+
+    // 批量并行模式由 App 驱动，这里只需展示已有结果
+    if (isBatchRunning || (!selectedGap && !isBatchMode)) {
       if (draftHistory.length > 0) setActiveId(draftHistory[draftHistory.length - 1].id)
       return
     }
-    // Check if this gap already has a draft
+
+    if (!selectedGap) return
     const existing = draftHistory.find(
       r => r.gap.section === selectedGap.section && r.gap.priority === selectedGap.priority
     )
@@ -208,9 +267,20 @@ export default function StepGenerate({
     }
   }, [])
 
+  // 批量并行运行时，自动追踪最新生成的稿件
+  useEffect(() => {
+    if (isBatchRunning && draftHistory.length > 0) {
+      setActiveId(draftHistory[draftHistory.length - 1].id)
+    }
+  }, [draftHistory.length, isBatchRunning])
+
   const handleRegenerate = () => {
-    const gap = activeRecord?.gap ?? selectedGap
-    if (gap) generate(gap)
+    if (isBatchMode) {
+      generateBatch(selectedGaps)
+    } else {
+      const gap = activeRecord?.gap ?? selectedGap
+      if (gap) generate(gap)
+    }
   }
 
   const handleEditChange = (val: string) => {
@@ -233,11 +303,33 @@ export default function StepGenerate({
     if (activeRecord) navigator.clipboard.writeText(activeRecord.editedContent)
   }
 
+  // Get batch-related drafts for the current batch
+  const batchDrafts = activeRecord?.batchId
+    ? draftHistory.filter(r => r.batchId === activeRecord.batchId)
+    : []
+
   if (loading) return (
     <div className="section-card" style={{ textAlign: 'center', padding: 48 }}>
       <div className="spinner" style={{ margin: '0 auto 12px' }} />
-      <div style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>正在生成「{generatingGap?.section}」内容...</div>
-      <div style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)', marginTop: 6 }}>AI 正在结合 Q&A 数据和词条上下文撰写，通常需要 30-60 秒</div>
+      <div style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>
+        {isBatchMode
+          ? '正在联合生成多个章节内容...'
+          : `正在生成「${generatingLabel}」内容...`}
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)', marginTop: 6 }}>
+        {isBatchMode
+          ? `AI 正在协调 ${selectedGaps.length} 个章节的内容，确保跨章节一致性，通常需要 60-120 秒`
+          : 'AI 正在结合 Q&A 数据和词条上下文撰写，通常需要 30-60 秒'}
+      </div>
+      {isBatchMode && (
+        <div style={{ marginTop: 12, display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+          {selectedGaps.map((g, i) => (
+            <span key={i} style={{ padding: '3px 10px', background: 'rgba(0,84,205,0.08)', color: 'var(--m3-primary)', borderRadius: 999, fontSize: 12 }}>
+              {g.section}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 
@@ -257,13 +349,66 @@ export default function StepGenerate({
     </div>
   )
 
-  if (!activeRecord) return null
+  if (!activeRecord) {
+    // 批量并行正在后台运行但尚无结果
+    if (isBatchRunning && batchProgress) return (
+      <div className="section-card" style={{ textAlign: 'center', padding: 48 }}>
+        <div className="spinner" style={{ margin: '0 auto 12px' }} />
+        <div style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>
+          批量生成进行中 {batchProgress.done}/{batchProgress.total}
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)', marginTop: 6 }}>
+          生成完成的稿件将自动出现在下方，您也可以切换到其他步骤继续操作
+        </div>
+        <div style={{ marginTop: 16, maxWidth: 400, margin: '16px auto 0' }}>
+          <div style={{ height: 6, background: 'var(--m3-surface-container-low)', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ height: '100%', borderRadius: 3, transition: 'width 0.3s', width: `${(batchProgress.done / batchProgress.total) * 100}%`, background: 'var(--m3-primary)' }} />
+          </div>
+        </div>
+      </div>
+    )
+    return null
+  }
 
   const { gap, draft } = activeRecord
 
   return (
     <div>
-      {/* History tabs — only visible when >1 record */}
+      {/* App-level batch progress banner */}
+      {isBatchRunning && batchProgress && (
+        <div style={{
+          padding: '10px 16px', marginBottom: 10, borderRadius: 10,
+          background: 'rgba(0,84,205,0.06)', border: '1px solid rgba(0,84,205,0.15)',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2, flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)' }}>
+            批量生成中 {batchProgress.done}/{batchProgress.total}
+          </span>
+          {batchProgress.failed > 0 && (
+            <span style={{ fontSize: 12, color: 'var(--m3-error)' }}>（{batchProgress.failed} 失败）</span>
+          )}
+          <div style={{ flex: 1, height: 4, background: 'var(--m3-surface-container-low)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ height: '100%', borderRadius: 2, transition: 'width 0.3s', width: `${(batchProgress.done / batchProgress.total) * 100}%`, background: 'var(--m3-primary)' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Batch coordination notes */}
+      {coordinationNotes && batchDrafts.length > 0 && (
+        <div className="section-card" style={{ padding: '12px 16px', background: 'rgba(0,84,205,0.04)', borderLeft: '3px solid var(--m3-primary)', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-primary)' }}>merge</span>
+            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--m3-on-surface)' }}>跨章节协调说明</span>
+            <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>（{batchDrafts.length} 个章节联合生成）</span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', lineHeight: 1.7 }}>
+            {coordinationNotes}
+          </div>
+        </div>
+      )}
+
+      {/* History tabs */}
       {draftHistory.length > 1 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
           {draftHistory.map(r => (
@@ -279,6 +424,9 @@ export default function StepGenerate({
                 transition: 'all 0.15s',
               }}
             >
+              {r.batchId && (
+                <span className="material-symbols-outlined" style={{ fontSize: 14, color: r.id === activeId ? 'rgba(255,255,255,0.75)' : 'var(--m3-primary)' }}>merge</span>
+              )}
               <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: r.id === activeId ? 'rgba(255,255,255,0.25)' : r.gap.priority === 'P0' ? '#fee2e2' : r.gap.priority === 'P1' ? '#fff7ed' : '#dbeafe', color: r.id === activeId ? 'white' : r.gap.priority === 'P0' ? 'var(--m3-error)' : r.gap.priority === 'P1' ? '#e65100' : 'var(--m3-primary)' }}>{r.gap.priority}</span>
               <span style={{ fontWeight: 600, fontSize: 13, color: r.id === activeId ? 'white' : 'var(--m3-on-surface)' }}>
                 {r.gap.section}
@@ -298,13 +446,19 @@ export default function StepGenerate({
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, flexShrink: 0, background: gap.priority === 'P0' ? '#fee2e2' : gap.priority === 'P1' ? '#fff7ed' : '#dbeafe', color: gap.priority === 'P0' ? 'var(--m3-error)' : gap.priority === 'P1' ? '#e65100' : 'var(--m3-primary)' }}>{gap.priority}</span>
                 <span style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>{disease} — {gap.section}</span>
+                {activeRecord.batchId && (
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(0,84,205,0.08)', color: 'var(--m3-primary)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 13 }}>merge</span>
+                    联合生成
+                  </span>
+                )}
               </div>
               <div style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)', lineHeight: 1.5 }}>{gap.description}</div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               <button className="btn-m3-outline" style={{ fontSize: 12, padding: '4px 12px' }} onClick={handleRegenerate}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>refresh</span>
-                重新生成
+                {activeRecord.batchId ? '重新联合生成' : '重新生成'}
               </button>
               <button className="btn-m3-outline" style={{ fontSize: 12, padding: '4px 12px' }} onClick={copyToClipboard}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>content_copy</span>

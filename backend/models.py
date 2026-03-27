@@ -243,3 +243,23 @@ class GeneratedDraft(BaseModel):
     generated_content: str
     key_changes: List[str]
     references_used: List[str]
+
+
+class BatchSectionItem(BaseModel):
+    section: str
+    gap_description: str
+    original_content: str
+
+
+class BatchGenerationRequest(BaseModel):
+    disease: str
+    sections: List[BatchSectionItem]
+    qa_references: List[QAItem] = []
+    article_context: str = ""
+    reference_inputs: List[ReferenceInput] = []
+
+
+class BatchGeneratedDraft(BaseModel):
+    """联合生成的结果：每个章节一个 GeneratedDraft + 跨章节协调说明"""
+    drafts: List[GeneratedDraft]
+    coordination_notes: str = ""

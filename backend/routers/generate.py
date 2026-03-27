@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
-from models import GenerationRequest
-from services.generator import generate_section_draft
+from models import GenerationRequest, BatchGenerationRequest
+from services.generator import generate_section_draft, generate_multi_section_draft
 
 from auth import get_current_user
 
@@ -19,3 +19,20 @@ async def generate_draft(req: GenerationRequest):
         return draft.model_dump()
     except Exception as e:
         raise HTTPException(500, f"内容生成失败: {str(e)}")
+
+
+@router.post("/batch-draft")
+async def generate_batch_draft(req: BatchGenerationRequest):
+    if not req.disease.strip():
+        raise HTTPException(400, "请提供疾病名称")
+    if not req.sections or len(req.sections) < 2:
+        raise HTTPException(400, "联合生成至少需要选择2个章节")
+    for item in req.sections:
+        if not item.section.strip() or not item.gap_description.strip():
+            raise HTTPException(400, "每个章节必须包含章节名称和改进要求")
+
+    try:
+        result = await generate_multi_section_draft(req)
+        return result.model_dump()
+    except Exception as e:
+        raise HTTPException(500, f"联合生成失败: {str(e)}")

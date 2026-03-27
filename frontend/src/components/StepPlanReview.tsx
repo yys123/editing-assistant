@@ -11,6 +11,7 @@ interface Props {
   setGapItems: (items: GapItem[]) => void
   draftHistory: DraftRecord[]
   onNext: (gap: GapItem) => void
+  onBatchNext: (gaps: GapItem[]) => void
   onBack: () => void
 }
 
@@ -45,7 +46,7 @@ function buildSectionTree(indices: number[], gapItems: GapItem[]): TreeNode {
 
 export default function StepPlanReview({
   disease, parsedArticle, sectionAnalyses, gapAnalysis,
-  gapItems, setGapItems, draftHistory, onNext, onBack
+  gapItems, setGapItems, draftHistory, onNext, onBatchNext, onBack
 }: Props) {
   const isGenerated = (g: GapItem) =>
     draftHistory.some(r => r.gap.section === g.section && r.gap.priority === g.priority)
@@ -55,6 +56,23 @@ export default function StepPlanReview({
   const [editingIdx, setEditingIdx] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
   const [auditExpanded, setAuditExpanded] = useState(false)
+  const [checkedIndices, setCheckedIndices] = useState<Set<number>>(new Set())
+
+  const toggleCheck = (idx: number) => {
+    setCheckedIndices(prev => {
+      const next = new Set(prev)
+      if (next.has(idx)) next.delete(idx)
+      else next.add(idx)
+      return next
+    })
+  }
+
+  const handleBatchGenerate = () => {
+    const gaps = Array.from(checkedIndices).sort().map(i => gapItems[i])
+    if (gaps.length >= 2) {
+      onBatchNext(gaps)
+    }
+  }
 
   // Stats
   const confirmedIssues = sectionAnalyses.reduce((n, sa) =>
@@ -229,9 +247,18 @@ export default function StepPlanReview({
             <div key={i} style={{
               marginLeft: depth >= 1 ? indentPx + 12 : 0,
               display: 'flex', gap: 10, padding: '10px 12px',
-              border: '1px solid var(--m3-outline-variant)', borderRadius: 10,
-              background: 'white', marginBottom: 6,
+              border: checkedIndices.has(i) ? '2px solid var(--m3-primary)' : '1px solid var(--m3-outline-variant)', borderRadius: 10,
+              background: checkedIndices.has(i) ? 'rgba(0,84,205,0.04)' : 'white', marginBottom: 6,
             }}>
+              {/* Checkbox for batch selection */}
+              <input
+                type="checkbox"
+                checked={checkedIndices.has(i)}
+                onChange={() => toggleCheck(i)}
+                title="勾选以联合生成"
+                style={{ flexShrink: 0, alignSelf: 'flex-start', marginTop: 4, cursor: 'pointer', accentColor: 'var(--m3-primary)' }}
+              />
+
               {/* Reorder */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
                 <button
@@ -366,10 +393,20 @@ export default function StepPlanReview({
 
       {/* Plan — section-grouped */}
       <div className="section-card">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
           <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--m3-primary)' }}>checklist</span>
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--m3-on-surface)' }}>内容迭代计划</span>
-          <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>按章节顺序排列，可编辑、删除</span>
+          <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>
+            {checkedIndices.size === 1
+              ? '再勾选至少 1 个任务以启用联合生成'
+              : '勾选关联任务可联合生成，或使用底部「批量生成」一键生成全部'}
+          </span>
+          {checkedIndices.size >= 2 && (
+            <button className="btn-gradient" style={{ fontSize: 12, marginLeft: 'auto' }} onClick={handleBatchGenerate}>
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>merge</span>
+              联合生成 {checkedIndices.size} 个章节
+            </button>
+          )}
         </div>
 
         {gapItems.length === 0 && (

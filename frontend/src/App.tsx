@@ -5,13 +5,13 @@ import StepSectionPreview from './components/StepSectionPreview'
 import StepSectionAnalysis from './components/StepSectionAnalysis'
 import StepGapAnalysis from './components/StepGapAnalysis'
 import StepPlanReview from './components/StepPlanReview'
-import StepGenerate from './components/StepGenerate'
+import StepGenerate, { extractSectionContent } from './components/StepGenerate'
 import HistoryView from './components/HistoryView'
 import AuthPage from './components/AuthPage'
 import { AuthProvider, useAuth } from './AuthContext'
 import { apiFetch } from './api'
 import {
-  QAItem, DraftRecord, SessionRecord,
+  QAItem, DraftRecord, SessionRecord, GeneratedDraft,
   ParsedArticle, SectionAnalysis, GapAnalysis, GapItem, ReferenceDoc, RefEvalResult, StandardsOverride, Step,
 } from './types'
 
@@ -151,7 +151,12 @@ function AppContent() {
 
   // Step 7
   const [selectedGap, setSelectedGap] = useState<GapItem | null>(null)
+  const [selectedGaps, setSelectedGaps] = useState<GapItem[]>([])   // 联合生成多选
   const [draftHistory, setDraftHistory] = useState<DraftRecord[]>([])
+
+  // 批量并行生成（App 级别，跨步骤持久运行）
+  const [batchProgress, setBatchProgress] = useState<{ running: boolean; done: number; total: number; failed: number }>({ running: false, done: 0, total: 0, failed: 0 })
+  const batchAbortRef = useRef(false)
 
   // Session tracking
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -360,7 +365,78 @@ function AppContent() {
   const handlePlanGapSelect = (gap: GapItem) => {
     if (!sessionId) setSessionId(new Date().toISOString())
     setSelectedGap(gap)
+    setSelectedGaps([])
     setStep(7)
+  }
+
+  const handlePlanBatchSelect = (gaps: GapItem[]) => {
+    if (!sessionId) setSessionId(new Date().toISOString())
+    setSelectedGap(null)
+    setSelectedGaps(gaps)
+    setStep(7)
+  }
+
+  // 批量并行生成所有未生成的任务（App 级别，跨步骤持久运行）
+  const handleBatchGenerateAll = () => {
+    if (!sessionId) setSessionId(new Date().toISOString())
+    const ungenerated = gapItems.filter(g =>
+      !draftHistory.some(r => r.gap.section === g.section && r.gap.priority === g.priority)
+    )
+    if (ungenerated.length === 0) {
+      setSelectedGap(draftHistory[draftHistory.length - 1]?.gap ?? null)
+      setSelectedGaps([])
+      setStep(7)
+      return
+    }
+
+    // 启动后台并行生成
+    batchAbortRef.current = false
+    setBatchProgress({ running: true, done: 0, total: ungenerated.length, failed: 0 })
+    setSelectedGap(null)
+    setSelectedGaps([])
+    setStep(7)
+
+    let doneCount = 0
+    let failCount = 0
+
+    const tasks = ungenerated.map(async (gap) => {
+      if (batchAbortRef.current) return
+      const sectionContent = extractSectionContent(parsedArticle, gap.section)
+      try {
+        const res = await apiFetch('/api/generate/draft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            disease,
+            section: gap.section,
+            gap_description: gap.description,
+            original_content: sectionContent || articleContent,
+            qa_references: qaItems.slice(0, 50),
+            article_context: articleContent.slice(0, 6000),
+            reference_inputs: referenceDocs.map((d, i) => ({
+              id: i + 1, filename: d.filename, text: d.text,
+            })),
+          })
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || '生成失败')
+        const draft = data as GeneratedDraft
+        addDraftRecord({
+          id: `${gap.section}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          gap, draft, editedContent: draft.generated_content,
+          generatedAt: new Date().toISOString(),
+        })
+        doneCount++
+      } catch {
+        failCount++
+        doneCount++
+      }
+      setBatchProgress({ running: doneCount < ungenerated.length, done: doneCount, total: ungenerated.length, failed: failCount })
+    })
+
+    Promise.all(tasks).then(() => {
+      setBatchProgress(prev => ({ ...prev, running: false }))
+    })
   }
 
   const goStep1 = () => {
@@ -391,7 +467,7 @@ function AppContent() {
     if (s === 4) return !!parsedArticle
     if (s === 5) return sectionAnalyses.length > 0
     if (s === 6) return !!gapAnalysis
-    if (s === 7) return draftHistory.length > 0
+    if (s === 7) return draftHistory.length > 0 || gapItems.length > 0
     return false
   }
 
@@ -437,19 +513,41 @@ function AppContent() {
           nextLabel: canClick(6) ? '下一步：审核与迭代计划' : null,
           nextAction: canClick(6) ? () => setStep(6) : null,
         }
-      case 6:
+      case 6: {
+        const ungeneratedCount = gapItems.filter(g =>
+          !draftHistory.some(r => r.gap.section === g.section && r.gap.priority === g.priority)
+        ).length
         return {
           backLabel: '返回需求分析', backAction: () => setStep(5),
-          nextLabel: draftHistory.length > 0 ? '开始生成内容' : null,
-          nextAction: draftHistory.length > 0 ? () => handlePlanGapSelect(draftHistory[draftHistory.length - 1].gap) : null,
+          nextLabel: draftHistory.length > 0 ? '查看稿件' : null,
+          nextAction: draftHistory.length > 0 ? () => { setSelectedGap(null); setSelectedGaps([]); setStep(7) } : null,
           extraRight: (
-            <span style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)' }}>
-              {draftHistory.length > 0
-                ? `已生成 ${draftHistory.length} / ${gapItems.length} 条稿件`
-                : '点击各条目的「生成」按钮开始生成稿件'}
-            </span>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              {batchProgress.running ? (
+                <span style={{ fontSize: 13, color: 'var(--m3-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                  批量生成中 {batchProgress.done}/{batchProgress.total}
+                  {batchProgress.failed > 0 && <span style={{ color: 'var(--m3-error)' }}>（{batchProgress.failed} 失败）</span>}
+                </span>
+              ) : (
+                <>
+                  <span style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)' }}>
+                    {draftHistory.length > 0
+                      ? `已生成 ${draftHistory.length} / ${gapItems.length} 条`
+                      : `共 ${gapItems.length} 条任务`}
+                  </span>
+                  {ungeneratedCount > 0 && gapItems.length > 0 && (
+                    <button className="btn-gradient" onClick={handleBatchGenerateAll} style={{ fontSize: 13 }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 18 }}>rocket_launch</span>
+                      批量生成{ungeneratedCount < gapItems.length ? ` (${ungeneratedCount}条)` : '全部'}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           ),
         }
+      }
       case 7:
         return {
           backLabel: '返回迭代计划', backAction: () => setStep(6),
@@ -589,6 +687,29 @@ function AppContent() {
         </div>
       ) : (
         <main className="app-main">
+          {/* 批量生成全局进度条 —— 在任意步骤都可见 */}
+          {batchProgress.running && step !== 7 && (
+            <div style={{
+              padding: '10px 20px', marginBottom: 12, borderRadius: 12,
+              background: 'rgba(0,84,205,0.06)', border: '1px solid rgba(0,84,205,0.15)',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+              <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)' }}>
+                  批量生成进行中 {batchProgress.done}/{batchProgress.total}
+                  {batchProgress.failed > 0 && <span style={{ color: 'var(--m3-error)', fontWeight: 400 }}> （{batchProgress.failed} 个失败）</span>}
+                </div>
+                <div style={{ height: 4, background: 'var(--m3-surface-container-low)', borderRadius: 2, marginTop: 6, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', borderRadius: 2, transition: 'width 0.3s', width: `${(batchProgress.done / batchProgress.total) * 100}%`, background: 'var(--m3-primary)' }} />
+                </div>
+              </div>
+              <button className="btn-m3-outline" style={{ fontSize: 12, padding: '4px 12px', flexShrink: 0 }}
+                onClick={() => { setSelectedGap(null); setSelectedGaps([]); setStep(7) }}>
+                查看稿件
+              </button>
+            </div>
+          )}
           {step === 1 && (
             <StepUpload
               disease={disease}
@@ -658,11 +779,12 @@ function AppContent() {
               setGapItems={setGapItems}
               draftHistory={draftHistory}
               onNext={handlePlanGapSelect}
+              onBatchNext={handlePlanBatchSelect}
               onBack={() => setStep(5)}
             />
           )}
 
-          {step === 7 && (selectedGap || draftHistory.length > 0) && (
+          {step === 7 && (selectedGap || selectedGaps.length > 0 || draftHistory.length > 0) && (
             <StepGenerate
               disease={disease}
               articleContent={articleContent}
@@ -670,6 +792,8 @@ function AppContent() {
               qaItems={qaItems}
               referenceDocs={referenceDocs}
               selectedGap={selectedGap}
+              selectedGaps={selectedGaps}
+              batchProgress={batchProgress}
               draftHistory={draftHistory}
               onAddDraft={addDraftRecord}
               onUpdateDraft={updateDraftRecord}
