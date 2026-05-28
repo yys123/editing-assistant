@@ -270,7 +270,7 @@ export default function StepSectionAnalysis({
     <div>
       {/* Page header */}
       <div style={{ marginBottom: 24 }}>
-        <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 700, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
+        <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 500, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
           内容质量审评
         </h2>
         <p style={{ fontSize: 14, color: 'var(--m3-on-surface-variant)' }}>
@@ -284,21 +284,21 @@ export default function StepSectionAnalysis({
           {anyAnalysing ? (
             <>
               <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-              <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--m3-on-surface)' }}>正在并行分析…</span>
+              <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)' }}>正在并行分析…</span>
               <span style={{ color: 'var(--m3-on-surface-variant)', fontSize: 13 }}>
                 {doneCount} / {groups.length} 个章节组完成
               </span>
             </>
           ) : (
             <>
-              <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--m3-on-surface)' }}>内容质量审评完成</span>
+              <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)' }}>内容质量审评完成</span>
               <span style={{ color: 'var(--m3-tertiary)' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 4 }}>check_circle</span>
                 {groups.length} 个章节组已分析
               </span>
             </>
           )}
-          {totalIssues > 0 && <span style={{ color: '#e65100' }}>共发现 {totalIssues} 个问题</span>}
+          {totalIssues > 0 && <span style={{ color: 'var(--dui-warning)' }}>共发现 {totalIssues} 个问题</span>}
           {failedCount > 0 && <span style={{ color: 'var(--m3-error)' }}>{failedCount} 个章节失败</span>}
           <button className="btn-m3-outline" style={{ marginLeft: 'auto', fontSize: 12, padding: '5px 14px' }} onClick={runAll}>
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>refresh</span>
@@ -308,7 +308,7 @@ export default function StepSectionAnalysis({
       </div>
 
       {/* Section detail */}
-      <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface-variant)' }}>
+      <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)' }}>
         章节详情
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
@@ -322,7 +322,7 @@ export default function StepSectionAnalysis({
 
           const isAnalysing = !!analysing[group.representative.id]
           const headerBg = isAnalysing ? 'var(--gray-50)' : issues.length > 0 ? 'var(--orange-light)' : 'var(--gray-50)'
-          const borderColor = hasError ? '#fca5a5' : issues.length > 0 ? 'var(--orange-light)' : 'var(--gray-200)'
+          const borderColor = hasError ? 'var(--dui-danger)' : issues.length > 0 ? 'var(--dui-warning)' : 'var(--dui-divider)'
 
           // Always show split view (original content always visible);
           // right panel shows spinner while analysing, issues when done
@@ -330,9 +330,9 @@ export default function StepSectionAnalysis({
 
           return (
             <div key={group.representative.id} style={{
-              border: `1px solid ${borderColor}`,
-              borderRadius: 'var(--radius)',
-              background: hasError ? '#fff8f8' : 'white',
+              border: `0.5px solid ${borderColor}`,
+              borderRadius: 'var(--dui-radius-card)',
+              background: hasError ? 'var(--dui-danger-container)' : 'var(--dui-surface)',
               overflow: 'hidden',
             }}>
               {/* Header row */}
@@ -342,17 +342,17 @@ export default function StepSectionAnalysis({
                 background: headerBg,
                 borderBottom: showSplit ? '1px solid var(--gray-200)' : 'none',
               }}>
-                <span style={{ fontSize: 11, color: 'var(--gray-400)', minWidth: 20 }}>{i + 1}</span>
+                <span style={{ fontSize: 12, color: 'var(--gray-400)', minWidth: 20 }}>{i + 1}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ fontWeight: 700, fontSize: 13 }}>{group.representative.heading}</span>
+                  <span style={{ fontWeight: 500, fontSize: 13 }}>{group.representative.heading}</span>
                   {childCount > 0 && (
-                    <span style={{ fontSize: 11, color: 'var(--gray-500)', marginLeft: 8 }}>
+                    <span style={{ fontSize: 12, color: 'var(--gray-500)', marginLeft: 8 }}>
                       含 {group.childSections.map(s => s.heading).slice(0, 3).join('、')}
                       {childCount > 3 ? ` 等 ${childCount} 个子章节` : ` 共 ${childCount} 个子章节`}
                     </span>
                   )}
                 </div>
-                <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>{totalChars} 字</span>
+                <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>{totalChars} 字</span>
                 {isAnalysing && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
@@ -361,7 +361,7 @@ export default function StepSectionAnalysis({
                 )}
                 {!isAnalysing && !hasError && (
                   <span style={{
-                    fontSize: 12, fontWeight: 700,
+                    fontSize: 12, fontWeight: 500,
                     color: issues.length > 0 ? 'var(--orange)' : 'var(--green)',
                   }}>
                     {issues.length > 0 ? `${issues.length} 个问题` : '✓ 无问题'}
@@ -384,13 +384,13 @@ export default function StepSectionAnalysis({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 0 }}>
                   {/* Left: original content */}
                   <div style={{
-                    borderRight: '1px solid var(--gray-200)',
+                    borderRight: '0.5px solid var(--dui-divider)',
                     display: 'flex', flexDirection: 'column',
                   }}>
                     <div style={{
-                      padding: '6px 12px', fontSize: 11, fontWeight: 600,
+                      padding: '6px 12px', fontSize: 12, fontWeight: 500,
                       color: 'var(--gray-500)', background: 'var(--gray-50)',
-                      borderBottom: '1px solid var(--gray-200)',
+                      borderBottom: '0.5px solid var(--dui-divider)',
                     }}>
                       原文内容
                     </div>
@@ -401,12 +401,12 @@ export default function StepSectionAnalysis({
                     }}>
                       {group.combinedContent.split('\n').map((line, li) => {
                         if (line.startsWith('### ')) return (
-                          <div key={li} style={{ fontWeight: 700, color: 'var(--gray-800)', margin: '8px 0 2px', fontSize: 12 }}>
+                          <div key={li} style={{ fontWeight: 500, color: 'var(--gray-800)', margin: '8px 0 2px', fontSize: 12 }}>
                             {line.slice(4)}
                           </div>
                         )
                         if (line.startsWith('## ')) return (
-                          <div key={li} style={{ fontWeight: 700, color: 'var(--gray-900)', margin: '10px 0 3px', fontSize: 13, borderBottom: '1px solid var(--gray-100)', paddingBottom: 2 }}>
+                          <div key={li} style={{ fontWeight: 500, color: 'var(--gray-900)', margin: '10px 0 3px', fontSize: 13, borderBottom: '0.5px solid var(--dui-divider)', paddingBottom: 2 }}>
                             {line.slice(3)}
                           </div>
                         )
@@ -419,10 +419,10 @@ export default function StepSectionAnalysis({
                   {/* Right: issues or per-section loading state */}
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <div style={{
-                      padding: '6px 12px', fontSize: 11, fontWeight: 600,
+                      padding: '6px 12px', fontSize: 12, fontWeight: 500,
                       color: isAnalysing ? 'var(--gray-400)' : hasError ? 'var(--red)' : issues.length > 0 ? 'var(--orange)' : 'var(--green)',
                       background: 'var(--gray-50)',
-                      borderBottom: '1px solid var(--gray-200)',
+                      borderBottom: '0.5px solid var(--dui-divider)',
                     }}>
                       {isAnalysing ? '分析中…' : hasError ? '分析失败' : issues.length > 0 ? `发现问题（${issues.length} 项）` : '✓ 无问题'}
                     </div>
@@ -462,65 +462,65 @@ export default function StepSectionAnalysis({
                                 ? '1px solid var(--gray-200)'
                                 : isConfirmed
                                   ? '1px solid var(--green)'
-                                  : `1px solid ${issue.severity === 'high' ? '#fca5a5' : issue.severity === 'medium' ? 'var(--orange-light)' : 'var(--blue-light)'}`,
+                                  : `0.5px solid ${issue.severity === 'high' ? 'var(--dui-danger)' : issue.severity === 'medium' ? 'var(--dui-warning)' : 'var(--dui-primary)'}`,
                               borderRadius: 6, padding: '8px 10px',
                               opacity: isRejected ? 0.5 : 1,
                             }}>
                               {/* Tags + actions row */}
                               <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 5, flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: isRejected ? 'var(--gray-100)' : sevBg, color: isRejected ? 'var(--gray-400)' : sevColor }}>
+                                <span style={{ fontSize: 12, fontWeight: 500, padding: '1px 6px', borderRadius: 3, background: isRejected ? 'var(--gray-100)' : sevBg, color: isRejected ? 'var(--gray-400)' : sevColor }}>
                                   {issue.severity === 'high' ? '高优先' : issue.severity === 'medium' ? '中优先' : '低优先'}
                                 </span>
-                                <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'var(--gray-200)', color: 'var(--gray-600)' }}>
+                                <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: 'var(--gray-200)', color: 'var(--gray-600)' }}>
                                   {ISSUE_TYPE_LABELS[issue.issue_type] ?? issue.issue_type}
                                 </span>
-                                <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'var(--gray-100)', color: 'var(--gray-500)' }}>
+                                <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: 'var(--gray-100)', color: 'var(--gray-500)' }}>
                                   D{dim} {DIM_CONFIG[dim].label}
                                 </span>
                                 {(dim === 1) && (
-                                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: issue.is_key_content ? '#fef3c7' : 'var(--gray-100)', color: issue.is_key_content ? '#92400e' : 'var(--gray-500)' }}>
+                                  <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: issue.is_key_content ? 'var(--dui-warning-container)' : 'var(--dui-surface-soft)', color: issue.is_key_content ? 'var(--dui-warning)' : 'var(--dui-text-sub)' }}>
                                     {issue.is_key_content ? '重点内容' : '非重点内容'}
                                   </span>
                                 )}
                                 {(dim === 2) && (
-                                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: issue.severity === 'high' ? '#fef3c7' : 'var(--gray-100)', color: issue.severity === 'high' ? '#92400e' : 'var(--gray-500)' }}>
+                                  <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: issue.severity === 'high' ? 'var(--dui-warning-container)' : 'var(--dui-surface-soft)', color: issue.severity === 'high' ? 'var(--dui-warning)' : 'var(--dui-text-sub)' }}>
                                     {issue.severity === 'high' ? '重点内容' : '非重点内容'}
                                   </span>
                                 )}
                                 {(issue.deduction_score ?? 0) > 0 && (
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: isRejected ? 'var(--gray-400)' : 'var(--red)', marginLeft: 'auto' }}>
+                                  <span style={{ fontSize: 12, fontWeight: 500, color: isRejected ? 'var(--gray-400)' : 'var(--red)', marginLeft: 'auto' }}>
                                     -{issue.deduction_score}分
                                   </span>
                                 )}
                                 {/* Action buttons */}
                                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
                                   {isConfirmed && (
-                                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', padding: '1px 6px' }}>✓ 已确认</span>
+                                    <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--green)', padding: '1px 6px' }}>✓ 已确认</span>
                                   )}
                                   {!isRejected && !isConfirmed && (
-                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 10, background: 'var(--green-light)', color: 'var(--green)' }}
+                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, background: 'var(--green-light)', color: 'var(--green)' }}
                                       onClick={() => updateIssue(group.representative.id, issue.id, { status: 'confirmed' })}>
                                       ✓ 确认
                                     </button>
                                   )}
                                   {isConfirmed && (
-                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 10 }}
+                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12 }}
                                       onClick={() => updateIssue(group.representative.id, issue.id, { status: 'ai' })}>
                                       撤销
                                     </button>
                                   )}
                                   {!isRejected ? (
-                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 10, background: 'var(--red-light)', color: 'var(--red)' }}
+                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, background: 'var(--red-light)', color: 'var(--red)' }}
                                       onClick={() => updateIssue(group.representative.id, issue.id, { status: 'rejected' })}>
                                       ✕ 排除
                                     </button>
                                   ) : (
-                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 10, background: 'var(--gray-100)', color: 'var(--gray-500)' }}
+                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, background: 'var(--gray-100)', color: 'var(--gray-500)' }}
                                       onClick={() => updateIssue(group.representative.id, issue.id, { status: 'ai' })}>
                                       恢复
                                     </button>
                                   )}
-                                  <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 10, color: 'var(--blue)' }}
+                                  <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, color: 'var(--blue)' }}
                                     onClick={() => setExpandedId(isExpanded ? null : issue.id)}>
                                     {isExpanded ? '收起' : '编辑'}
                                   </button>
@@ -546,7 +546,7 @@ export default function StepSectionAnalysis({
                                 <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', gap: 3 }}>
                                   {issue.examples.map((ex, ei) => (
                                     <div key={ei} style={{
-                                      fontSize: 11, color: 'var(--gray-600)', lineHeight: 1.6,
+                                      fontSize: 12, color: 'var(--gray-600)', lineHeight: 1.6,
                                       background: 'var(--gray-50)', borderRadius: 3, padding: '3px 7px',
                                       borderLeft: `2px solid ${isRejected ? 'var(--gray-300)' : sevColor}`,
                                     }}>
@@ -567,12 +567,12 @@ export default function StepSectionAnalysis({
                         padding: '6px 10px',
                         background: 'var(--blue-light)',
                         borderRadius: 4,
-                        fontSize: 11,
+                        fontSize: 12,
                         color: 'var(--gray-600)',
                         lineHeight: 1.7,
-                        borderLeft: '2px solid var(--blue)',
+                        borderLeft: '3px solid var(--dui-primary)',
                       }}>
-                        <span style={{ fontWeight: 600, color: 'var(--blue)' }}>二次核验：</span>
+                        <span style={{ fontWeight: 500, color: 'var(--blue)' }}>二次核验：</span>
                         {analysis.verification_summary}
                       </div>
                     )}
@@ -638,8 +638,8 @@ export default function StepSectionAnalysis({
 
         const TH = ({ children, center }: { children: React.ReactNode; center?: boolean }) => (
           <th style={{
-            padding: '8px 8px', fontSize: 11, fontWeight: 600, color: 'var(--gray-600)',
-            background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)',
+            padding: '8px 8px', fontSize: 12, fontWeight: 500, color: 'var(--gray-600)',
+            background: 'var(--gray-50)', borderBottom: '0.5px solid var(--dui-divider)',
             whiteSpace: 'nowrap', textAlign: center ? 'center' : 'left',
           }}>{children}</th>
         )
@@ -650,7 +650,7 @@ export default function StepSectionAnalysis({
         return (
           <div className="section-card" style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--m3-on-surface)' }}>
+              <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 18, verticalAlign: -4, marginRight: 6 }}>analytics</span>
                 审评结论
               </span>
@@ -661,7 +661,7 @@ export default function StepSectionAnalysis({
                 </span>
                 {overallRating && (
                   <span style={{
-                    fontSize: 13, fontWeight: 700, padding: '3px 12px', borderRadius: 4,
+                    fontSize: 13, fontWeight: 500, padding: '3px 12px', borderRadius: 4,
                     background: RATING_CONFIG[overallRating].bg,
                     color: RATING_CONFIG[overallRating].color,
                   }}>
@@ -696,18 +696,18 @@ export default function StepSectionAnalysis({
                     const rs = g.twoRow ? 2 : 1
                     // Verdict: excellent→优秀✓合格empty; pass-only→优秀empty合格✓; fail→优秀empty合格✗
                     const excellentMark = g.excellentPass
-                      ? <span style={{ color: 'var(--green)', fontWeight: 700, fontSize: 15 }}>✓</span>
+                      ? <span style={{ color: 'var(--green)', fontWeight: 500, fontSize: 16 }}>✓</span>
                       : null
                     const passingMark = g.excellentPass ? null
                       : g.passingPass
-                        ? <span style={{ color: 'var(--green)', fontWeight: 700, fontSize: 15 }}>✓</span>
-                        : <span style={{ color: 'var(--red)', fontWeight: 700, fontSize: 15 }}>✗</span>
+                        ? <span style={{ color: 'var(--green)', fontWeight: 500, fontSize: 16 }}>✓</span>
+                        : <span style={{ color: 'var(--red)', fontWeight: 500, fontSize: 16 }}>✗</span>
 
                     const dimTdStyle: React.CSSProperties = {
                       padding: '8px 8px', verticalAlign: 'middle', fontSize: 12,
-                      fontWeight: 700, textAlign: 'center',
+                      fontWeight: 500, textAlign: 'center',
                       background: 'var(--gray-50)',
-                      borderRight: '2px solid var(--gray-200)',
+                      borderRight: '0.5px solid var(--dui-divider)',
                       borderBottom: GB,
                     }
                     const numTdStyle: React.CSSProperties = {
@@ -723,14 +723,14 @@ export default function StepSectionAnalysis({
                       <React.Fragment key={g.dim}>
                         <tr>
                           <td rowSpan={rs} style={dimTdStyle}>
-                            <div style={{ fontSize: 10, color: 'var(--gray-400)', marginBottom: 2 }}>维度{g.dim}</div>
+                            <div style={{ fontSize: 12, color: 'var(--gray-400)', marginBottom: 2 }}>维度{g.dim}</div>
                             {DIM_CONFIG[g.dim].label}
                           </td>
                           <td style={{
                             padding: '8px 8px', verticalAlign: 'middle',
                             borderBottom: g.twoRow ? SB : GB,
                           }}>
-                            <div style={{ fontSize: 11, color: 'var(--gray-500)', lineHeight: 1.8 }}>
+                            <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.8 }}>
                               {g.criterion1.map((l, j) => <div key={j}>{l}</div>)}
                             </div>
                           </td>
@@ -745,7 +745,7 @@ export default function StepSectionAnalysis({
                               padding: '8px 8px', verticalAlign: 'middle',
                               background: 'var(--gray-50)', borderBottom: GB,
                             }}>
-                              <div style={{ fontSize: 11, color: 'var(--gray-500)', lineHeight: 1.8 }}>
+                              <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.8 }}>
                                 {g.criterion2.map((l, j) => <div key={j}>{l}</div>)}
                               </div>
                             </td>

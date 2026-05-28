@@ -69,7 +69,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     <div className="modal-overlay">
       <div className="modal-card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--m3-on-surface)', margin: 0 }}>修改密码</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 500, color: 'var(--m3-on-surface)', margin: 0 }}>修改密码</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
             <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--m3-on-surface-variant)' }}>close</span>
           </button>
@@ -586,12 +586,12 @@ function AppContent() {
       <header className="app-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className="material-symbols-outlined" style={{ fontSize: 26, color: 'var(--m3-primary)', fontVariationSettings: "'FILL' 1" }}>edit_note</span>
-          <span className="font-headline" style={{ fontSize: 18, fontWeight: 700, color: 'var(--m3-primary)' }}>DXY</span>
-          <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', borderLeft: '1px solid var(--m3-outline-variant)', paddingLeft: 12, marginLeft: 4 }}>
+          <span className="font-headline" style={{ fontSize: 18, fontWeight: 500, color: 'var(--m3-primary)' }}>DXY</span>
+          <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', borderLeft: '0.5px solid var(--dui-divider)', paddingLeft: 12, marginLeft: 4 }}>
             医学知识库编辑助手
           </span>
           {readOnly && (
-            <span className="btn-m3-pill" style={{ background: '#fff3e0', color: '#e65100', fontSize: 11, cursor: 'default' }}>
+            <span className="btn-m3-pill" style={{ background: 'var(--dui-warning-container)', color: 'var(--dui-warning)', fontSize: 12, cursor: 'default', border: 'none' }}>
               <span className="material-symbols-outlined" style={{ fontSize: 14 }}>visibility</span>
               只读模式
             </span>
@@ -628,7 +628,7 @@ function AppContent() {
       {!isHistoryView && (
         <nav className="app-sidebar">
           <div style={{ padding: '20px 20px 12px' }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--m3-on-surface)' }}>任务进度</div>
+            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--m3-on-surface)' }}>任务进度</div>
             <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>7步临床工作流</div>
           </div>
           <div style={{ padding: '0 12px' }}>
@@ -659,8 +659,8 @@ function AppContent() {
                       color: 'white',
                       borderRadius: 999,
                       padding: '0 7px',
-                      fontSize: 11,
-                      fontWeight: 600,
+                      fontSize: 12,
+                      fontWeight: 500,
                       lineHeight: '18px',
                     }}>
                       {draftHistory.length}
@@ -691,12 +691,12 @@ function AppContent() {
           {batchProgress.running && step !== 7 && (
             <div style={{
               padding: '10px 20px', marginBottom: 12, borderRadius: 12,
-              background: 'rgba(0,84,205,0.06)', border: '1px solid rgba(0,84,205,0.15)',
+              background: 'var(--dui-primary-container)', border: '0.5px solid var(--dui-primary)',
               display: 'flex', alignItems: 'center', gap: 12,
             }}>
               <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2, flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)' }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface)' }}>
                   批量生成进行中 {batchProgress.done}/{batchProgress.total}
                   {batchProgress.failed > 0 && <span style={{ color: 'var(--m3-error)', fontWeight: 400 }}> （{batchProgress.failed} 个失败）</span>}
                 </div>

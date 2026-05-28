@@ -12,23 +12,23 @@ interface Props {
 }
 
 const RATING_COLORS: Record<string, { bg: string; color: string }> = {
-  '强烈推荐': { bg: '#dcfce7', color: '#166534' },
-  '推荐': { bg: '#dbeafe', color: '#1e40af' },
-  '可用': { bg: '#fef9c3', color: '#854d0e' },
-  '建议替换': { bg: '#fee2e2', color: '#991b1b' },
-  '高': { bg: '#dcfce7', color: '#166534' },
-  '中': { bg: '#fef9c3', color: '#854d0e' },
-  '低': { bg: '#fee2e2', color: '#991b1b' },
-  '最新': { bg: '#dcfce7', color: '#166534' },
-  '较新': { bg: '#dbeafe', color: '#1e40af' },
-  '陈旧': { bg: '#fee2e2', color: '#991b1b' },
+  '强烈推荐': { bg: 'var(--dui-success-container)', color: 'var(--dui-success)' },
+  '推荐':     { bg: 'var(--dui-primary-container)', color: 'var(--dui-primary)' },
+  '可用':     { bg: 'var(--dui-warning-container)', color: 'var(--dui-warning)' },
+  '建议替换': { bg: 'var(--dui-danger-container)',  color: 'var(--dui-danger)' },
+  '高':       { bg: 'var(--dui-success-container)', color: 'var(--dui-success)' },
+  '中':       { bg: 'var(--dui-warning-container)', color: 'var(--dui-warning)' },
+  '低':       { bg: 'var(--dui-danger-container)',  color: 'var(--dui-danger)' },
+  '最新':     { bg: 'var(--dui-success-container)', color: 'var(--dui-success)' },
+  '较新':     { bg: 'var(--dui-primary-container)', color: 'var(--dui-primary)' },
+  '陈旧':     { bg: 'var(--dui-danger-container)',  color: 'var(--dui-danger)' },
 }
 
 function RatingBadge({ text }: { text: string }) {
   const style = RATING_COLORS[text] || { bg: 'var(--m3-surface-container-low)', color: 'var(--m3-on-surface)' }
   return (
     <span style={{
-      padding: '2px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+      padding: '2px 10px', borderRadius: 999, fontSize: 12, fontWeight: 500,
       background: style.bg, color: style.color,
     }}>
       {text}
@@ -55,12 +55,12 @@ function RefItemCard({ item, index }: { item: RefEvalItemResult; index: number }
           width: 26, height: 26, borderRadius: 6,
           background: recColor.color, color: '#fff',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 13, fontWeight: 700, flexShrink: 0,
+          fontSize: 13, fontWeight: 500, flexShrink: 0,
         }}>
           {index + 1}
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--m3-on-surface)', wordBreak: 'break-all' }}>
+          <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)', wordBreak: 'break-all' }}>
             {item.filename}
           </div>
           <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>{item.summary}</div>
@@ -79,7 +79,7 @@ function RefItemCard({ item, index }: { item: RefEvalItemResult; index: number }
           </div>
           <div style={{ background: 'var(--m3-surface-container-low)', borderRadius: 8, padding: '12px 14px' }}>
             <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 4, fontWeight: 500 }}>证据等级</div>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--m3-on-surface)' }}>{item.evidence_level}</span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--m3-on-surface)' }}>{item.evidence_level}</span>
             <div style={{ fontSize: 12, marginTop: 6, color: 'var(--m3-on-surface-variant)', lineHeight: 1.5 }}>{item.evidence_note}</div>
           </div>
           <div style={{ background: 'var(--m3-surface-container-low)', borderRadius: 8, padding: '12px 14px' }}>
@@ -133,7 +133,7 @@ export default function StepRefReview({
     return (
       <div className="section-card" style={{ textAlign: 'center', padding: 48 }}>
         <span className="material-symbols-outlined" style={{ fontSize: 48, color: 'var(--m3-on-surface-variant)', opacity: 0.4, display: 'block', marginBottom: 12 }}>menu_book</span>
-        <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--m3-on-surface)' }}>未上传参考文献</div>
+        <div style={{ fontWeight: 500, marginBottom: 8, color: 'var(--m3-on-surface)' }}>未上传参考文献</div>
         <div style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)' }}>
           当前未上传任何参考文献。可通过底部导航栏跳过此步骤继续，或返回上一步上传参考文献。
         </div>
@@ -145,7 +145,7 @@ export default function StepRefReview({
     return (
       <div className="section-card" style={{ textAlign: 'center', padding: 48 }}>
         <div className="spinner" style={{ margin: '0 auto 12px' }} />
-        <div style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>正在评估 {referenceDocs.length} 篇参考文献...</div>
+        <div style={{ fontWeight: 500, color: 'var(--m3-on-surface)' }}>正在评估 {referenceDocs.length} 篇参考文献...</div>
         <div style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)', marginTop: 6 }}>AI 正在从权威性、证据等级、时效性等维度审核，通常需要 15-30 秒</div>
       </div>
     )
@@ -178,7 +178,7 @@ export default function StepRefReview({
     <div>
       {/* Page header */}
       <div style={{ marginBottom: 24 }}>
-        <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 700, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
+        <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 500, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
           参考文献审核
         </h2>
         <p style={{ fontSize: 14, color: 'var(--m3-on-surface-variant)' }}>
@@ -190,7 +190,7 @@ export default function StepRefReview({
       <div className="section-card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--m3-primary)' }}>assignment</span>
-          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--m3-on-surface)' }}>审核结果</span>
+          <span style={{ fontWeight: 500, fontSize: 16, color: 'var(--m3-on-surface)' }}>审核结果</span>
           <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>（{disease} · {evalResult.item_evaluations.length} 篇）</span>
           <button className="btn-m3-outline" style={{ marginLeft: 'auto', fontSize: 12, padding: '4px 12px' }} onClick={runEval}>
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>refresh</span>
@@ -203,14 +203,14 @@ export default function StepRefReview({
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: hasIssues ? 14 : 0 }}>
           <div style={{ background: 'var(--m3-surface-container-low)', borderRadius: 8, padding: '12px 16px' }}>
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, color: 'var(--m3-on-surface)' }}>
+            <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 4, color: 'var(--m3-on-surface)' }}>
               <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>fact_check</span>
               内容覆盖面
             </div>
             <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', lineHeight: 1.6 }}>{evalResult.comprehensiveness}</div>
           </div>
           <div style={{ background: 'var(--m3-surface-container-low)', borderRadius: 8, padding: '12px 16px' }}>
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, color: 'var(--m3-on-surface)' }}>
+            <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 4, color: 'var(--m3-on-surface)' }}>
               <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>language</span>
               本地化适用性
             </div>
@@ -221,27 +221,27 @@ export default function StepRefReview({
         {hasIssues && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             {evalResult.coverage_gaps.length > 0 && (
-              <div style={{ background: '#fef9c3', borderRadius: 8, padding: '12px 16px' }}>
-                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6, color: '#854d0e' }}>
+              <div style={{ background: 'var(--dui-warning-container)', borderRadius: 8, padding: '12px 16px' }}>
+                <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 6, color: 'var(--dui-warning)' }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>warning</span>
                   建议补充
                 </div>
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
                   {evalResult.coverage_gaps.map((g, i) => (
-                    <li key={i} style={{ fontSize: 12, color: '#854d0e', marginBottom: 2 }}>{g}</li>
+                    <li key={i} style={{ fontSize: 12, color: 'var(--dui-warning)', marginBottom: 2 }}>{g}</li>
                   ))}
                 </ul>
               </div>
             )}
             {evalResult.suggestions.length > 0 && (
-              <div style={{ background: '#dbeafe', borderRadius: 8, padding: '12px 16px' }}>
-                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6, color: '#1e40af' }}>
+              <div style={{ background: 'var(--dui-primary-container)', borderRadius: 8, padding: '12px 16px' }}>
+                <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 6, color: 'var(--dui-primary)' }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>lightbulb</span>
                   改进建议
                 </div>
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
                   {evalResult.suggestions.map((s, i) => (
-                    <li key={i} style={{ fontSize: 12, color: '#1e40af', marginBottom: 2 }}>{s}</li>
+                    <li key={i} style={{ fontSize: 12, color: 'var(--dui-primary)', marginBottom: 2 }}>{s}</li>
                   ))}
                 </ul>
               </div>

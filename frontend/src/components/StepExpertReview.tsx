@@ -11,9 +11,9 @@ interface Props {
 }
 
 const COVERAGE_CONFIG = {
-  full:    { label: '已覆盖', color: 'var(--green)',  bg: '#f0fdf4', icon: '✓' },
-  partial: { label: '需完善', color: 'var(--orange)', bg: '#fff7ed', icon: '◑' },
-  missing: { label: '内容缺失', color: 'var(--red)',    bg: '#fff1f1', icon: '✗' },
+  full:    { label: '已覆盖',   color: 'var(--dui-success)', bg: 'var(--dui-success-container)', icon: '✓' },
+  partial: { label: '需完善',   color: 'var(--dui-warning)', bg: 'var(--dui-warning-container)', icon: '◑' },
+  missing: { label: '内容缺失', color: 'var(--dui-danger)',  bg: 'var(--dui-danger-container)',  icon: '✗' },
 } as const
 
 export default function StepExpertReview({ sectionAnalyses, setSectionAnalyses, gapAnalysis, onNext, onBack }: Props) {
@@ -88,8 +88,8 @@ export default function StepExpertReview({ sectionAnalyses, setSectionAnalyses, 
           { label: '已确认/补充', value: totalConfirmed,         color: 'var(--green)' },
         ].map(s => (
           <div key={s.label} className="card" style={{ flex: 1, minWidth: 80, textAlign: 'center', padding: '12px 8px' }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 3 }}>{s.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 500, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 3 }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -115,7 +115,7 @@ export default function StepExpertReview({ sectionAnalyses, setSectionAnalyses, 
 
           return (
             <div key={sa.section_id} style={{
-              border: '1px solid var(--gray-200)',
+              border: '0.5px solid var(--dui-divider)',
               borderLeft: `3px solid ${borderColor}`,
               borderRadius: 'var(--radius)',
               background: 'white',
@@ -130,38 +130,38 @@ export default function StepExpertReview({ sectionAnalyses, setSectionAnalyses, 
                   background: !hasAnything ? 'var(--gray-50)' : 'white',
                 }}
               >
-                <span style={{ fontSize: 11, color: 'var(--gray-400)', minWidth: 18 }}>{idx + 1}</span>
-                <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--gray-900)', flex: 1 }}>
+                <span style={{ fontSize: 12, color: 'var(--gray-400)', minWidth: 18 }}>{idx + 1}</span>
+                <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--gray-900)', flex: 1 }}>
                   {sa.section_heading}
                 </span>
                 <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
                   {activeQuality.length > 0 && (
-                    <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 10,
-                      background: 'var(--orange-light)', color: 'var(--orange)', fontWeight: 600 }}>
+                    <span style={{ fontSize: 12, padding: '1px 7px', borderRadius: 10,
+                      background: 'var(--orange-light)', color: 'var(--orange)', fontWeight: 500 }}>
                       质量 {activeQuality.length}
                     </span>
                   )}
                   {missingCount > 0 && (
-                    <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 10,
-                      background: '#fff1f1', color: 'var(--red)', fontWeight: 600 }}>
+                    <span style={{ fontSize: 12, padding: '1px 8px', borderRadius: 999,
+                      background: 'var(--dui-danger-container)', color: 'var(--dui-danger)', fontWeight: 500 }}>
                       ✗ {missingCount}
                     </span>
                   )}
                   {partialCount > 0 && (
-                    <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 10,
-                      background: '#fff7ed', color: 'var(--orange)', fontWeight: 600 }}>
+                    <span style={{ fontSize: 12, padding: '1px 8px', borderRadius: 999,
+                      background: 'var(--dui-warning-container)', color: 'var(--dui-warning)', fontWeight: 500 }}>
                       ◑ {partialCount}
                     </span>
                   )}
                   {!hasAnything && (
-                    <span style={{ fontSize: 11, color: 'var(--green)' }}>✓ 无问题</span>
+                    <span style={{ fontSize: 12, color: 'var(--green)' }}>✓ 无问题</span>
                   )}
                 </div>
-                <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>{isCollapsed ? '▸' : '▾'}</span>
+                <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>{isCollapsed ? '▸' : '▾'}</span>
               </div>
 
               {!isCollapsed && (
-                <div style={{ borderTop: '1px solid var(--gray-100)' }}>
+                <div style={{ borderTop: '0.5px solid var(--dui-divider)' }}>
 
                   {/* ── 内容质量问题（Step 3）─────────────────────────── */}
                   {sa.issues.length > 0 && (
@@ -171,10 +171,10 @@ export default function StepExpertReview({ sectionAnalyses, setSectionAnalyses, 
                       <div style={{ padding: '8px 14px 2px', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ width: 3, height: 12, background: 'var(--orange)', borderRadius: 2,
                           display: 'inline-block', flexShrink: 0 }} />
-                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-600)' }}>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--gray-600)' }}>
                           内容质量问题
                         </span>
-                        <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>
+                        <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>
                           {activeQuality.length} 项有效
                           {sa.issues.length - activeQuality.length > 0 &&
                             `，${sa.issues.length - activeQuality.length} 项已排除`}
@@ -201,10 +201,10 @@ export default function StepExpertReview({ sectionAnalyses, setSectionAnalyses, 
                       <div style={{ padding: '8px 14px 2px', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ width: 3, height: 12, background: 'var(--blue)', borderRadius: 2,
                           display: 'inline-block', flexShrink: 0 }} />
-                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-600)' }}>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--gray-600)' }}>
                           用户需求覆盖
                         </span>
-                        <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>
+                        <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>
                           {[
                             missingCount > 0 ? `${missingCount} 内容缺失` : '',
                             partialCount > 0 ? `${partialCount} 需完善` : '',
@@ -217,22 +217,22 @@ export default function StepExpertReview({ sectionAnalyses, setSectionAnalyses, 
                           const freq = clusterFreqMap.get(nc.topic)
                           return (
                             <div key={j} style={{
-                              border: '1px solid var(--gray-100)',
+                              border: '0.5px solid var(--dui-divider)',
                               borderLeft: `3px solid ${cfg.color}`,
                               borderRadius: 6, padding: '8px 12px',
                               background: 'white',
                             }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8,
                                 marginBottom: nc.revision_suggestion ? 6 : 0 }}>
-                                <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 4,
+                                <span style={{ fontSize: 12, fontWeight: 500, padding: '1px 7px', borderRadius: 4,
                                   background: cfg.bg, color: cfg.color, flexShrink: 0 }}>
                                   {cfg.icon} {cfg.label}
                                 </span>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-800)', flex: 1 }}>
+                                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--gray-800)', flex: 1 }}>
                                   {nc.topic}
                                 </span>
                                 {freq != null && (
-                                  <span style={{ fontSize: 11, color: 'var(--gray-400)', flexShrink: 0 }}>
+                                  <span style={{ fontSize: 12, color: 'var(--gray-400)', flexShrink: 0 }}>
                                     约 {freq} 次提问
                                   </span>
                                 )}
@@ -241,11 +241,11 @@ export default function StepExpertReview({ sectionAnalyses, setSectionAnalyses, 
                                 <div style={{
                                   fontSize: 12, color: 'var(--gray-700)', lineHeight: 1.7,
                                   padding: '5px 10px', borderRadius: 4,
-                                  border: '1px solid var(--gray-100)',
+                                  border: '0.5px solid var(--dui-divider)',
                                   borderLeftWidth: 3, borderLeftColor: cfg.color,
                                   background: 'white',
                                 }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: cfg.color, marginRight: 6 }}>
+                                  <span style={{ fontSize: 12, fontWeight: 500, color: cfg.color, marginRight: 6 }}>
                                     {nc.coverage_level === 'missing' ? '建议补充' : '建议完善'}
                                   </span>
                                   {nc.revision_suggestion}
@@ -266,7 +266,7 @@ export default function StepExpertReview({ sectionAnalyses, setSectionAnalyses, 
                   )}
 
                   {/* Add issue */}
-                  <div style={{ padding: '8px 14px', borderTop: '1px solid var(--gray-100)' }}>
+                  <div style={{ padding: '8px 14px', borderTop: '0.5px solid var(--dui-divider)' }}>
                     <button className="btn btn-sm btn-outline" onClick={() => addIssue(sa.section_id)}>
                       + 补充质量问题
                     </button>

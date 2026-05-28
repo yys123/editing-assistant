@@ -18,9 +18,9 @@ interface Props {
 }
 
 const COVERAGE_CONFIG = {
-  full:    { label: '已覆盖', color: 'var(--m3-tertiary)',  bg: '#f0fdf4', icon: 'check_circle' },
-  partial: { label: '需完善', color: '#e65100', bg: '#fff7ed', icon: 'pending' },
-  missing: { label: '内容缺失', color: 'var(--m3-error)',    bg: '#fff1f1', icon: 'cancel' },
+  full:    { label: '已覆盖',   color: 'var(--dui-success)', bg: 'var(--dui-success-container)', icon: 'check_circle' },
+  partial: { label: '需完善',   color: 'var(--dui-warning)', bg: 'var(--dui-warning-container)', icon: 'pending' },
+  missing: { label: '内容缺失', color: 'var(--dui-danger)',  bg: 'var(--dui-danger-container)',  icon: 'cancel' },
 } as const
 
 // ── NeedCard sub-component ────────────────────────────────────────────────────
@@ -55,29 +55,29 @@ function NeedCard({ cluster, sections, missingCount, partialCount, fullCount, is
       <div
         onClick={() => setOpen(o => !o)}
         style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: 'pointer', userSelect: 'none',
-          background: isSatisfied ? 'var(--m3-surface-container-low)' : borderColor === 'var(--m3-error)' ? '#fffafa' : borderColor === '#e65100' ? '#fffef8' : 'white' }}
+          background: isSatisfied ? 'var(--dui-surface-soft)' : borderColor === 'var(--dui-danger)' ? 'var(--dui-danger-container)' : borderColor === 'var(--dui-warning)' ? 'var(--dui-warning-container)' : 'var(--dui-surface)' }}
       >
-        <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--m3-on-surface)', flex: 1 }}>{cluster.topic}</span>
+        <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)', flex: 1 }}>{cluster.topic}</span>
         {cluster.frequency > 0 && (
-          <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 3,
-            background: cluster.frequency > 100 ? '#fff1f1' : cluster.frequency > 50 ? '#fff7ed' : 'var(--m3-surface-container-low)',
-            color: cluster.frequency > 100 ? 'var(--m3-error)' : cluster.frequency > 50 ? '#e65100' : 'var(--m3-on-surface-variant)' }}>
+          <span style={{ fontSize: 12, fontWeight: 500, padding: '1px 7px', borderRadius: 3,
+            background: cluster.frequency > 100 ? 'var(--dui-danger-container)' : cluster.frequency > 50 ? 'var(--dui-warning-container)' : 'var(--dui-surface-soft)',
+            color: cluster.frequency > 100 ? 'var(--dui-danger)' : cluster.frequency > 50 ? 'var(--dui-warning)' : 'var(--dui-text-sub)' }}>
             {cluster.frequency} 次提问
           </span>
         )}
         {/* Coverage counts (exclude rejected) */}
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          {missingCount > 0 && <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 10, background: '#fff1f1', color: 'var(--m3-error)' }}><span className="material-symbols-outlined" style={{ fontSize: 12, verticalAlign: -2 }}>cancel</span> {missingCount}</span>}
-          {partialCount > 0 && <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 10, background: '#fff7ed', color: '#e65100' }}><span className="material-symbols-outlined" style={{ fontSize: 12, verticalAlign: -2 }}>pending</span> {partialCount}</span>}
-          {fullCount > 0    && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 10, background: '#f0fdf4', color: 'var(--m3-tertiary)', fontWeight: isSatisfied ? 700 : 400 }}><span className="material-symbols-outlined" style={{ fontSize: 12, verticalAlign: -2 }}>check_circle</span> {fullCount}</span>}
-          {sections.length === 0 && <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>未映射到章节</span>}
+          {missingCount > 0 && <span style={{ fontSize: 12, fontWeight: 500, padding: '1px 8px', borderRadius: 999, background: 'var(--dui-danger-container)', color: 'var(--dui-danger)' }}><span className="material-symbols-outlined" style={{ fontSize: 12, verticalAlign: -2 }}>cancel</span> {missingCount}</span>}
+          {partialCount > 0 && <span style={{ fontSize: 12, fontWeight: 500, padding: '1px 8px', borderRadius: 999, background: 'var(--dui-warning-container)', color: 'var(--dui-warning)' }}><span className="material-symbols-outlined" style={{ fontSize: 12, verticalAlign: -2 }}>pending</span> {partialCount}</span>}
+          {fullCount > 0    && <span style={{ fontSize: 12, padding: '1px 8px', borderRadius: 999, background: 'var(--dui-success-container)', color: 'var(--dui-success)', fontWeight: isSatisfied ? 500 : 400 }}><span className="material-symbols-outlined" style={{ fontSize: 12, verticalAlign: -2 }}>check_circle</span> {fullCount}</span>}
+          {sections.length === 0 && <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>未映射到章节</span>}
         </div>
         <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-on-surface-variant)', marginLeft: 4, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}>expand_more</span>
       </div>
 
       {/* Expanded body */}
       {open && (
-        <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
+        <div style={{ borderTop: '0.5px solid var(--dui-divider)' }}>
           {sections.length === 0 ? (
             <div style={{ padding: '12px 14px' }}>
               {(() => {
@@ -86,9 +86,9 @@ function NeedCard({ cluster, sections, missingCount, partialCount, fullCount, is
                 return (
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                      <span style={{ width: 3, height: 12, background: '#e65100', borderRadius: 2, display: 'inline-block', flexShrink: 0 }} />
-                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--m3-on-surface)' }}>当前词条暂无对应章节</span>
-                      <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>建议新增内容或在现有章节中补充</span>
+                      <span style={{ width: 3, height: 12, background: 'var(--dui-warning)', borderRadius: 2, display: 'inline-block', flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--m3-on-surface)' }}>当前词条暂无对应章节</span>
+                      <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>建议新增内容或在现有章节中补充</span>
                     </div>
                     {isEditingPlacement ? (
                       <div>
@@ -98,13 +98,13 @@ function NeedCard({ cluster, sections, missingCount, partialCount, fullCount, is
                           autoFocus
                           rows={4}
                           style={{ width: '100%', fontSize: 12, padding: '8px 10px', borderRadius: 8,
-                            border: '1px solid var(--m3-outline-variant)', resize: 'vertical', lineHeight: 1.6,
+                            border: '0.5px solid var(--dui-divider)', resize: 'vertical', lineHeight: 1.6,
                             fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                         />
                         <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                          <button className="btn-gradient" style={{ fontSize: 11, padding: '4px 12px' }}
+                          <button className="btn-gradient" style={{ fontSize: 12, padding: '4px 12px' }}
                             onClick={() => setExpandedKey(null)}>保存</button>
-                          <button className="btn-m3-outline" style={{ fontSize: 11, padding: '4px 12px' }}
+                          <button className="btn-m3-outline" style={{ fontSize: 12, padding: '4px 12px' }}
                             onClick={() => setExpandedKey(null)}>取消</button>
                         </div>
                       </div>
@@ -112,16 +112,16 @@ function NeedCard({ cluster, sections, missingCount, partialCount, fullCount, is
                       <div
                         onClick={() => setExpandedKey(placementKey)}
                         style={{ padding: '8px 12px', borderRadius: 8, background: 'white',
-                          border: '1px solid var(--m3-outline-variant)', borderLeftWidth: 3, borderLeftColor: '#e65100',
-                          fontSize: 12, color: 'var(--m3-on-surface)', lineHeight: 1.7, cursor: 'text' }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: '#e65100', marginRight: 6 }}>修订建议</span>
+                          border: '0.5px solid var(--dui-divider)', borderLeftWidth: 3, borderLeftColor: 'var(--dui-warning)',
+                          fontSize: 12, color: 'var(--dui-text)', lineHeight: 1.7, cursor: 'text' }}>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--dui-warning)', marginRight: 6 }}>修订建议</span>
                         {cluster.placement_suggestion}
                         <span className="material-symbols-outlined" style={{ marginLeft: 6, fontSize: 14, color: 'var(--m3-on-surface-variant)', verticalAlign: -3 }}>edit</span>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', fontStyle: 'italic' }}>暂无修订建议</span>
-                        <button className="btn-m3-outline" style={{ fontSize: 11, padding: '2px 10px' }}
+                        <button className="btn-m3-outline" style={{ fontSize: 12, padding: '2px 10px' }}
                           onClick={() => setExpandedKey(placementKey)}>+ 添加建议</button>
                       </div>
                     )}
@@ -133,18 +133,18 @@ function NeedCard({ cluster, sections, missingCount, partialCount, fullCount, is
             <>
               {/* Representative questions */}
               {cluster.representative_questions.length > 0 && (
-                <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--m3-outline-variant)', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)', marginRight: 2 }}>问题示例：</span>
+                <div style={{ padding: '10px 14px', borderBottom: '0.5px solid var(--dui-divider)', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginRight: 2 }}>问题示例：</span>
                   {(qExpanded ? cluster.representative_questions : cluster.representative_questions.slice(0, 3)).map((q, qi) => (
-                    <span key={qi} style={{ fontSize: 11, color: 'var(--m3-on-surface)', lineHeight: 1.5,
-                      padding: '2px 8px', borderRadius: 6, background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
+                    <span key={qi} style={{ fontSize: 12, color: 'var(--m3-on-surface)', lineHeight: 1.5,
+                      padding: '2px 8px', borderRadius: 6, background: 'var(--m3-surface-container-low)', border: '0.5px solid var(--dui-divider)' }}>
                       「{q}」
                     </span>
                   ))}
                   {cluster.representative_questions.length > 3 && (
                     <button
                       onClick={e => { e.stopPropagation(); setQExpanded(v => !v) }}
-                      style={{ fontSize: 11, color: 'var(--m3-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', flexShrink: 0 }}
+                      style={{ fontSize: 12, color: 'var(--m3-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', flexShrink: 0 }}
                     >
                       {qExpanded ? '收起' : `+${cluster.representative_questions.length - 3} 更多`}
                     </button>
@@ -164,7 +164,7 @@ function NeedCard({ cluster, sections, missingCount, partialCount, fullCount, is
                   onUpdateCoverage(item.sectionId, cluster.topic, { revision_suggestion: v })]
 
                 const rowBg = isRejected ? 'var(--m3-surface-container-low)' : isDimmed ? 'var(--m3-surface-container-low)'
-                  : item.coverage.coverage_level === 'missing' ? '#fffbfb' : '#fffdf8'
+                  : item.coverage.coverage_level === 'missing' ? 'var(--dui-danger-container)' : 'var(--dui-warning-container)'
 
                 return (
                   <div key={item.sectionId} style={{
@@ -176,7 +176,7 @@ function NeedCard({ cluster, sections, missingCount, partialCount, fullCount, is
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                       {/* Section heading pill */}
                       <div style={{ flexShrink: 0, paddingTop: 2, width: 130, overflow: 'hidden' }}>
-                        <span style={{ display: 'block', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                        <span style={{ display: 'block', padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 500,
                           background: 'var(--m3-surface-container-low)', color: 'var(--m3-on-surface)', whiteSpace: 'nowrap',
                           overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {item.sectionHeading}
@@ -184,7 +184,7 @@ function NeedCard({ cluster, sections, missingCount, partialCount, fullCount, is
                       </div>
                       {/* Coverage badge */}
                       <div style={{ flexShrink: 0, paddingTop: 2, width: 82 }}>
-                        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 500,
                           background: isRejected ? 'var(--m3-surface-container-low)' : cfg.bg,
                           color: isRejected ? 'var(--m3-on-surface-variant)' : cfg.color,
                           textDecoration: isRejected ? 'line-through' : 'none' }}>
@@ -209,12 +209,12 @@ function NeedCard({ cluster, sections, missingCount, partialCount, fullCount, is
                               <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                                 <button
                                   className="btn-gradient"
-                                  style={{ fontSize: 11, padding: '4px 12px' }}
+                                  style={{ fontSize: 12, padding: '4px 12px' }}
                                   onClick={() => setExpandedKey(null)}
                                 >保存</button>
                                 <button
                                   className="btn-m3-outline"
-                                  style={{ fontSize: 11, padding: '4px 12px' }}
+                                  style={{ fontSize: 12, padding: '4px 12px' }}
                                   onClick={() => setExpandedKey(null)}
                                 >取消</button>
                               </div>
@@ -229,7 +229,7 @@ function NeedCard({ cluster, sections, missingCount, partialCount, fullCount, is
                                   fontSize: 12, lineHeight: 1.7, cursor: isRejected ? 'default' : 'text',
                                   textDecoration: isRejected ? 'line-through' : 'none',
                                   color: isRejected ? 'var(--m3-on-surface-variant)' : 'var(--m3-on-surface)' }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, marginRight: 6,
+                                  <span style={{ fontSize: 12, fontWeight: 500, marginRight: 6,
                                     color: isRejected ? 'var(--m3-on-surface-variant)' : cfg.color }}>
                                     {item.coverage.coverage_level === 'missing' ? '建议补充' : '建议完善'}
                                   </span>
@@ -249,28 +249,28 @@ function NeedCard({ cluster, sections, missingCount, partialCount, fullCount, is
                           {isRejected ? (
                             <button
                               className="btn-m3-outline"
-                              style={{ fontSize: 11, padding: '2px 10px', color: 'var(--m3-on-surface-variant)' }}
+                              style={{ fontSize: 12, padding: '2px 10px', color: 'var(--m3-on-surface-variant)' }}
                               onClick={() => onUpdateCoverage(item.sectionId, cluster.topic, { status: 'ai' })}
                             >恢复</button>
                           ) : isConfirmed ? (
                             <>
-                              <span style={{ fontSize: 11, color: 'var(--m3-tertiary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 2 }}><span className="material-symbols-outlined" style={{ fontSize: 14 }}>check_circle</span> 已确认</span>
+                              <span style={{ fontSize: 12, color: 'var(--m3-tertiary)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 2 }}><span className="material-symbols-outlined" style={{ fontSize: 14 }}>check_circle</span> 已确认</span>
                               <button
                                 className="btn-m3-outline"
-                                style={{ fontSize: 11, padding: '2px 10px' }}
+                                style={{ fontSize: 12, padding: '2px 10px' }}
                                 onClick={() => onUpdateCoverage(item.sectionId, cluster.topic, { status: 'ai' })}
                               >撤销</button>
                             </>
                           ) : (
                             <>
                               <button
-                                style={{ fontSize: 11, padding: '2px 10px', background: '#f0fdf4',
-                                  color: 'var(--m3-tertiary)', border: '1px solid var(--m3-tertiary)', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+                                style={{ fontSize: 12, padding: '2px 10px', background: 'var(--dui-success-container)',
+                                  color: 'var(--dui-success)', border: '0.5px solid var(--dui-success)', borderRadius: 999, cursor: 'pointer', fontWeight: 500 }}
                                 onClick={() => onUpdateCoverage(item.sectionId, cluster.topic, { status: 'confirmed' })}
                               >确认</button>
                               <button
                                 className="btn-m3-outline"
-                                style={{ fontSize: 11, padding: '2px 10px', color: 'var(--m3-on-surface-variant)' }}
+                                style={{ fontSize: 12, padding: '2px 10px', color: 'var(--m3-on-surface-variant)' }}
                                 onClick={() => onUpdateCoverage(item.sectionId, cluster.topic, { status: 'rejected' })}
                               >排除</button>
                             </>
@@ -301,19 +301,19 @@ function SectionIndex({ level1Sections, allSections, displayGaps, sectionErrors,
 }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ padding: '6px 0', fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ padding: '6px 0', fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface)', display: 'flex', alignItems: 'center', gap: 6 }}>
         <span className="material-symbols-outlined" style={{ fontSize: 18 }}>list_alt</span> 按章节查看
         <span style={{ fontWeight: 400, color: 'var(--m3-on-surface-variant)', fontSize: 12 }}>各章节需求覆盖一览</span>
       </div>
       <div className="section-card" style={{ marginTop: 8 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ borderBottom: '2px solid var(--m3-outline-variant)' }}>
-                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>章节</th>
-                <th style={{ textAlign: 'center', padding: '8px 12px', fontWeight: 600 }}>需求数</th>
-                <th style={{ textAlign: 'center', color: 'var(--m3-error)', padding: '8px 12px', fontWeight: 600 }}>内容缺失</th>
-                <th style={{ textAlign: 'center', color: '#e65100', padding: '8px 12px', fontWeight: 600 }}>需完善</th>
-                <th style={{ textAlign: 'center', color: 'var(--m3-primary)', padding: '8px 12px', fontWeight: 600 }}>已确认</th>
+              <tr style={{ borderBottom: '0.5px solid var(--dui-divider)' }}>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>章节</th>
+                <th style={{ textAlign: 'center', padding: '8px 12px', fontWeight: 500 }}>需求数</th>
+                <th style={{ textAlign: 'center', color: 'var(--m3-error)', padding: '8px 12px', fontWeight: 500 }}>内容缺失</th>
+                <th style={{ textAlign: 'center', color: 'var(--dui-warning)', padding: '8px 12px', fontWeight: 500 }}>需完善</th>
+                <th style={{ textAlign: 'center', color: 'var(--m3-primary)', padding: '8px 12px', fontWeight: 500 }}>已确认</th>
               </tr>
             </thead>
             <tbody>
@@ -338,31 +338,31 @@ function SectionIndex({ level1Sections, allSections, displayGaps, sectionErrors,
                   const total = coverages.length
                   sumTotal += total; sumMc += mc; sumPc += pc; sumConfirmed += confirmed
                   const hasError = !!sectionErrors[section.id]
-                  const rowBg = hasError ? '#fff8f8' : mc > 0 ? '#fff8f8' : pc > 0 ? '#fffdf8' : 'white'
+                  const rowBg = hasError ? 'var(--dui-danger-container)' : mc > 0 ? 'var(--dui-danger-container)' : pc > 0 ? 'var(--dui-warning-container)' : 'var(--dui-surface)'
                   return (
-                    <tr key={section.id} style={{ background: rowBg, borderBottom: '1px solid var(--m3-outline-variant)' }}>
+                    <tr key={section.id} style={{ background: rowBg, borderBottom: '0.5px solid var(--dui-divider)' }}>
                       <td style={{ fontWeight: 500, padding: '8px 12px' }}>
-                        <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)', marginRight: 8 }}>{i + 1}</span>
+                        <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginRight: 8 }}>{i + 1}</span>
                         {section.heading}
                         {hasError && (
-                          <button className="btn-m3-outline" style={{ marginLeft: 8, padding: '1px 8px', fontSize: 11 }}
+                          <button className="btn-m3-outline" style={{ marginLeft: 8, padding: '1px 8px', fontSize: 12 }}
                             onClick={() => retrySectionGap(section.id)}>重试</button>
                         )}
                       </td>
-                      <td style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--m3-on-surface-variant)' }}>{total > 0 ? total : <span style={{ color: 'var(--m3-outline)', fontSize: 11 }}>—</span>}</td>
-                      <td style={{ textAlign: 'center', padding: '8px 12px' }}>{mc > 0 ? <span style={{ fontWeight: 700, color: 'var(--m3-error)' }}>{mc}</span> : <span style={{ color: 'var(--m3-outline)' }}>—</span>}</td>
-                      <td style={{ textAlign: 'center', padding: '8px 12px' }}>{pc > 0 ? <span style={{ fontWeight: 700, color: '#e65100' }}>{pc}</span> : <span style={{ color: 'var(--m3-outline)' }}>—</span>}</td>
-                      <td style={{ textAlign: 'center', padding: '8px 12px' }}>{confirmed > 0 ? <span style={{ fontWeight: 600, color: 'var(--m3-primary)' }}>{confirmed}</span> : <span style={{ color: 'var(--m3-outline)' }}>—</span>}</td>
+                      <td style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--m3-on-surface-variant)' }}>{total > 0 ? total : <span style={{ color: 'var(--m3-outline)', fontSize: 12 }}>—</span>}</td>
+                      <td style={{ textAlign: 'center', padding: '8px 12px' }}>{mc > 0 ? <span style={{ fontWeight: 500, color: 'var(--m3-error)' }}>{mc}</span> : <span style={{ color: 'var(--m3-outline)' }}>—</span>}</td>
+                      <td style={{ textAlign: 'center', padding: '8px 12px' }}>{pc > 0 ? <span style={{ fontWeight: 500, color: 'var(--dui-warning)' }}>{pc}</span> : <span style={{ color: 'var(--m3-outline)' }}>—</span>}</td>
+                      <td style={{ textAlign: 'center', padding: '8px 12px' }}>{confirmed > 0 ? <span style={{ fontWeight: 500, color: 'var(--m3-primary)' }}>{confirmed}</span> : <span style={{ color: 'var(--m3-outline)' }}>—</span>}</td>
                     </tr>
                   )
                 })
                 return (<>
                   {rows}
-                  <tr style={{ borderTop: '2px solid var(--m3-outline-variant)', background: 'var(--m3-surface-container-low)', fontWeight: 600 }}>
+                  <tr style={{ borderTop: '0.5px solid var(--dui-divider)', background: 'var(--m3-surface-container-low)', fontWeight: 500 }}>
                     <td style={{ padding: '8px 12px' }}>合计</td>
                     <td style={{ textAlign: 'center', padding: '8px 12px' }}>{sumTotal}</td>
                     <td style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--m3-error)' }}>{sumMc}</td>
-                    <td style={{ textAlign: 'center', padding: '8px 12px', color: '#e65100' }}>{sumPc}</td>
+                    <td style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--dui-warning)' }}>{sumPc}</td>
                     <td style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--m3-primary)' }}>{sumConfirmed}</td>
                   </tr>
                 </>)
@@ -582,7 +582,7 @@ export default function StepGapAnalysis({
       {phases.map((p, i) => (
         <div key={p.key} style={{ display: 'flex', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: i < phaseIdx ? 'var(--m3-tertiary)' : i === phaseIdx ? 'var(--m3-primary)' : 'var(--m3-on-surface-variant)', fontWeight: i === phaseIdx ? 700 : 400 }}>
-            <div style={{ width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, background: i < phaseIdx ? 'var(--m3-tertiary)' : i === phaseIdx ? 'var(--m3-primary)' : 'var(--m3-surface-container-low)', color: i <= phaseIdx ? 'white' : 'var(--m3-on-surface-variant)' }}>
+            <div style={{ width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 500, background: i < phaseIdx ? 'var(--m3-tertiary)' : i === phaseIdx ? 'var(--m3-primary)' : 'var(--m3-surface-container-low)', color: i <= phaseIdx ? 'white' : 'var(--m3-on-surface-variant)' }}>
               {i < phaseIdx ? <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check</span> : i + 1}
             </div>
             {p.label}
@@ -614,7 +614,7 @@ export default function StepGapAnalysis({
     <div><PhaseBar />
       <div className="section-card" style={{ textAlign: 'center', padding: 48 }}>
         <div className="spinner" style={{ margin: '0 auto 12px' }} />
-        <div style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>正在分析 {qaItems.length} 条问答，识别用户需求类型...</div>
+        <div style={{ fontWeight: 500, color: 'var(--m3-on-surface)' }}>正在分析 {qaItems.length} 条问答，识别用户需求类型...</div>
         <div style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)', marginTop: 6 }}>AI 正在对所有问题进行聚类与分类</div>
       </div>
     </div>
@@ -624,14 +624,14 @@ export default function StepGapAnalysis({
     <div><PhaseBar />
       <div className="section-card" style={{ textAlign: 'center', padding: 48 }}>
         <div className="spinner" style={{ margin: '0 auto 12px' }} />
-        <div style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>正在建立需求-章节映射...</div>
+        <div style={{ fontWeight: 500, color: 'var(--m3-on-surface)' }}>正在建立需求-章节映射...</div>
         <div style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)', marginTop: 6 }}>已识别 {clusters.length} 类需求，正在与章节结构对应</div>
         {clusters.length > 0 && (
           <div style={{ marginTop: 16, maxWidth: 500, textAlign: 'left', margin: '16px auto 0' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--m3-on-surface)' }}>已识别需求类型：</div>
+            <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, color: 'var(--m3-on-surface)' }}>已识别需求类型：</div>
             {clusters.map((c, i) => (
               <div key={i} style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 4, display: 'flex', gap: 8 }}>
-                <span style={{ color: c.frequency > 100 ? 'var(--m3-error)' : c.frequency > 50 ? '#e65100' : 'var(--m3-on-surface-variant)', fontWeight: 600, minWidth: 40 }}>{c.frequency}次</span>
+                <span style={{ color: c.frequency > 100 ? 'var(--dui-danger)' : c.frequency > 50 ? 'var(--dui-warning)' : 'var(--dui-text-sub)', fontWeight: 500, minWidth: 40 }}>{c.frequency}次</span>
                 {c.topic}
               </div>
             ))}
@@ -645,7 +645,7 @@ export default function StepGapAnalysis({
     <div><PhaseBar />
       <div className="section-card" style={{ textAlign: 'center', padding: 48 }}>
         <div className="spinner" style={{ width: 32, height: 32, margin: '0 auto 16px' }} />
-        <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--m3-on-surface)' }}>正在逐章节分析需求覆盖情况...</div>
+        <div style={{ fontWeight: 500, marginBottom: 8, color: 'var(--m3-on-surface)' }}>正在逐章节分析需求覆盖情况...</div>
         <div style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)', marginBottom: 20 }}>
           {analyzeProgress} / {analyzeTotal} 个章节完成（跳过无对应需求的章节）
         </div>
@@ -694,7 +694,7 @@ export default function StepGapAnalysis({
     <div>
       {/* Page header */}
       <div style={{ marginBottom: 24 }}>
-        <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 700, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
+        <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 500, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
           需求差距分析
         </h2>
         <p style={{ fontSize: 14, color: 'var(--m3-on-surface-variant)' }}>
@@ -710,17 +710,17 @@ export default function StepGapAnalysis({
           { label: 'Q&A 总量',  value: qaItems.length || gapAnalysis.total_qa_count, color: 'var(--m3-primary)' },
           { label: '需求类型',  value: displayClusters.length,  color: 'var(--m3-primary)' },
           { label: '内容缺失',    value: totalMissing,             color: 'var(--m3-error)' },
-          { label: '需完善',    value: totalPartial,             color: '#e65100' },
+          { label: '需完善',    value: totalPartial,             color: 'var(--dui-warning)' },
           { label: '已确认',    value: totalConfirmed,           color: 'var(--m3-tertiary)' },
         ].map(s => (
           <div key={s.label} className="section-card" style={{ flex: 1, textAlign: 'center', padding: '14px 0' }}>
-            <div style={{ fontSize: 26, fontWeight: 700, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)', marginTop: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 26, fontWeight: 500, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 4 }}>{s.label}</div>
           </div>
         ))}
         <div className="section-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 20px' }}>
           {Object.keys(sectionErrors).length > 0 && (
-            <span style={{ fontSize: 11, color: 'var(--m3-error)' }}>{Object.keys(sectionErrors).length} 个章节失败</span>
+            <span style={{ fontSize: 12, color: 'var(--m3-error)' }}>{Object.keys(sectionErrors).length} 个章节失败</span>
           )}
           <button className="btn-m3-outline" style={{ fontSize: 12 }} onClick={runAll}>
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>refresh</span>
@@ -730,14 +730,14 @@ export default function StepGapAnalysis({
       </div>
 
       {/* ── PRIMARY: need-centric view ─────────────────────────────────────────── */}
-      <div style={{ marginBottom: 8, fontWeight: 700, fontSize: 13, color: 'var(--m3-on-surface)', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ marginBottom: 8, fontWeight: 500, fontSize: 13, color: 'var(--m3-on-surface)', display: 'flex', alignItems: 'center', gap: 8 }}>
         <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--m3-primary)' }}>analytics</span>
         需求分析结论
         <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--m3-on-surface-variant)' }}>按紧迫度排序，展示每类需求在各章节的覆盖情况和修改建议</span>
       </div>
 
       {allSatisfied && (
-        <div style={{ padding: '12px 16px', background: '#dcfce7', color: '#166534', borderRadius: 8, marginBottom: 12, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ padding: '12px 16px', background: 'var(--dui-success-container)', color: 'var(--dui-success)', borderRadius: 8, marginBottom: 12, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>check_circle</span>
           所有用户需求已全面覆盖
         </div>
@@ -746,7 +746,7 @@ export default function StepGapAnalysis({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
         {enrichedClusters.map(({ cluster, sections, missingCount, partialCount, fullCount }) => {
           const isSatisfied = missingCount === 0 && partialCount === 0
-          const borderColor = missingCount > 0 ? 'var(--m3-error)' : partialCount > 0 ? '#e65100' : 'var(--m3-outline-variant)'
+          const borderColor = missingCount > 0 ? 'var(--dui-danger)' : partialCount > 0 ? 'var(--dui-warning)' : 'var(--dui-divider)'
           const defaultOpen = !isSatisfied
           return (
             <NeedCard

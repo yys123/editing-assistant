@@ -63,10 +63,10 @@ function IssueRow({ issue, expanded, onToggle, onUpdate, onDelete }: IssueRowPro
         >
           {sev.label}
         </span>
-        {isAdded && <span style={{ fontSize: 10, color: 'var(--blue)', fontWeight: 700, flexShrink: 0 }}>专家补充</span>}
-        {isConfirmed && <span style={{ fontSize: 10, color: 'var(--green)', fontWeight: 700, flexShrink: 0 }}>已确认</span>}
+        {isAdded && <span style={{ fontSize: 12, color: 'var(--blue)', fontWeight: 500, flexShrink: 0 }}>专家补充</span>}
+        {isConfirmed && <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500, flexShrink: 0 }}>已确认</span>}
         <span className="issue-description">{issue.description || '（点击展开填写问题描述）'}</span>
-        {issue.reviewer_note && <span style={{ fontSize: 11, color: 'var(--gray-500)', flexShrink: 0 }}>💬</span>}
+        {issue.reviewer_note && <span style={{ fontSize: 12, color: 'var(--gray-500)', flexShrink: 0 }}>💬</span>}
         <div className="issue-actions" onClick={e => e.stopPropagation()}>
           {!isRejected && !isConfirmed && (
             <button
@@ -153,7 +153,7 @@ function SubcatSection({ label, issues, expandedId, setExpandedId, onUpdateIssue
     <div className="review-subcat">
       <div className="review-subcat-header">
         <span>{label}</span>
-        <span style={{ color: active > 0 ? 'var(--orange)' : 'var(--green)', fontWeight: 600 }}>
+        <span style={{ color: active > 0 ? 'var(--orange)' : 'var(--green)', fontWeight: 500 }}>
           {active > 0 ? `${active} 个问题` : '无问题'}
         </span>
       </div>
@@ -204,7 +204,7 @@ function DimCard({ title, description, dim, subcats, expandedId, setExpandedId, 
     <div className={`dim-card${dim.approved ? ' approved' : ''}`}>
       <div className="dim-card-header">
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--gray-900)', marginBottom: 2 }}>{title}</div>
+          <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--gray-900)', marginBottom: 2 }}>{title}</div>
           <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{description}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -213,14 +213,14 @@ function DimCard({ title, description, dim, subcats, expandedId, setExpandedId, 
             <select
               value={dim.score}
               onChange={e => onUpdateDim({ score: parseInt(e.target.value) } as any)}
-              style={{ padding: '2px 4px', border: '1px solid var(--gray-300)', borderRadius: 4, fontSize: 13, fontWeight: 700 }}
+              style={{ padding: '2px 4px', border: '0.5px solid var(--dui-divider)', borderRadius: 4, fontSize: 13, fontWeight: 500 }}
             >
               {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
             <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>/5</span>
           </div>
           {totalActive > 0 && (
-            <span style={{ background: 'var(--orange-light)', color: 'var(--orange)', padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}>
+            <span style={{ background: 'var(--orange-light)', color: 'var(--orange)', padding: '1px 8px', borderRadius: 999, fontSize: 12, fontWeight: 500 }}>
               {totalActive} 项问题
             </span>
           )}
@@ -250,10 +250,10 @@ function DimCard({ title, description, dim, subcats, expandedId, setExpandedId, 
           />
         ))}
 
-        <div style={{ borderTop: '1px solid var(--gray-100)', paddingTop: 10, marginTop: 4 }}>
+        <div style={{ borderTop: '0.5px solid var(--dui-divider)', paddingTop: 10, marginTop: 4 }}>
           {showComment || dim.reviewer_comment ? (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-700)', marginBottom: 4 }}>审核意见：</div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--gray-700)', marginBottom: 4 }}>审核意见：</div>
               <textarea
                 className="textarea"
                 value={dim.reviewer_comment}
@@ -265,7 +265,7 @@ function DimCard({ title, description, dim, subcats, expandedId, setExpandedId, 
           ) : (
             <button
               className="btn btn-sm btn-outline"
-              style={{ fontSize: 11 }}
+              style={{ fontSize: 12 }}
               onClick={() => setShowComment(true)}
             >
               + 添加审核意见
@@ -423,7 +423,7 @@ export default function StepAnalyze({ disease, articleContent, qaItems, plan, se
             fontWeight: i === phaseIdx ? 700 : 400,
           }}>
             <div style={{
-              width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700,
+              width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 500,
               background: i < phaseIdx ? 'var(--green)' : i === phaseIdx ? 'var(--blue)' : 'var(--gray-200)',
               color: i <= phaseIdx ? 'white' : 'var(--gray-400)',
             }}>
@@ -484,7 +484,7 @@ export default function StepAnalyze({ disease, articleContent, qaItems, plan, se
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
             <div style={{ flex: 1 }}>
               <div className="card-title" style={{ marginBottom: 8 }}>
-                <span className="icon" style={{ background: '#eff6ff' }}>📊</span>
+                <span className="icon" style={{ background: 'var(--dui-primary-container)' }}>📊</span>
                 AI 质量评估结果 — {disease}
                 <span className={`score ${scoreClass(qr.overall_score)}`}>{qr.overall_score.toFixed(1)} / 5.0</span>
               </div>
@@ -497,15 +497,15 @@ export default function StepAnalyze({ disease, articleContent, qaItems, plan, se
                 { label: '内容准确', score: qr.dim_three.score },
                 { label: '精炼流畅', score: qr.dim_four.score },
               ].map(d => (
-                <div key={d.label} style={{ textAlign: 'center', padding: '8px 10px', border: '1px solid var(--gray-200)', borderRadius: 8, minWidth: 64 }}>
-                  <div className={`score ${scoreClass(d.score)}`} style={{ fontSize: 16, fontWeight: 700, display: 'block', marginBottom: 4 }}>{d.score}/5</div>
-                  <div style={{ fontSize: 10, color: 'var(--gray-500)' }}>{d.label}</div>
+                <div key={d.label} style={{ textAlign: 'center', padding: '8px 10px', border: '0.5px solid var(--dui-divider)', borderRadius: 8, minWidth: 64 }}>
+                  <div className={`score ${scoreClass(d.score)}`} style={{ fontSize: 16, fontWeight: 500, display: 'block', marginBottom: 4 }}>{d.score}/5</div>
+                  <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{d.label}</div>
                 </div>
               ))}
             </div>
           </div>
-          <div style={{ borderTop: '1px solid var(--gray-100)', marginTop: 12, paddingTop: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-700)', marginBottom: 4 }}>专家总体意见：</div>
+          <div style={{ borderTop: '0.5px solid var(--dui-divider)', marginTop: 12, paddingTop: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--gray-700)', marginBottom: 4 }}>专家总体意见：</div>
             <textarea
               className="textarea"
               value={qr.reviewer_comment}
@@ -597,7 +597,7 @@ export default function StepAnalyze({ disease, articleContent, qaItems, plan, se
         {needs && needs.total_qa_count > 0 && (
           <div className="card">
             <div className="card-title">
-              <span className="icon" style={{ background: '#fff7ed' }}>💬</span>
+              <span className="icon" style={{ background: 'var(--dui-warning-container)' }}>💬</span>
               用户需求分析
               <span className="tag">共 {needs.total_qa_count} 条问答</span>
               <span className="tag text-muted">仅供参考</span>
@@ -617,7 +617,7 @@ export default function StepAnalyze({ disease, articleContent, qaItems, plan, se
                   <tr key={i}>
                     <td style={{ fontWeight: 500 }}>{c.topic}</td>
                     <td>
-                      <span style={{ fontWeight: 600, color: c.frequency > 100 ? 'var(--red)' : c.frequency > 50 ? 'var(--orange)' : 'var(--gray-700)' }}>
+                      <span style={{ fontWeight: 500, color: c.frequency > 100 ? 'var(--red)' : c.frequency > 50 ? 'var(--orange)' : 'var(--gray-700)' }}>
                         {c.frequency}
                       </span>
                     </td>
@@ -678,7 +678,7 @@ export default function StepAnalyze({ disease, articleContent, qaItems, plan, se
         {/* Quality summary bar */}
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ fontWeight: 600 }}>{disease} 质量评估</div>
+            <div style={{ fontWeight: 500 }}>{disease} 质量评估</div>
             <span className={`score ${scoreClass(qr.overall_score)}`}>{qr.overall_score.toFixed(1)} / 5.0</span>
             {[
               { label: '内容全面', s: qr.dim_one.score },
@@ -688,7 +688,7 @@ export default function StepAnalyze({ disease, articleContent, qaItems, plan, se
             ].map(d => (
               <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
                 <span style={{ color: 'var(--gray-500)' }}>{d.label}</span>
-                <span className={`score ${scoreClass(d.s)}`} style={{ fontSize: 11 }}>{d.s}/5</span>
+                <span className={`score ${scoreClass(d.s)}`} style={{ fontSize: 12 }}>{d.s}/5</span>
               </div>
             ))}
             <button
@@ -710,7 +710,7 @@ export default function StepAnalyze({ disease, articleContent, qaItems, plan, se
         {na.total_qa_count > 0 && (
           <div className="card" style={{ marginBottom: 12 }}>
             <div className="card-title" style={{ marginBottom: 8 }}>
-              <span className="icon" style={{ background: '#fff7ed' }}>💬</span>
+              <span className="icon" style={{ background: 'var(--dui-warning-container)' }}>💬</span>
               用户需求分析
               <span className="tag">共 {na.total_qa_count} 条问答</span>
             </div>
@@ -724,7 +724,7 @@ export default function StepAnalyze({ disease, articleContent, qaItems, plan, se
                 {na.clusters.map((c, i) => (
                   <tr key={i}>
                     <td style={{ fontWeight: 500 }}>{c.topic}</td>
-                    <td><span style={{ fontWeight: 600, color: c.frequency > 100 ? 'var(--red)' : c.frequency > 50 ? 'var(--orange)' : 'var(--gray-700)' }}>{c.frequency}</span></td>
+                    <td><span style={{ fontWeight: 500, color: c.frequency > 100 ? 'var(--red)' : c.frequency > 50 ? 'var(--orange)' : 'var(--gray-700)' }}>{c.frequency}</span></td>
                     <td><span style={{ color: c.covered_in_kb ? 'var(--green)' : 'var(--red)', fontWeight: 500 }}>{c.covered_in_kb ? '✓' : '✗'}</span></td>
                     <td className="text-muted text-sm">{c.representative_questions[0]}</td>
                   </tr>
@@ -737,7 +737,7 @@ export default function StepAnalyze({ disease, articleContent, qaItems, plan, se
         {/* Gap items */}
         <div className="card">
           <div className="card-title">
-            <span className="icon" style={{ background: '#f0fdf4' }}>📋</span>
+            <span className="icon" style={{ background: 'var(--dui-success-container)' }}>📋</span>
             迭代优先级计划
             <span className="tag">{gap_items.length} 个改进任务</span>
             <span className="tag text-muted">选择一项进行内容生成</span>
@@ -753,13 +753,13 @@ export default function StepAnalyze({ disease, articleContent, qaItems, plan, se
                 >
                   <div className="gap-item-header">
                     <span className={`priority priority-${g.priority.toLowerCase()}`}>{g.priority}</span>
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>{g.section}</span>
+                    <span style={{ fontWeight: 500, fontSize: 13 }}>{g.section}</span>
                     {g.qa_frequency && <span className="tag">用户提问 {g.qa_frequency} 次</span>}
                     <span className="tag text-muted">
                       {{ quality_eval: '质量评估', user_needs: '用户需求', both: '两者均有' }[g.source] || g.source}
                     </span>
                     {hasDraft && (
-                      <span style={{ padding: '1px 8px', background: 'var(--green-light)', color: 'var(--green)', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>✓ 已生成</span>
+                      <span style={{ padding: '1px 8px', background: 'var(--green-light)', color: 'var(--green)', borderRadius: 4, fontSize: 12, fontWeight: 500 }}>✓ 已生成</span>
                     )}
                   </div>
                   <div className="gap-item-desc">{g.description}</div>

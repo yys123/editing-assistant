@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { QAItem } from '../types'
-import { apiFetch } from '../api'
+import { chunkedUpload } from '../api'
 
 interface Props {
   disease: string
@@ -26,13 +26,9 @@ export default function StepInput({
   const qaInputRef = useRef<HTMLInputElement>(null)
 
   const loadFromFile = async (file: File) => {
-    const fd = new FormData()
-    fd.append('file', file)
     setUrlError('')
     try {
-      const res = await apiFetch('/api/article/upload', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || '上传失败')
+      const data = await chunkedUpload(file, 'article')
       setArticleContent(data.content)
     } catch (e: any) {
       setUrlError(e.message)
@@ -43,11 +39,7 @@ export default function StepInput({
     setQaLoading(true)
     setQaError('')
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await apiFetch('/api/qa/upload', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || '解析失败')
+      const data = await chunkedUpload(file, 'qa')
       setQaItems(data.items)
       setQaCount(data.count)
     } catch (e: any) {
@@ -64,7 +56,7 @@ export default function StepInput({
       {/* Disease name */}
       <div className="card">
         <div className="card-title">
-          <span className="icon" style={{ background: '#eff6ff' }}>🏥</span>
+          <span className="icon" style={{ background: 'var(--dui-primary-container)' }}>🏥</span>
           疾病名称
         </div>
         <input
@@ -79,7 +71,7 @@ export default function StepInput({
       {/* Article input */}
       <div className="card">
         <div className="card-title">
-          <span className="icon" style={{ background: '#f0fdf4' }}>📄</span>
+          <span className="icon" style={{ background: 'var(--dui-success-container)' }}>📄</span>
           知识库词条内容
         </div>
         <div className="tabs">
@@ -137,7 +129,7 @@ export default function StepInput({
       {/* Q&A upload */}
       <div className="card">
         <div className="card-title">
-          <span className="icon" style={{ background: '#fff7ed' }}>💬</span>
+          <span className="icon" style={{ background: 'var(--dui-warning-container)' }}>💬</span>
           Q&A 问答数据
           <span className="tag text-muted">可选</span>
         </div>

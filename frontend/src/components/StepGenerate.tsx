@@ -311,7 +311,7 @@ export default function StepGenerate({
   if (loading) return (
     <div className="section-card" style={{ textAlign: 'center', padding: 48 }}>
       <div className="spinner" style={{ margin: '0 auto 12px' }} />
-      <div style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>
+      <div style={{ fontWeight: 500, color: 'var(--m3-on-surface)' }}>
         {isBatchMode
           ? '正在联合生成多个章节内容...'
           : `正在生成「${generatingLabel}」内容...`}
@@ -324,7 +324,7 @@ export default function StepGenerate({
       {isBatchMode && (
         <div style={{ marginTop: 12, display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
           {selectedGaps.map((g, i) => (
-            <span key={i} style={{ padding: '3px 10px', background: 'rgba(0,84,205,0.08)', color: 'var(--m3-primary)', borderRadius: 999, fontSize: 12 }}>
+            <span key={i} style={{ padding: '3px 10px', background: 'var(--dui-primary-container)', color: 'var(--m3-primary)', borderRadius: 999, fontSize: 12 }}>
               {g.section}
             </span>
           ))}
@@ -354,7 +354,7 @@ export default function StepGenerate({
     if (isBatchRunning && batchProgress) return (
       <div className="section-card" style={{ textAlign: 'center', padding: 48 }}>
         <div className="spinner" style={{ margin: '0 auto 12px' }} />
-        <div style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>
+        <div style={{ fontWeight: 500, color: 'var(--m3-on-surface)' }}>
           批量生成进行中 {batchProgress.done}/{batchProgress.total}
         </div>
         <div style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)', marginTop: 6 }}>
@@ -378,11 +378,11 @@ export default function StepGenerate({
       {isBatchRunning && batchProgress && (
         <div style={{
           padding: '10px 16px', marginBottom: 10, borderRadius: 10,
-          background: 'rgba(0,84,205,0.06)', border: '1px solid rgba(0,84,205,0.15)',
+          background: 'var(--dui-primary-container)', border: '0.5px solid var(--dui-primary)',
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2, flexShrink: 0 }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)' }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface)' }}>
             批量生成中 {batchProgress.done}/{batchProgress.total}
           </span>
           {batchProgress.failed > 0 && (
@@ -396,11 +396,11 @@ export default function StepGenerate({
 
       {/* Batch coordination notes */}
       {coordinationNotes && batchDrafts.length > 0 && (
-        <div className="section-card" style={{ padding: '12px 16px', background: 'rgba(0,84,205,0.04)', borderLeft: '3px solid var(--m3-primary)', marginBottom: 10 }}>
+        <div className="section-card" style={{ padding: '12px 16px', background: 'var(--dui-primary-container)', borderLeft: '3px solid var(--m3-primary)', marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
             <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-primary)' }}>merge</span>
-            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--m3-on-surface)' }}>跨章节协调说明</span>
-            <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>（{batchDrafts.length} 个章节联合生成）</span>
+            <span style={{ fontWeight: 500, fontSize: 13, color: 'var(--m3-on-surface)' }}>跨章节协调说明</span>
+            <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>（{batchDrafts.length} 个章节联合生成）</span>
           </div>
           <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', lineHeight: 1.7 }}>
             {coordinationNotes}
@@ -417,21 +417,22 @@ export default function StepGenerate({
               onClick={() => setActiveId(r.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                padding: '7px 16px', borderRadius: 999, cursor: 'pointer',
+                padding: '6px 16px', height: 32, borderRadius: 100, cursor: 'pointer',
                 border: 'none',
-                background: r.id === activeId ? 'var(--m3-primary)' : 'var(--m3-surface-container-low)',
-                boxShadow: r.id === activeId ? '0 2px 8px rgba(0,84,205,0.25)' : 'none',
-                transition: 'all 0.15s',
+                background: r.id === activeId
+                  ? 'linear-gradient(135deg, var(--dui-primary), var(--dui-primary-soft))'
+                  : 'var(--dui-surface-soft)',
+                transition: 'filter 0.15s, background 0.15s',
               }}
             >
               {r.batchId && (
                 <span className="material-symbols-outlined" style={{ fontSize: 14, color: r.id === activeId ? 'rgba(255,255,255,0.75)' : 'var(--m3-primary)' }}>merge</span>
               )}
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: r.id === activeId ? 'rgba(255,255,255,0.25)' : r.gap.priority === 'P0' ? '#fee2e2' : r.gap.priority === 'P1' ? '#fff7ed' : '#dbeafe', color: r.id === activeId ? 'white' : r.gap.priority === 'P0' ? 'var(--m3-error)' : r.gap.priority === 'P1' ? '#e65100' : 'var(--m3-primary)' }}>{r.gap.priority}</span>
-              <span style={{ fontWeight: 600, fontSize: 13, color: r.id === activeId ? 'white' : 'var(--m3-on-surface)' }}>
+              <span style={{ fontSize: 12, fontWeight: 500, padding: '1px 8px', borderRadius: 999, background: r.id === activeId ? 'rgba(255,255,255,0.25)' : r.gap.priority === 'P0' ? 'var(--dui-danger-container)' : r.gap.priority === 'P1' ? 'var(--dui-warning-container)' : 'var(--dui-primary-container)', color: r.id === activeId ? 'white' : r.gap.priority === 'P0' ? 'var(--dui-danger)' : r.gap.priority === 'P1' ? 'var(--dui-warning)' : 'var(--dui-primary)' }}>{r.gap.priority}</span>
+              <span style={{ fontWeight: 500, fontSize: 13, color: r.id === activeId ? 'white' : 'var(--m3-on-surface)' }}>
                 {r.gap.section}
               </span>
-              <span style={{ fontSize: 11, color: r.id === activeId ? 'rgba(255,255,255,0.75)' : 'var(--m3-on-surface-variant)' }}>{formatTime(r.generatedAt)}</span>
+              <span style={{ fontSize: 12, color: r.id === activeId ? 'rgba(255,255,255,0.75)' : 'var(--m3-on-surface-variant)' }}>{formatTime(r.generatedAt)}</span>
             </button>
           ))}
         </div>
@@ -444,10 +445,10 @@ export default function StepGenerate({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, flexShrink: 0, background: gap.priority === 'P0' ? '#fee2e2' : gap.priority === 'P1' ? '#fff7ed' : '#dbeafe', color: gap.priority === 'P0' ? 'var(--m3-error)' : gap.priority === 'P1' ? '#e65100' : 'var(--m3-primary)' }}>{gap.priority}</span>
-                <span style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>{disease} — {gap.section}</span>
+                <span style={{ fontSize: 12, fontWeight: 500, padding: '2px 10px', borderRadius: 999, flexShrink: 0, background: gap.priority === 'P0' ? 'var(--dui-danger-container)' : gap.priority === 'P1' ? 'var(--dui-warning-container)' : 'var(--dui-primary-container)', color: gap.priority === 'P0' ? 'var(--dui-danger)' : gap.priority === 'P1' ? 'var(--dui-warning)' : 'var(--dui-primary)' }}>{gap.priority}</span>
+                <span style={{ fontWeight: 500, color: 'var(--m3-on-surface)' }}>{disease} — {gap.section}</span>
                 {activeRecord.batchId && (
-                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(0,84,205,0.08)', color: 'var(--m3-primary)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 6, background: 'var(--dui-primary-container)', color: 'var(--m3-primary)', display: 'flex', alignItems: 'center', gap: 3 }}>
                     <span className="material-symbols-outlined" style={{ fontSize: 13 }}>merge</span>
                     联合生成
                   </span>
@@ -475,13 +476,13 @@ export default function StepGenerate({
         {/* Key changes */}
         {draft.key_changes.length > 0 && (
           <div className="section-card" style={{ padding: '14px 20px' }}>
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: 'var(--m3-on-surface)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8, color: 'var(--m3-on-surface)', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-primary)' }}>edit_note</span>
               主要改动点
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {draft.key_changes.map((c, i) => (
-                <span key={i} style={{ padding: '3px 10px', background: 'rgba(0,84,205,0.08)', color: 'var(--m3-primary)', borderRadius: 999, fontSize: 12 }}>
+                <span key={i} style={{ padding: '3px 10px', background: 'var(--dui-primary-container)', color: 'var(--m3-primary)', borderRadius: 999, fontSize: 12 }}>
                   {c}
                 </span>
               ))}
@@ -491,7 +492,7 @@ export default function StepGenerate({
 
         {/* View tabs */}
         <div className="section-card">
-          <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--m3-outline-variant)', marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 0, borderBottom: '0.5px solid var(--dui-divider)', marginBottom: 16 }}>
             {[
               { key: 'diff' as const, label: '对比视图', icon: 'compare' },
               { key: 'edit' as const, label: '编辑稿件', icon: 'edit' },
@@ -559,13 +560,13 @@ export default function StepGenerate({
         {/* References */}
         {draft.references_used.length > 0 && (
           <div className="section-card">
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: 'var(--m3-on-surface)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8, color: 'var(--m3-on-surface)', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-primary)' }}>menu_book</span>
               引用来源
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {draft.references_used.map((r, i) => (
-                <span key={i} style={{ padding: '3px 10px', background: 'var(--m3-surface-container-low)', color: 'var(--m3-on-surface-variant)', borderRadius: 999, fontSize: 12, border: '1px solid var(--m3-outline-variant)' }}>{r}</span>
+                <span key={i} style={{ padding: '3px 10px', background: 'var(--dui-surface-soft)', color: 'var(--dui-text-sub)', borderRadius: 999, fontSize: 12 }}>{r}</span>
               ))}
             </div>
           </div>

@@ -94,7 +94,7 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
       {/* Page header */}
       <div className="history-page-header">
         <div>
-          <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 700, color: 'var(--m3-on-surface)', marginBottom: 4 }}>
+          <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 500, color: 'var(--m3-on-surface)', marginBottom: 4 }}>
             任务历史
           </h2>
           <p style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)' }}>
@@ -161,18 +161,18 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
                         {hasDrafts ? 'check_circle' : 'description'}
                       </span>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--m3-on-surface)' }}>
+                        <div style={{ fontWeight: 500, fontSize: 13, color: 'var(--m3-on-surface)' }}>
                           {s.disease || '（未命名）'}
                         </div>
                         {s.owner_email && !isOwn && (
-                          <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)', marginTop: 1 }}>by {s.owner_email}</div>
+                          <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 1 }}>by {s.owner_email}</div>
                         )}
                       </div>
                     </div>
                     <div style={{ flex: 1 }}>
                       <span style={{
-                        fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999,
-                        background: hasDrafts ? 'rgba(0,104,86,0.08)' : 'rgba(0,84,205,0.08)',
+                        fontSize: 12, fontWeight: 500, padding: '3px 10px', borderRadius: 999,
+                        background: hasDrafts ? 'var(--dui-success-container)' : 'var(--dui-primary-container)',
                         color: hasDrafts ? 'var(--m3-tertiary)' : 'var(--m3-primary)',
                       }}>
                         {hasDrafts ? '已完成' : '进行中'}
@@ -224,11 +224,11 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
 
                   {/* Expanded detail */}
                   {isSelected && selected && (
-                    <div style={{ padding: '16px 20px', background: 'var(--m3-surface-container-lowest)', borderBottom: '1px solid var(--m3-outline-variant)' }}>
+                    <div style={{ padding: '16px 20px', background: 'var(--m3-surface-container-lowest)', borderBottom: '0.5px solid var(--dui-divider)' }}>
                       {/* Detail header */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--m3-on-surface)' }}>{selected.disease || '（未命名）'}</div>
+                          <div style={{ fontWeight: 500, fontSize: 16, color: 'var(--m3-on-surface)' }}>{selected.disease || '（未命名）'}</div>
                           <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 4 }}>
                             创建于 {new Date(selected.id).toLocaleString('zh-CN')}
                             {selected.updatedAt !== selected.id && ` · 最后更新 ${formatDateTime(selected.updatedAt)}`}
@@ -237,7 +237,7 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           {selected.owner_id && selected.owner_id !== currentUserId && (
-                            <span style={{ fontSize: 11, color: '#e65100', background: '#fff3e0', padding: '3px 10px', borderRadius: 999, fontWeight: 600 }}>
+                            <span style={{ fontSize: 12, color: 'var(--dui-warning)', background: 'var(--dui-warning-container)', padding: '3px 10px', borderRadius: 999, fontWeight: 500 }}>
                               他人任务
                             </span>
                           )}
@@ -265,9 +265,9 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
                         <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
                           {([1,2,3,4,5,6,7] as number[]).map(n => (
                             <div key={n} style={{
-                              padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 500,
+                              padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
                               display: 'flex', alignItems: 'center', gap: 4,
-                              background: n < selected.currentStep! ? 'rgba(0,104,86,0.06)' : n === selected.currentStep ? 'rgba(0,84,205,0.08)' : 'var(--m3-surface-container-low)',
+                              background: n < selected.currentStep! ? 'var(--dui-success-container)' : n === selected.currentStep ? 'var(--dui-primary-container)' : 'var(--m3-surface-container-low)',
                               color: n < selected.currentStep! ? 'var(--m3-tertiary)' : n === selected.currentStep ? 'var(--m3-primary)' : 'var(--m3-on-surface-variant)',
                             }}>
                               <span className="material-symbols-outlined" style={{ fontSize: 14, fontVariationSettings: n < selected.currentStep! ? "'FILL' 1" : "'FILL' 0" }}>
@@ -289,15 +289,15 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
                         ].map(stat => (
                           <div key={stat.label} className="section-card" style={{ textAlign: 'center', padding: '12px 0' }}>
                             <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-primary)', marginBottom: 2 }}>{stat.icon}</span>
-                            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--m3-primary)' }}>{stat.value}</div>
-                            <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>{stat.label}</div>
+                            <div style={{ fontSize: 20, fontWeight: 500, color: 'var(--m3-primary)' }}>{stat.value}</div>
+                            <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>{stat.label}</div>
                           </div>
                         ))}
                       </div>
 
                       {/* Tabs + content */}
                       <div className="section-card" style={{ padding: 0 }}>
-                        <div style={{ display: 'flex', borderBottom: '2px solid var(--m3-outline-variant)' }}>
+                        <div style={{ display: 'flex', borderBottom: '0.5px solid var(--dui-divider)' }}>
                           {(['analysis', 'drafts'] as const).map(t => (
                             <button
                               key={t}
@@ -341,13 +341,13 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
                                   const low  = allIssues.filter(i => i.severity === 'low').length
                                   return (
                                     <div style={{ marginBottom: 20 }}>
-                                      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: 'var(--m3-on-surface)' }}>
+                                      <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 10, color: 'var(--m3-on-surface)' }}>
                                         <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>fact_check</span>
                                         内容质量审评 · 共 {allIssues.length} 个问题
                                       </div>
                                       <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                                        {[['高', high, 'var(--m3-error)', 'var(--m3-error-container)'], ['中', med, '#e65100', '#fff3e0'], ['低', low, 'var(--m3-primary)', 'rgba(0,84,205,0.08)']].map(([label, count, color, bg]) => (
-                                          <span key={label as string} style={{ fontSize: 12, fontWeight: 600, padding: '3px 12px', borderRadius: 999, color: color as string, background: bg as string }}>
+                                        {[['高', high, 'var(--dui-danger)', 'var(--dui-danger-container)'], ['中', med, 'var(--dui-warning)', 'var(--dui-warning-container)'], ['低', low, 'var(--dui-primary)', 'var(--dui-primary-container)']].map(([label, count, color, bg]) => (
+                                          <span key={label as string} style={{ fontSize: 12, fontWeight: 500, padding: '3px 12px', borderRadius: 999, color: color as string, background: bg as string }}>
                                             {label} {count as number}
                                           </span>
                                         ))}
@@ -358,7 +358,7 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
                                           return (
                                             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--m3-surface-container-low)', borderRadius: 6, fontSize: 12 }}>
                                               <span style={{ color: 'var(--m3-on-surface)', fontWeight: 500 }}>{s.section_heading}</span>
-                                              <span style={{ color: '#e65100', fontWeight: 600 }}>{active.length} 个问题</span>
+                                              <span style={{ color: 'var(--dui-warning)', fontWeight: 500 }}>{active.length} 个问题</span>
                                             </div>
                                           )
                                         })}
@@ -369,31 +369,31 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
 
                                 {ga && ga.clusters.length > 0 && (
                                   <div style={{ marginBottom: 20 }}>
-                                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: 'var(--m3-on-surface)' }}>
+                                    <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 10, color: 'var(--m3-on-surface)' }}>
                                       <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>group</span>
                                       用户需求分析 · {ga.clusters.length} 类需求 · {ga.total_qa_count} 条Q&A
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                       {ga.clusters.slice(0, 6).map((c, i) => (
                                         <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 12px', background: 'var(--m3-surface-container-low)', borderRadius: 6, fontSize: 12 }}>
-                                          <span style={{ fontWeight: 600, color: c.frequency > 100 ? 'var(--m3-error)' : c.frequency > 50 ? '#e65100' : 'var(--m3-on-surface-variant)', minWidth: 36 }}>{c.frequency}次</span>
+                                          <span style={{ fontWeight: 500, color: c.frequency > 100 ? 'var(--dui-danger)' : c.frequency > 50 ? 'var(--dui-warning)' : 'var(--dui-text-sub)', minWidth: 36 }}>{c.frequency}次</span>
                                           <span style={{ flex: 1, color: 'var(--m3-on-surface)' }}>{c.topic}</span>
                                           <span className="material-symbols-outlined" style={{ fontSize: 16, color: c.covered_in_kb ? 'var(--m3-tertiary)' : 'var(--m3-error)' }}>
                                             {c.covered_in_kb ? 'check_circle' : 'cancel'}
                                           </span>
                                         </div>
                                       ))}
-                                      {ga.clusters.length > 6 && <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)', paddingLeft: 12 }}>+{ga.clusters.length - 6} 类...</div>}
+                                      {ga.clusters.length > 6 && <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', paddingLeft: 12 }}>+{ga.clusters.length - 6} 类...</div>}
                                     </div>
                                   </div>
                                 )}
 
                                 {gi.length > 0 && (
                                   <div>
-                                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: 'var(--m3-on-surface)' }}>
+                                    <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 10, color: 'var(--m3-on-surface)' }}>
                                       <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>edit_note</span>
                                       迭代计划 · {gi.length} 条
-                                      <span style={{ marginLeft: 10, fontSize: 11, fontWeight: 400, color: 'var(--m3-on-surface-variant)' }}>
+                                      <span style={{ marginLeft: 10, fontSize: 12, fontWeight: 400, color: 'var(--m3-on-surface-variant)' }}>
                                         P0: {gi.filter(g => g.priority === 'P0').length} &nbsp; P1: {gi.filter(g => g.priority === 'P1').length} &nbsp; P2: {gi.filter(g => g.priority === 'P2').length}
                                       </span>
                                     </div>
@@ -402,11 +402,11 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
                                         <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px', background: 'var(--m3-surface-container-low)', borderRadius: 6 }}>
                                           <span className={`priority priority-${gap.priority.toLowerCase()}`}>{gap.priority}</span>
                                           <div style={{ flex: 1 }}>
-                                            <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--m3-on-surface)' }}>{gap.section}</div>
+                                            <div style={{ fontWeight: 500, fontSize: 12, color: 'var(--m3-on-surface)' }}>{gap.section}</div>
                                             <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>{gap.description}</div>
                                           </div>
                                           {(selected.draftHistory ?? []).some(d => d.gap.section === gap.section) && (
-                                            <span style={{ fontSize: 11, color: 'var(--m3-tertiary)', background: 'rgba(0,104,86,0.08)', padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap', fontWeight: 600 }}>
+                                            <span style={{ fontSize: 12, color: 'var(--m3-tertiary)', background: 'var(--dui-success-container)', padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap', fontWeight: 500 }}>
                                               <span className="material-symbols-outlined" style={{ fontSize: 12, verticalAlign: -2 }}>check</span> 已生成
                                             </span>
                                           )}
@@ -432,8 +432,8 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
                                   <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                                     {dims.map(d => d.score != null && (
                                       <div key={d.label} style={{ textAlign: 'center', padding: '8px 14px', background: 'var(--m3-surface-container-low)', borderRadius: 8, minWidth: 64 }}>
-                                        <div className={`score ${scoreClass(d.score)}`} style={{ fontSize: 15, fontWeight: 700, display: 'block', marginBottom: 2 }}>{d.score}/5</div>
-                                        <div style={{ fontSize: 10, color: 'var(--m3-on-surface-variant)' }}>{d.label}</div>
+                                        <div className={`score ${scoreClass(d.score)}`} style={{ fontSize: 16, fontWeight: 500, display: 'block', marginBottom: 2 }}>{d.score}/5</div>
+                                        <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>{d.label}</div>
                                       </div>
                                     ))}
                                   </div>
@@ -441,17 +441,17 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
                                 <div style={{ padding: '12px 16px', background: 'var(--m3-surface-container-low)', borderRadius: 8, fontSize: 13, color: 'var(--m3-on-surface)', marginBottom: 16, lineHeight: 1.6 }}>
                                   {qr.summary}
                                 </div>
-                                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: 'var(--m3-on-surface)' }}>迭代缺口计划 ({gap_items.length} 条)</div>
+                                <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 10, color: 'var(--m3-on-surface)' }}>迭代缺口计划 ({gap_items.length} 条)</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                   {gap_items.map((gap, i) => (
                                     <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px', background: 'var(--m3-surface-container-low)', borderRadius: 6 }}>
                                       <span className={`priority priority-${gap.priority.toLowerCase()}`}>{gap.priority}</span>
                                       <div style={{ flex: 1 }}>
-                                        <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--m3-on-surface)' }}>{gap.section}</div>
+                                        <div style={{ fontWeight: 500, fontSize: 12, color: 'var(--m3-on-surface)' }}>{gap.section}</div>
                                         <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>{gap.description}</div>
                                       </div>
                                       {(selected.draftHistory ?? []).some(d => d.gap.section === gap.section) && (
-                                        <span style={{ fontSize: 11, color: 'var(--m3-tertiary)', background: 'rgba(0,104,86,0.08)', padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap', fontWeight: 600 }}>
+                                        <span style={{ fontSize: 12, color: 'var(--m3-tertiary)', background: 'var(--dui-success-container)', padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap', fontWeight: 500 }}>
                                           <span className="material-symbols-outlined" style={{ fontSize: 12, verticalAlign: -2 }}>check</span> 已生成
                                         </span>
                                       )}
@@ -481,19 +481,19 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
                                 onClick={() => setExpandedDraft(expandedDraft === record.id ? null : record.id)}
                               >
                                 <span className={`priority priority-${record.gap.priority.toLowerCase()}`}>{record.gap.priority}</span>
-                                <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--m3-on-surface)' }}>{record.gap.section}</span>
+                                <span style={{ fontWeight: 500, fontSize: 13, color: 'var(--m3-on-surface)' }}>{record.gap.section}</span>
                                 <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', flex: 1 }}>{record.gap.description}</span>
-                                <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>
+                                <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
                                   {new Date(record.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                                 <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-on-surface-variant)', transition: 'transform 0.2s', transform: expandedDraft === record.id ? 'rotate(180deg)' : 'none' }}>expand_more</span>
                               </div>
                               {expandedDraft === record.id && (
-                                <div style={{ border: '1px solid var(--m3-outline-variant)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '16px 20px' }}>
+                                <div style={{ border: '0.5px solid var(--dui-divider)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '16px 20px' }}>
                                   {record.draft.key_changes.length > 0 && (
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                                       {record.draft.key_changes.map((c, j) => (
-                                        <span key={j} style={{ padding: '3px 10px', background: 'rgba(0,84,205,0.08)', color: 'var(--m3-primary)', borderRadius: 999, fontSize: 11, fontWeight: 500 }}>{c}</span>
+                                        <span key={j} style={{ padding: '3px 10px', background: 'var(--dui-primary-container)', color: 'var(--m3-primary)', borderRadius: 999, fontSize: 12, fontWeight: 500 }}>{c}</span>
                                       ))}
                                     </div>
                                   )}
@@ -514,7 +514,7 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
 
             {/* Footer info */}
             {sorted.length > 0 && (
-              <div style={{ padding: '12px 20px', fontSize: 12, color: 'var(--m3-on-surface-variant)', textAlign: 'center', borderTop: '1px solid var(--m3-outline-variant)' }}>
+              <div style={{ padding: '12px 20px', fontSize: 12, color: 'var(--m3-on-surface-variant)', textAlign: 'center', borderTop: '0.5px solid var(--dui-divider)' }}>
                 共 {sessions.length} 条记录
               </div>
             )}

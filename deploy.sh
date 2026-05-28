@@ -10,13 +10,9 @@ set -e
 #   ./deploy.sh <user@host> frontend     # deploy frontend only
 # ============================================================
 
-REMOTE="$1"
+DEFAULT_REMOTE="root@8.222.87.126"
+REMOTE="${1:-$DEFAULT_REMOTE}"
 COMPONENT="${2:-all}"   # all | backend | frontend
-
-if [ -z "$REMOTE" ]; then
-    echo "Usage: $0 <user@host> [all|backend|frontend]"
-    exit 1
-fi
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 REMOTE_DIR="/opt/editing-assistant"

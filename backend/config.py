@@ -4,7 +4,7 @@ from typing import List
 
 class Settings(BaseSettings):
     gemini_api_key: str
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5177"
     gemini_model: str = "gemini-3-flash-preview"
     jwt_secret: str = "editing-assistant-secret-change-in-production"
     jwt_expire_days: int = 7

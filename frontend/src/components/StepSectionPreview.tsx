@@ -49,7 +49,7 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
   if (loading) return (
     <div className="section-card" style={{ textAlign: 'center', padding: 48 }}>
       <div className="spinner" style={{ margin: '0 auto 12px' }} />
-      <div style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>正在解析词条内容结构...</div>
+      <div style={{ fontWeight: 500, color: 'var(--m3-on-surface)' }}>正在解析词条内容结构...</div>
     </div>
   )
 
@@ -71,14 +71,14 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
 
   if (!parsedArticle) return null
 
-  const levelColor: Record<number, string> = { 1: 'var(--m3-primary)', 2: '#e65100', 3: 'var(--m3-on-surface-variant)' }
+  const levelColor: Record<number, string> = { 1: 'var(--dui-primary)', 2: 'var(--dui-warning)', 3: 'var(--dui-text-sub)' }
   const levelLabel: Record<number, string> = { 1: 'H1', 2: 'H2', 3: 'H3' }
 
   return (
     <div>
       {/* Page header */}
       <div style={{ marginBottom: 24 }}>
-        <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 700, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
+        <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 500, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
           内容解析
         </h2>
         <p style={{ fontSize: 14, color: 'var(--m3-on-surface-variant)' }}>
@@ -89,11 +89,11 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
       <div className="section-card">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--m3-primary)' }}>account_tree</span>
-          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--m3-on-surface)' }}>解析结果</span>
-          <span style={{ fontSize: 11, padding: '2px 10px', borderRadius: 999, background: 'rgba(0,84,205,0.08)', color: 'var(--m3-primary)', fontWeight: 600 }}>
+          <span style={{ fontWeight: 500, fontSize: 16, color: 'var(--m3-on-surface)' }}>解析结果</span>
+          <span style={{ fontSize: 12, padding: '2px 10px', borderRadius: 999, background: 'var(--dui-primary-container)', color: 'var(--m3-primary)', fontWeight: 500 }}>
             {parsedArticle.sections.length} 个章节
           </span>
-          <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>
+          <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
             共 {parsedArticle.total_words} 字
           </span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
@@ -119,7 +119,7 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
           </div>
         </div>
 
-        <div style={{ padding: '12px 16px', background: 'rgba(0,84,205,0.04)', borderRadius: 8, marginBottom: 16, fontSize: 13, color: 'var(--m3-on-surface-variant)', lineHeight: 1.7 }}>
+        <div style={{ padding: '12px 16px', background: 'var(--dui-primary-container)', borderRadius: 8, marginBottom: 16, fontSize: 13, color: 'var(--m3-on-surface-variant)', lineHeight: 1.7 }}>
           <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6, color: 'var(--m3-primary)' }}>info</span>
           点击章节标题可展开查看原始内容。确认无误后点击「确认内容 · 开始分析」。
           若章节拆分有误，可返回调整原文格式（建议使用 Markdown 标题 ## / ###）。
@@ -145,12 +145,12 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
                     paddingLeft: 12 + indent,
                     cursor: isEmpty ? 'default' : 'pointer',
                     borderRadius: 6,
-                    background: isOpen ? 'rgba(0,84,205,0.04)' : 'transparent',
+                    background: isOpen ? 'var(--dui-primary-container)' : 'transparent',
                   }}
                   onClick={() => !isEmpty && toggle(sec.id)}
                 >
                   <span style={{
-                    fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                    fontSize: 12, fontWeight: 500, padding: '1px 6px', borderRadius: 4,
                     flexShrink: 0,
                     background: `${levelColor[sec.level] ?? 'var(--m3-on-surface-variant)'}15`,
                     color: levelColor[sec.level] ?? 'var(--m3-on-surface-variant)',
@@ -169,7 +169,7 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
 
                   {isSummary && (
                     <span style={{
-                      fontSize: 10, padding: '2px 8px', borderRadius: 999,
+                      fontSize: 12, padding: '2px 8px', borderRadius: 999,
                       background: 'var(--m3-surface-container-low)', color: 'var(--m3-on-surface-variant)', flexShrink: 0,
                     }}>
                       概要参考
@@ -177,7 +177,7 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
                   )}
 
                   {!isEmpty && (
-                    <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)', flexShrink: 0 }}>
+                    <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', flexShrink: 0 }}>
                       {sec.word_count} 字
                     </span>
                   )}
@@ -194,7 +194,7 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
                     marginBottom: 8,
                     padding: '12px 16px',
                     background: 'var(--m3-surface-container-low)',
-                    border: '1px solid var(--m3-outline-variant)',
+                    border: '0.5px solid var(--dui-divider)',
                     borderRadius: 8,
                     fontSize: 12,
                     color: 'var(--m3-on-surface)',

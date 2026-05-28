@@ -33,16 +33,40 @@ def _is_summary_section(heading: str) -> bool:
     return any(kw in heading for kw in _SUMMARY_HEADINGS)
 
 
-# 匹配「中文字符 + 空格? + and + 空格? + 中文字符」的模式
-_CJK_AND_CJK_RE = re.compile(
-    r'([\u4e00-\u9fff\uff00-\uffef])\s+and\s+([\u4e00-\u9fff\uff00-\uffef])',
-    re.IGNORECASE,
-)
+# ── CJK-English replacement fix patterns ─────────────────────────────────────
+# Gemini sometimes replaces Chinese connectives with English equivalents.
+# Each tuple: (compiled regex, replacement template)
+
+_CJK = r'[\u4e00-\u9fff\uff00-\uffef]'
+
+_CJK_EN_FIXES: List[tuple] = [
+    # 和 → and
+    (re.compile(rf'({_CJK})\s+and\s+({_CJK})', re.I), r'\1和\2'),
+    # 或 → or
+    (re.compile(rf'({_CJK})\s+or\s+({_CJK})', re.I), r'\1或\2'),
+    # 包括 → include/includes/including
+    (re.compile(rf'({_CJK})\s+includes?\s+({_CJK})', re.I), r'\1包括\2'),
+    (re.compile(rf'({_CJK})\s+including\s+({_CJK})', re.I), r'\1包括\2'),
+    # 但/但是 → but
+    (re.compile(rf'({_CJK})\s+but\s+({_CJK})', re.I), r'\1但\2'),
+    # 如 → such as
+    (re.compile(rf'({_CJK})\s+such\s+as\s+({_CJK})', re.I), r'\1如\2'),
+    # 等 → etc / etc.
+    (re.compile(rf'({_CJK})\s+etc\.?\s*({_CJK})', re.I), r'\1等\2'),
+    # 即 → i.e.
+    (re.compile(rf'({_CJK})\s+i\.?e\.?\s+({_CJK})', re.I), r'\1即\2'),
+]
 
 
-def _fix_cjk_and_replacement(text: str) -> str:
-    """将 Gemini 错误生成的「中文 and 中文」替换回「中文和中文」。"""
-    return _CJK_AND_CJK_RE.sub(r'\1和\2', text)
+def _fix_cjk_en_replacements(text: str) -> str:
+    """Fix Gemini's erroneous CJK→English connective replacements."""
+    for pattern, repl in _CJK_EN_FIXES:
+        text = pattern.sub(repl, text)
+    return text
+
+
+# Keep backward-compatible alias
+_fix_cjk_and_replacement = _fix_cjk_en_replacements
 
 
 def _fix_section_levels(sections: List[ArticleSection]) -> List[ArticleSection]:
@@ -100,6 +124,152 @@ def count_chinese_words(text: str) -> int:
     return cjk + ascii_words
 
 
+# ── Post-parse validation & repair ────────────────────────────────────────────
+
+import logging as _logging
+
+_log = _logging.getLogger(__name__)
+
+
+def _build_section_content_map(structured_text: str) -> dict:
+    """Parse structured text ([H1]/[H2]/[H3] markers) into {heading: [content]}
+    for validation.  Duplicate headings are stored as a list.
+    """
+    sections: dict = {}  # heading -> [content, ...]
+    current_heading: Optional[str] = None
+    current_lines: List[str] = []
+
+    def flush():
+        if current_heading is None:
+            return
+        content = "\n".join(current_lines).strip()
+        sections.setdefault(current_heading, []).append(content)
+
+    for line in structured_text.split("\n"):
+        m = re.match(r"^\[H(\d)\]\s*(.+)$", line)
+        if m:
+            flush()
+            current_heading = m.group(2).strip()
+            current_lines = []
+        else:
+            current_lines.append(line)
+    flush()
+    return sections
+
+
+def _count_cjk(text: str) -> int:
+    """Count CJK characters only (fast, for validation)."""
+    return len(re.findall(r'[\u4e00-\u9fff]', text))
+
+
+def _extract_refs(text: str) -> List[str]:
+    """Extract all ^[N] reference markers."""
+    return re.findall(r'\^\[\d+(?:[,，\-~～至\d]*)\]', text)
+
+
+def _count_table_rows(text: str) -> int:
+    """Count Markdown table rows (lines starting with |)."""
+    return sum(1 for line in text.split("\n")
+               if line.strip().startswith("|") and "|" in line[1:])
+
+
+def _validate_and_repair(
+    sections: List[ArticleSection],
+    original_text: str,
+) -> List[ArticleSection]:
+    """Post-parse validation: detect and auto-repair AI-induced content issues.
+
+    Checks performed on each section:
+      1. CJK→English connective replacements (auto-fixed)
+      2. Content loss — if >5% CJK characters lost, restore from original
+      3. Reference marker loss — if refs dropped, restore from original
+      4. Markdown table row loss — if table rows dropped, restore from original
+
+    Parameters
+    ----------
+    sections : AI-parsed sections (already level-fixed).
+    original_text : the structured text fed to the AI (with [H] markers).
+
+    Returns
+    -------
+    The repaired section list (mutated in place and returned).
+    """
+    if not re.search(r"^\[H[123]\]", original_text, re.MULTILINE):
+        # Not structured input — skip validation (plain-text has no ground truth)
+        return sections
+
+    source_map = _build_section_content_map(original_text)
+    repair_count = 0
+
+    for section in sections:
+        heading = section.heading
+
+        # ── 1. Fix CJK→English replacements ──────────────────────────
+        fixed_content = _fix_cjk_en_replacements(section.content)
+        fixed_heading = _fix_cjk_en_replacements(section.heading)
+        if fixed_content != section.content or fixed_heading != section.heading:
+            _log.warning("Validation fix [cjk-en]: section '%s'", heading)
+            section.content = fixed_content
+            section.heading = fixed_heading
+            repair_count += 1
+
+        # Find matching source content for deeper validation
+        source_contents = source_map.get(heading, [])
+        if not source_contents:
+            continue
+        # Pick the source with the best CJK count match
+        expected = min(
+            source_contents,
+            key=lambda sc: abs(_count_cjk(sc) - _count_cjk(section.content)),
+        )
+        if not expected:
+            continue
+
+        needs_restore = False
+        reasons: List[str] = []
+
+        # ── 2. CJK character loss check ──────────────────────────────
+        expected_cjk = _count_cjk(expected)
+        parsed_cjk = _count_cjk(section.content)
+        if expected_cjk > 10:
+            loss_pct = (expected_cjk - parsed_cjk) / expected_cjk
+            if loss_pct > 0.05:
+                needs_restore = True
+                reasons.append(f"cjk-loss={loss_pct:.0%}")
+
+        # ── 3. Reference marker check ────────────────────────────────
+        expected_refs = set(_extract_refs(expected))
+        parsed_refs = set(_extract_refs(section.content))
+        missing_refs = expected_refs - parsed_refs
+        if missing_refs and len(missing_refs) / max(len(expected_refs), 1) > 0.1:
+            needs_restore = True
+            reasons.append(f"ref-loss={len(missing_refs)}")
+
+        # ── 4. Table row check ────────────────────────────────────────
+        expected_rows = _count_table_rows(expected)
+        parsed_rows = _count_table_rows(section.content)
+        if expected_rows > 0 and parsed_rows < expected_rows:
+            needs_restore = True
+            reasons.append(f"table-loss={expected_rows - parsed_rows}rows")
+
+        # ── Restore from source if needed ─────────────────────────────
+        if needs_restore:
+            _log.warning(
+                "Validation restore: section '%s' reasons=[%s]",
+                heading, ", ".join(reasons),
+            )
+            section.content = expected
+            section.word_count = count_chinese_words(expected)
+            section.image_count = len(re.findall(r"\[图片\]", expected))
+            section.table_count = len(re.findall(r"\[表格\]|\[表格标题\]", expected))
+            repair_count += 1
+
+    if repair_count:
+        _log.info("Validation repaired %d section(s)", repair_count)
+
+    return sections
+
+
 # ── Primary: AI-based parser ───────────────────────────────────────────────────
 
 async def parse_article_sections(text: str) -> ParsedArticle:
@@ -111,6 +281,9 @@ async def parse_article_sections(text: str) -> ParsedArticle:
 
     Falls back to regex/BS4 parsing if AI fails.
     """
+    if re.search(r"^\[H[123]\]", text, re.MULTILINE):
+        return _parse_structured_markers(text)
+
     try:
         return await _parse_with_ai(text)
     except Exception:
@@ -126,9 +299,9 @@ async def _parse_with_ai(text: str) -> ParsedArticle:
     framework_summary = _extract_framework_summary()
 
     if is_structured:
-        prompt = _build_structured_prompt(text[:40000], framework_summary)
+        prompt = _build_structured_prompt(text, framework_summary)
     else:
-        prompt = _build_plain_prompt(text[:30000], framework_summary)
+        prompt = _build_plain_prompt(text, framework_summary)
 
     raw = await generate_text(prompt, _SYSTEM_PROMPT)
     data = extract_json(raw)
@@ -157,6 +330,7 @@ async def _parse_with_ai(text: str) -> ParsedArticle:
         raise ValueError("AI returned no sections")
 
     _fix_section_levels(sections)
+    _validate_and_repair(sections, text)
     total_words = sum(s.word_count for s in sections if not _is_summary_section(s.heading))
     return ParsedArticle(sections=sections, total_words=total_words)
 

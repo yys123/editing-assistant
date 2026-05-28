@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(ssh:*)",
+      "Bash(scp:*)",
+      "Bash(time scp:*)",
+      "Bash(rsync:*)",
+      "Bash(./deploy.sh:*)",
+      "Bash(bash deploy.sh:*)",
+      "Bash(grep:*)",
+      "Bash(git:*)",
+      "Bash(ping:*)",
+      "Bash(curl:*)",
+      "Bash(dd:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vite:*)",
+      "Bash(npm run:*)",
+      "Bash(python manage_codes.py:*)",
+      "Bash(python3 manage_codes.py:*)",
+      "Bash(xxd /Users/ning/cm/editing-assistant/backend/data/content_framework.md)",
+      "Bash(python3 -c \"import models; import services.generator; import routers.generate; print\\(''OK''\\)\")",
+      "Bash(python3 -c \"import models; import services.generator; import routers.generate; print\\(''''OK''''\\)\")",
+      "Bash(python3 -c \"import services.generator; print\\(''''OK''''\\)\")",
+      "Bash(bash:*)",
+      "Bash(python3 -c ':*)",
+      "Bash(find /Users/ning/cm/editing-assistant -type f \\\\\\( -name \"*.json\" -o -name \"*.py\" -o -name \"*.tsx\" -o -name \"*.ts\" \\\\\\) ! -path \"*/node_modules/*\" ! -path \"*/.git/*\" -exec grep -l \"sample\\\\|test\\\\|example\\\\|fixture\" {} \\\\;)",
+      "WebFetch(domain:search-clinic-master-data.k8s.qc.host.dxy)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3)",
+      "Bash(ls /Users/ning/Downloads/result*.xlsx)",
+      "Bash(ls /Users/ning/Downloads/*对照*.xlsx)",
+      "Bash(ls /Users/ning/Downloads/*d36*.xlsx)",
+      "Bash(ls /Users/ning/Downloads/*.xlsx)",
+      "Bash(pip3 install *)",
+      "Bash(python3 generate_report.py)",
+      "Bash(open *)"
+    ]
+  }
+}

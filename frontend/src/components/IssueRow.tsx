@@ -45,13 +45,13 @@ export default function IssueRow({ issue, expanded, onToggle, onUpdate, onDelete
         >
           {sev.label}
         </span>
-        <span style={{ fontSize: 10, color: 'var(--gray-500)', flexShrink: 0, background: 'var(--gray-100)', padding: '1px 6px', borderRadius: 4 }}>
+        <span style={{ fontSize: 12, color: 'var(--gray-500)', flexShrink: 0, background: 'var(--gray-100)', padding: '1px 6px', borderRadius: 4 }}>
           {ISSUE_TYPE_LABELS[issue.issue_type] ?? issue.issue_type}
         </span>
-        {isAdded && <span style={{ fontSize: 10, color: 'var(--blue)', fontWeight: 700, flexShrink: 0 }}>专家补充</span>}
-        {isConfirmed && <span style={{ fontSize: 10, color: 'var(--green)', fontWeight: 700, flexShrink: 0 }}>已确认</span>}
+        {isAdded && <span style={{ fontSize: 12, color: 'var(--blue)', fontWeight: 500, flexShrink: 0 }}>专家补充</span>}
+        {isConfirmed && <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500, flexShrink: 0 }}>已确认</span>}
         <span className="issue-description">{issue.description || '（点击展开填写问题描述）'}</span>
-        {issue.reviewer_note && <span style={{ fontSize: 11, color: 'var(--gray-500)', flexShrink: 0 }}>💬</span>}
+        {issue.reviewer_note && <span style={{ fontSize: 12, color: 'var(--gray-500)', flexShrink: 0 }}>💬</span>}
         <div className="issue-actions" onClick={e => e.stopPropagation()}>
           {!isRejected && !isConfirmed && (
             <button

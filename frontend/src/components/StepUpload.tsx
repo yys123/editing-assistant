@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { QAItem, ReferenceDoc, StandardsOverride } from '../types'
-import { apiFetch } from '../api'
+import { apiFetch, safeJson, chunkedUpload } from '../api'
 
 interface Props {
   disease: string
@@ -17,6 +17,343 @@ interface Props {
 }
 
 type ArticleTab = 'file' | 'text'
+type PasteParserMode = 'cuckoo' | 'backend'
+
+const BLOCK_TAGS = new Set(['ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'OL', 'P', 'SECTION', 'TABLE', 'TBODY', 'TD', 'TH', 'THEAD', 'TR', 'UL'])
+const INLINE_TAGS = new Set(['B', 'BR', 'EM', 'I', 'STRONG'])
+
+interface NumberingState {
+  sectionCounters: Record<number, number>
+  orderedCounters: Record<string, number>
+}
+
+function normalizeEditorText(text: string) {
+  return text
+    .replace(/\u00a0/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function safeNumberingAttrs(node: HTMLElement) {
+  const attrs: string[] = []
+  const sectionIndex = node.getAttribute('data-section-index')
+  const orderedIndex = node.getAttribute('data-orderedlist-index')
+
+  if (sectionIndex && /^\d+$/.test(sectionIndex)) {
+    attrs.push(`data-section-index="${sectionIndex}"`)
+  }
+  if (orderedIndex && /^\d+$/.test(orderedIndex)) {
+    attrs.push(`data-orderedlist-index="${orderedIndex}"`)
+  }
+
+  return attrs.length ? ` ${attrs.join(' ')}` : ''
+}
+
+function htmlToSafeEditorHtml(html: string) {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const walk = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return escapeHtml(node.textContent || '')
+    }
+    if (!(node instanceof HTMLElement)) return ''
+    const tag = node.tagName
+    const children = Array.from(node.childNodes).map(walk).join('')
+    if (!children && tag !== 'BR') return ''
+    if (tag === 'BR') return '<br>'
+    const attrs = safeNumberingAttrs(node)
+    if (tag === 'DIV') return `<p${attrs}>${children}</p>`
+    if (tag === 'H4' || tag === 'H5' || tag === 'H6') return `<h3${attrs}>${children}</h3>`
+    if (BLOCK_TAGS.has(tag) || INLINE_TAGS.has(tag)) {
+      return `<${tag.toLowerCase()}${attrs}>${children}</${tag.toLowerCase()}>`
+    }
+    return children
+  }
+
+  return Array.from(doc.body.childNodes).map(walk).join('')
+}
+
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function textToEditorHtml(text: string) {
+  if (!text) return ''
+  return text
+    .split(/\n{2,}/)
+    .map(block => `<p>${escapeHtml(block).replace(/\n/g, '<br>')}</p>`)
+    .join('')
+}
+
+function hasRecoveredNumbering(html: string) {
+  return /\sdata-(section-index|orderedlist-index)=["']?\d+/i.test(html)
+}
+
+function listPrefix(type: 'ol' | 'ul', index: number, depth: number) {
+  if (type === 'ul') return '- '
+  return depth <= 1 ? `${index}、` : `（${index}）`
+}
+
+function chineseNumber(num: number) {
+  const digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九']
+  if (num <= 10) return num === 10 ? '十' : digits[num]
+  if (num < 20) return `十${digits[num - 10]}`
+  if (num < 100) {
+    const ten = Math.floor(num / 10)
+    const one = num % 10
+    return `${digits[ten]}十${one ? digits[one] : ''}`
+  }
+  return String(num)
+}
+
+function alphaNumber(num: number) {
+  let n = num
+  let text = ''
+  while (n > 0) {
+    n -= 1
+    text = String.fromCharCode(97 + (n % 26)) + text
+    n = Math.floor(n / 26)
+  }
+  return text || 'a'
+}
+
+function romanNumber(num: number) {
+  const map: Array<[number, string]> = [
+    [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
+    [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+    [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I'],
+  ]
+  let n = num
+  let text = ''
+  for (const [value, symbol] of map) {
+    while (n >= value) {
+      text += symbol
+      n -= value
+    }
+  }
+  return text || 'I'
+}
+
+function sectionPrefix(level: number, count: number) {
+  if (level === 1) return `${chineseNumber(count)}、`
+  if (level === 2) return `(${chineseNumber(count)})`
+  if (level === 3) return `${count}、`
+  return `${count}.`
+}
+
+function orderedPrefix(styleIndex: string, count: number) {
+  const styles: Record<string, string> = {
+    '1': `${count}、`,
+    '2': `(${count})`,
+    '3': `${count})`,
+    '4': `${count}.`,
+    '5': `${alphaNumber(count)}.`,
+    '6': `${romanNumber(count)}.`,
+  }
+  return styles[styleIndex] || `${count}.`
+}
+
+function cleanElementText(node: HTMLElement) {
+  return (node.textContent || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
+  if (!(node instanceof HTMLElement)) return ''
+
+  const tag = node.tagName
+  if (tag === 'BR') return '\n'
+
+  const sectionIndex = node.getAttribute('data-section-index')
+  if (sectionIndex) {
+    const level = Number(sectionIndex)
+    const text = cleanElementText(node)
+    if (!Number.isNaN(level) && text) {
+      state.sectionCounters[level] = (state.sectionCounters[level] || 0) + 1
+      Object.keys(state.sectionCounters).forEach(key => {
+        if (Number(key) > level) state.sectionCounters[Number(key)] = 0
+      })
+      state.orderedCounters = {}
+      return `${sectionPrefix(level, state.sectionCounters[level])} ${text}\n`
+    }
+  }
+
+  const orderedIndex = node.getAttribute('data-orderedlist-index')
+  if (orderedIndex) {
+    const text = cleanElementText(node)
+    if (text) {
+      Object.keys(state.orderedCounters).forEach(key => {
+        if (Number(key) > Number(orderedIndex)) state.orderedCounters[key] = 0
+      })
+      state.orderedCounters[orderedIndex] = (state.orderedCounters[orderedIndex] || 0) + 1
+      return `${orderedPrefix(orderedIndex, state.orderedCounters[orderedIndex])} ${text}\n`
+    }
+  }
+
+  if (tag === 'OL' || tag === 'UL') {
+    let index = Number(node.getAttribute('start') || '1')
+    const type = tag === 'OL' ? 'ol' : 'ul'
+    return Array.from(node.children)
+      .filter((child): child is HTMLElement => child instanceof HTMLElement && child.tagName === 'LI')
+      .map(li => {
+        const prefix = listPrefix(type, index++, listDepth + 1)
+        return `${prefix}${liToPlainText(li, state, listDepth + 1)}`
+      })
+      .join('\n') + '\n'
+  }
+
+  const content = Array.from(node.childNodes).map(child => nodeToPlainText(child, state, listDepth)).join('')
+  if (['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P', 'DIV'].includes(tag)) {
+    return content.trim() ? `${content.trim()}\n` : ''
+  }
+  if (tag === 'TR') {
+    return `${content.trim()}\n`
+  }
+  if (tag === 'TD' || tag === 'TH') {
+    return `${content.trim()} | `
+  }
+  return content
+}
+
+function liToPlainText(li: HTMLElement, state: NumberingState, depth: number) {
+  const parts: string[] = []
+  const nestedLists: string[] = []
+
+  li.childNodes.forEach(child => {
+    if (child instanceof HTMLElement && (child.tagName === 'OL' || child.tagName === 'UL')) {
+      nestedLists.push(nodeToPlainText(child, state, depth).trim())
+    } else {
+      parts.push(nodeToPlainText(child, state, depth))
+    }
+  })
+
+  const main = normalizeEditorText(parts.join(''))
+  const nested = nestedLists.filter(Boolean).join('\n')
+  return nested ? `${main}\n${nested}` : main
+}
+
+function editorToPlainText(editor: HTMLElement) {
+  const state: NumberingState = { sectionCounters: {}, orderedCounters: {} }
+  return normalizeEditorText(Array.from(editor.childNodes).map(node => nodeToPlainText(node, state)).join(''))
+}
+
+function editorHtmlToPlainText(html: string) {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const state: NumberingState = { sectionCounters: {}, orderedCounters: {} }
+  return normalizeEditorText(Array.from(doc.body.childNodes).map(node => nodeToPlainText(node, state)).join(''))
+}
+
+function RichPasteEditor({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (value: string) => void
+}) {
+  const editorRef = useRef<HTMLDivElement>(null)
+  const [parserMode, setParserMode] = useState<PasteParserMode>('cuckoo')
+
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+    if (document.activeElement === editor) return
+    if (editorToPlainText(editor) !== normalizeEditorText(value)) {
+      editor.innerHTML = textToEditorHtml(value)
+    }
+  }, [value])
+
+  const syncFromEditor = () => {
+    const editor = editorRef.current
+    if (editor) onChange(editorToPlainText(editor))
+  }
+
+  const runCommand = (command: string, commandValue?: string) => {
+    editorRef.current?.focus()
+    document.execCommand(command, false, commandValue)
+    syncFromEditor()
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const html = e.clipboardData.getData('text/html')
+    const plain = e.clipboardData.getData('text/plain')
+    // 预留解析模式分支：后台模式规则确定前，先沿用当前布谷鸟规则。
+    const activeParserMode = parserMode
+    const safeHtml = html ? htmlToSafeEditorHtml(html) : ''
+    const insertable = safeHtml && hasRecoveredNumbering(safeHtml)
+      ? textToEditorHtml(editorHtmlToPlainText(safeHtml))
+      : safeHtml || normalizeEditorText(plain)
+    void activeParserMode
+    if (!insertable) return
+    e.preventDefault()
+    document.execCommand(safeHtml ? 'insertHTML' : 'insertText', false, insertable)
+    syncFromEditor()
+  }
+
+  const clearFormatting = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    const text = editorToPlainText(editor)
+    editor.innerHTML = textToEditorHtml(text)
+    onChange(text)
+  }
+
+  const clearAll = () => {
+    if (editorRef.current) editorRef.current.innerHTML = ''
+    onChange('')
+  }
+
+  return (
+    <div className="rich-editor-wrap">
+      <div className="rich-editor-toolbar" aria-label="富文本编辑工具栏">
+        <button type="button" className="rich-editor-tool" title="二级标题" onClick={() => runCommand('formatBlock', 'h2')}>H2</button>
+        <button type="button" className="rich-editor-tool" title="三级标题" onClick={() => runCommand('formatBlock', 'h3')}>H3</button>
+        <button type="button" className="rich-editor-tool icon" title="加粗" onClick={() => runCommand('bold')}>
+          <span className="material-symbols-outlined">format_bold</span>
+        </button>
+        <button type="button" className="rich-editor-tool icon" title="项目符号列表" onClick={() => runCommand('insertUnorderedList')}>
+          <span className="material-symbols-outlined">format_list_bulleted</span>
+        </button>
+        <button type="button" className="rich-editor-tool icon" title="编号列表" onClick={() => runCommand('insertOrderedList')}>
+          <span className="material-symbols-outlined">format_list_numbered</span>
+        </button>
+        <button type="button" className="rich-editor-tool" title="清除格式" onClick={clearFormatting}>清除格式</button>
+        <button type="button" className="rich-editor-tool danger" title="清空内容" onClick={clearAll}>清空</button>
+        <div className="paste-parser-switch" aria-label="粘贴解析规则">
+          {([
+            ['cuckoo', '布谷鸟'],
+            ['backend', '后台'],
+          ] as Array<[PasteParserMode, string]>).map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              className={`paste-parser-option${parserMode === mode ? ' active' : ''}`}
+              aria-pressed={parserMode === mode}
+              onClick={() => setParserMode(mode)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="rich-editor-count">{value.length.toLocaleString()} 字符</span>
+      </div>
+      <div
+        ref={editorRef}
+        className="rich-editor"
+        contentEditable
+        suppressContentEditableWarning
+        data-placeholder="直接粘贴词条全文内容..."
+        onInput={syncFromEditor}
+        onBlur={syncFromEditor}
+        onPaste={handlePaste}
+      />
+    </div>
+  )
+}
 
 export default function StepUpload({
   disease, setDisease, articleContent, setArticleContent,
@@ -30,6 +367,9 @@ export default function StepUpload({
   const [qaCount, setQaCount] = useState(qaItems.length)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [pdfError, setPdfError] = useState('')
+  const [articleProgress, setArticleProgress] = useState(0)
+  const [articleUploading, setArticleUploading] = useState(false)
+  const [pdfProgress, setPdfProgress] = useState(0)
   const [showStandardsPanel, setShowStandardsPanel] = useState(true)
   const [standardsLoading, setStandardsLoading] = useState(false)
 
@@ -40,16 +380,17 @@ export default function StepUpload({
   const contentSpecInputRef = useRef<HTMLInputElement>(null)
 
   const loadFromFile = async (file: File) => {
-    const fd = new FormData()
-    fd.append('file', file)
     setArticleError('')
+    setArticleUploading(true)
+    setArticleProgress(0)
     try {
-      const res = await apiFetch('/api/article/upload', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || '上传失败')
+      const data = await chunkedUpload(file, 'article', {}, setArticleProgress)
       setArticleContent(data.content)
     } catch (e: any) {
       setArticleError(e.message)
+    } finally {
+      setArticleUploading(false)
+      setArticleProgress(0)
     }
   }
 
@@ -57,11 +398,7 @@ export default function StepUpload({
     setQaLoading(true)
     setQaError('')
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await apiFetch('/api/qa/upload', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || '解析失败')
+      const data = await chunkedUpload(file, 'qa')
       setQaItems(data.items)
       setQaCount(data.count)
     } catch (e: any) {
@@ -74,31 +411,32 @@ export default function StepUpload({
   const loadPdfFiles = async (files: FileList) => {
     setPdfLoading(true)
     setPdfError('')
+    setPdfProgress(0)
     try {
-      const fd = new FormData()
-      for (const f of Array.from(files)) {
-        fd.append('files', f)
+      const allResults: any[] = []
+      const fileArr = Array.from(files)
+      for (let fi = 0; fi < fileArr.length; fi++) {
+        const f = fileArr[fi]
+        const data = await chunkedUpload(f, 'pdf', { filenames: [f.name] }, (pct) => {
+          // 多文件时计算整体进度：已完成的文件 + 当前文件进度
+          const overall = Math.round(((fi + pct / 100) / fileArr.length) * 100)
+          setPdfProgress(overall)
+        })
+        allResults.push(...data)
       }
-      const res = await apiFetch('/api/article/upload-pdf', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'PDF解析失败')
-      setReferenceDocs([...referenceDocs, ...data])
+      setReferenceDocs([...referenceDocs, ...allResults])
     } catch (e: any) {
       setPdfError(e.message)
     } finally {
       setPdfLoading(false)
+      setPdfProgress(0)
     }
   }
 
   const loadStandardFile = async (file: File, type: 'quality' | 'spec') => {
     setStandardsLoading(true)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('standard_type', type)
-      const res = await apiFetch('/api/article/upload-standard', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || '上传失败')
+      const data = await chunkedUpload(file, 'standard', { standard_type: type })
       if (type === 'quality') {
         setStandardsOverride({ ...standardsOverride, qualityText: data.text })
       } else {
@@ -115,7 +453,7 @@ export default function StepUpload({
     <div>
       {/* Page header */}
       <div style={{ marginBottom: 28 }}>
-        <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 700, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
+        <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 500, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
           数据上传
         </h2>
         <p style={{ fontSize: 14, color: 'var(--m3-on-surface-variant)' }}>
@@ -130,7 +468,7 @@ export default function StepUpload({
           <div className="section-card-accent">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--m3-primary)' }}>local_hospital</span>
-              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--m3-on-surface)' }}>疾病名称</span>
+              <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--m3-on-surface)' }}>疾病名称</span>
             </div>
             <input
               className="m3-input"
@@ -148,9 +486,9 @@ export default function StepUpload({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--m3-on-surface-variant)' }}>tune</span>
-                <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--m3-on-surface)' }}>评审标准</span>
+                <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--m3-on-surface)' }}>评审标准</span>
                 {(standardsOverride.qualityText || standardsOverride.specText) && (
-                  <span style={{ fontSize: 11, color: 'var(--m3-primary)', background: 'rgba(0,84,205,0.08)', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>已自定义</span>
+                  <span style={{ fontSize: 12, color: 'var(--m3-primary)', background: 'var(--dui-primary-container)', padding: '2px 8px', borderRadius: 4, fontWeight: 500 }}>已自定义</span>
                 )}
               </div>
               <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-on-surface-variant)', transition: 'transform 0.2s', transform: showStandardsPanel ? 'rotate(180deg)' : 'none' }}>expand_more</span>
@@ -163,7 +501,7 @@ export default function StepUpload({
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ padding: '12px', background: 'var(--m3-surface-container-low)', borderRadius: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--m3-on-surface)' }}>质量审评标准</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, color: 'var(--m3-on-surface)' }}>质量审评标准</div>
                     <button
                       className="btn-m3-outline" style={{ fontSize: 12, padding: '5px 12px' }}
                       onClick={() => qualityStdInputRef.current?.click()}
@@ -184,7 +522,7 @@ export default function StepUpload({
                     )}
                   </div>
                   <div style={{ padding: '12px', background: 'var(--m3-surface-container-low)', borderRadius: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--m3-on-surface)' }}>内容要求规范</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, color: 'var(--m3-on-surface)' }}>内容要求规范</div>
                     <button
                       className="btn-m3-outline" style={{ fontSize: 12, padding: '5px 12px' }}
                       onClick={() => contentSpecInputRef.current?.click()}
@@ -216,11 +554,11 @@ export default function StepUpload({
           <div className="section-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--m3-primary)' }}>description</span>
-              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--m3-on-surface)' }}>知识库词条内容</span>
+              <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--m3-on-surface)' }}>知识库词条内容</span>
             </div>
 
             {/* Tabs */}
-            <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '2px solid var(--m3-outline-variant)' }}>
+            <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '0.5px solid var(--dui-divider)' }}>
               {(['file', 'text'] as ArticleTab[]).map(t => (
                 <button
                   key={t}
@@ -261,7 +599,9 @@ export default function StepUpload({
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 28, color: 'var(--m3-primary)', opacity: 0.7 }}>cloud_upload</span>
-                  <p style={{ fontSize: 13, color: 'var(--m3-on-surface)', fontWeight: 500, marginTop: 4 }}>点击或拖拽上传词条文件</p>
+                  <p style={{ fontSize: 13, color: 'var(--m3-on-surface)', fontWeight: 500, marginTop: 4 }}>
+                    {articleUploading ? `上传中 ${articleProgress}%...` : '点击或拖拽上传词条文件'}
+                  </p>
                   <p style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>支持 .html .htm .txt .md 格式</p>
                   <input ref={articleInputRef} type="file" accept=".html,.htm,.txt,.md" style={{ display: 'none' }} onChange={e => {
                     const f = e.target.files?.[0]
@@ -278,17 +618,11 @@ export default function StepUpload({
             )}
 
             {articleTab === 'text' && (
-              <textarea
-                className="m3-textarea"
-                placeholder="直接粘贴词条全文内容..."
-                value={articleContent}
-                onChange={e => setArticleContent(e.target.value)}
-                style={{ minHeight: 140 }}
-              />
+              <RichPasteEditor value={articleContent} onChange={setArticleContent} />
             )}
 
             {articleContent && articleTab !== 'text' && (
-              <div style={{ marginTop: 12, padding: '12px 16px', background: 'rgba(0,104,86,0.06)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ marginTop: 12, padding: '12px 16px', background: 'var(--dui-success-container)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 13, color: 'var(--m3-tertiary)', fontWeight: 500 }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>check_circle</span>
                   已加载词条内容（{articleContent.length} 字符）
@@ -302,8 +636,8 @@ export default function StepUpload({
           <div className="section-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--m3-secondary)' }}>forum</span>
-              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--m3-on-surface)' }}>Q&A 问答数据</span>
-              <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)', background: 'var(--m3-surface-container-low)', padding: '2px 8px', borderRadius: 4 }}>可选</span>
+              <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--m3-on-surface)' }}>Q&A 问答数据</span>
+              <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', background: 'var(--m3-surface-container-low)', padding: '2px 8px', borderRadius: 4 }}>可选</span>
             </div>
             <p style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 12 }}>
               上传筛选后的相关疾病问答列表（CSV / Excel），支持列：问题、回答（可选）、证据来源（可选）
@@ -334,7 +668,7 @@ export default function StepUpload({
               </div>
             )}
             {qaCount > 0 && (
-              <div style={{ marginTop: 10, padding: '12px 16px', background: 'rgba(0,104,86,0.06)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ marginTop: 10, padding: '12px 16px', background: 'var(--dui-success-container)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 13, color: 'var(--m3-tertiary)', fontWeight: 500 }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>check_circle</span>
                   已加载 {qaCount} 条问答数据
@@ -345,7 +679,7 @@ export default function StepUpload({
             {qaItems.length > 0 && (
               <div style={{ marginTop: 14 }}>
                 <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 8 }}>数据预览（前5条）：</div>
-                <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--m3-outline-variant)' }}>
+                <div style={{ borderRadius: 8, overflow: 'hidden', border: '0.5px solid var(--dui-divider)' }}>
                   <table className="m3-table">
                     <thead>
                       <tr>
@@ -373,8 +707,8 @@ export default function StepUpload({
           <div className="section-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--m3-tertiary)' }}>menu_book</span>
-              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--m3-on-surface)' }}>参考文献 PDF 库</span>
-              <span style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)', background: 'var(--m3-surface-container-low)', padding: '2px 8px', borderRadius: 4 }}>可选</span>
+              <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--m3-on-surface)' }}>参考文献 PDF 库</span>
+              <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', background: 'var(--m3-surface-container-low)', padding: '2px 8px', borderRadius: 4 }}>可选</span>
             </div>
             <p style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 14 }}>
               上传参考文件（指南、综述等），AI分析时将引用其内容（每文件截取前6000字符）
@@ -390,9 +724,9 @@ export default function StepUpload({
                   {pdfLoading ? 'hourglass_empty' : 'note_add'}
                 </span>
                 <span style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)', fontWeight: 500 }}>
-                  {pdfLoading ? '解析中...' : '添加文件'}
+                  {pdfLoading ? (pdfProgress > 0 ? `上传中 ${pdfProgress}%` : '解析中...') : '添加文件'}
                 </span>
-                <span style={{ fontSize: 11, color: 'var(--m3-outline)' }}>.pdf .html .htm</span>
+                <span style={{ fontSize: 12, color: 'var(--m3-outline)' }}>.pdf .html .htm</span>
                 <input ref={pdfInputRef} type="file" accept=".pdf,.html,.htm" multiple style={{ display: 'none' }} onChange={e => {
                   if (e.target.files?.length) loadPdfFiles(e.target.files)
                 }} />
@@ -401,18 +735,18 @@ export default function StepUpload({
               {/* Existing docs */}
               {referenceDocs.map((doc, i) => (
                 <div key={i} className="pdf-item-card">
-                  <span className="material-symbols-outlined" style={{ fontSize: 28, color: doc.filename.toLowerCase().endsWith('.pdf') ? '#e53935' : 'var(--m3-primary)' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 28, color: doc.filename.toLowerCase().endsWith('.pdf') ? 'var(--dui-danger)' : 'var(--dui-primary)' }}>
                     {doc.filename.toLowerCase().endsWith('.pdf') ? 'picture_as_pdf' : 'language'}
                   </span>
                   <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--m3-on-surface)', textAlign: 'center', wordBreak: 'break-all', lineHeight: 1.3 }}>
                     {doc.filename.length > 30 ? doc.filename.slice(0, 27) + '...' : doc.filename}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>{doc.char_count} 字符</div>
+                  <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>{doc.char_count} 字符</div>
                   <button
                     onClick={() => setReferenceDocs(referenceDocs.filter((_, j) => j !== i))}
                     style={{
                       position: 'absolute', top: 6, right: 6,
-                      background: 'rgba(0,0,0,0.04)', border: 'none', borderRadius: 4,
+                      background: 'rgba(0,0,0,0.04)', border: 'none', borderRadius: '50%',
                       width: 22, height: 22, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       opacity: 0, transition: 'opacity 0.15s',

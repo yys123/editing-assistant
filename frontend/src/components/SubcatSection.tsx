@@ -17,7 +17,7 @@ export default function SubcatSection({ label, issues, expandedId, setExpandedId
     <div className="review-subcat">
       <div className="review-subcat-header">
         <span>{label}</span>
-        <span style={{ color: active > 0 ? 'var(--orange)' : 'var(--green)', fontWeight: 600 }}>
+        <span style={{ color: active > 0 ? 'var(--dui-warning)' : 'var(--dui-success)', fontWeight: 500 }}>
           {active > 0 ? `${active} 个问题` : '无问题'}
         </span>
       </div>
