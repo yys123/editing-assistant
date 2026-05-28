@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LOG_FILE="$REPO_DIR/.git/auto-backup.log"
+REPO_DIR="${EDITING_ASSISTANT_REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+LOG_FILE="${EDITING_ASSISTANT_BACKUP_LOG:-$REPO_DIR/.git/auto-backup.log}"
 
 cd "$REPO_DIR"
 
