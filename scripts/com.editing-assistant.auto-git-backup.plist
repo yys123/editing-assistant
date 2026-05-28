@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.editing-assistant.auto-git-backup</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/dxy/Documents/IT/editing-assistant/scripts/auto_git_backup.sh</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>300</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/dxy/Documents/IT/editing-assistant</string>
+
+  <key>StandardOutPath</key>
+  <string>/Users/dxy/Documents/IT/editing-assistant/.git/auto-backup.launchd.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/dxy/Documents/IT/editing-assistant/.git/auto-backup.launchd.err.log</string>
+</dict>
+</plist>

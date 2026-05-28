@@ -356,42 +356,8 @@ body {
 .rich-editor-tool.danger {
   color: var(--m3-error);
 }
-.paste-parser-switch {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px;
-  border: 0.5px solid rgba(119, 83, 255, 0.18);
-  border-radius: 999px;
-  background:
-    linear-gradient(135deg, rgba(255,255,255,0.95), rgba(243,240,252,0.92)),
-    var(--dui-surface);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
-}
-.paste-parser-option {
-  height: 26px;
-  min-width: 58px;
-  padding: 0 12px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--dui-text-weak);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.paste-parser-option:hover {
-  color: var(--dui-primary);
-  background: rgba(119, 83, 255, 0.08);
-}
-.paste-parser-option.active {
-  color: #fff;
-  background: linear-gradient(135deg, var(--dui-primary), #5f7dff);
-}
 .rich-editor-count {
+  margin-left: auto;
   color: var(--dui-text-sub);
   font-size: 12px;
   white-space: nowrap;

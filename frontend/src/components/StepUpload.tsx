@@ -17,7 +17,6 @@ interface Props {
 }
 
 type ArticleTab = 'file' | 'text'
-type PasteParserMode = 'cuckoo' | 'backend'
 
 const BLOCK_TAGS = new Set(['ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'OL', 'P', 'SECTION', 'TABLE', 'TBODY', 'TD', 'TH', 'THEAD', 'TR', 'UL'])
 const INLINE_TAGS = new Set(['B', 'BR', 'EM', 'I', 'STRONG'])
@@ -256,7 +255,6 @@ function RichPasteEditor({
   onChange: (value: string) => void
 }) {
   const editorRef = useRef<HTMLDivElement>(null)
-  const [parserMode, setParserMode] = useState<PasteParserMode>('cuckoo')
 
   useEffect(() => {
     const editor = editorRef.current
@@ -281,13 +279,10 @@ function RichPasteEditor({
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     const html = e.clipboardData.getData('text/html')
     const plain = e.clipboardData.getData('text/plain')
-    // 预留解析模式分支：后台模式规则确定前，先沿用当前布谷鸟规则。
-    const activeParserMode = parserMode
     const safeHtml = html ? htmlToSafeEditorHtml(html) : ''
     const insertable = safeHtml && hasRecoveredNumbering(safeHtml)
       ? textToEditorHtml(editorHtmlToPlainText(safeHtml))
       : safeHtml || normalizeEditorText(plain)
-    void activeParserMode
     if (!insertable) return
     e.preventDefault()
     document.execCommand(safeHtml ? 'insertHTML' : 'insertText', false, insertable)
@@ -323,22 +318,6 @@ function RichPasteEditor({
         </button>
         <button type="button" className="rich-editor-tool" title="清除格式" onClick={clearFormatting}>清除格式</button>
         <button type="button" className="rich-editor-tool danger" title="清空内容" onClick={clearAll}>清空</button>
-        <div className="paste-parser-switch" aria-label="粘贴解析规则">
-          {([
-            ['cuckoo', '布谷鸟'],
-            ['backend', '后台'],
-          ] as Array<[PasteParserMode, string]>).map(([mode, label]) => (
-            <button
-              key={mode}
-              type="button"
-              className={`paste-parser-option${parserMode === mode ? ' active' : ''}`}
-              aria-pressed={parserMode === mode}
-              onClick={() => setParserMode(mode)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
         <span className="rich-editor-count">{value.length.toLocaleString()} 字符</span>
       </div>
       <div
