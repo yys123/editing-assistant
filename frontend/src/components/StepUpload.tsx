@@ -175,6 +175,7 @@ function normalizeModuleHeading(text: string) {
     .replace(/\u00a0/g, ' ')
     .replace(/\s+/g, '')
     .replace(/^[#*\-—_\s]+|[#*\-—_\s]+$/g, '')
+    .replace(/^([一二三四五六七八九十百]+、|\d+[、.)]|[（(][一二三四五六七八九十百\d]+[）)]|[a-zA-Z]\.)/, '')
     .replace(/^【(.+)】$/, '$1')
     .replace(/^［(.+)］$/, '$1')
     .replace(/^\[(.+)\]$/, '$1')
@@ -207,6 +208,39 @@ function markEditorModuleHeadings(root: HTMLElement) {
 function resetNumberingForModule(state: NumberingState) {
   state.sectionCounters = {}
   state.orderedCounters = {}
+}
+
+function removeEmptyModulesFromText(text: string) {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n')
+  const kept: string[] = []
+  let removedCount = 0
+
+  for (let i = 0; i < lines.length;) {
+    if (!isTopLevelModuleHeading(lines[i])) {
+      kept.push(lines[i])
+      i += 1
+      continue
+    }
+
+    const moduleStart = i
+    let nextModule = i + 1
+    while (nextModule < lines.length && !isTopLevelModuleHeading(lines[nextModule])) {
+      nextModule += 1
+    }
+
+    const body = lines.slice(moduleStart + 1, nextModule)
+    if (body.some(line => line.trim())) {
+      kept.push(...lines.slice(moduleStart, nextModule))
+    } else {
+      removedCount += 1
+    }
+    i = nextModule
+  }
+
+  return {
+    text: normalizeEditorText(kept.join('\n')),
+    removedCount,
+  }
 }
 
 function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): string {
@@ -352,6 +386,15 @@ function RichPasteEditor({
     onChange(text)
   }
 
+  const removeEmptyModules = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    const { text } = removeEmptyModulesFromText(editorToPlainText(editor))
+    editor.innerHTML = textToEditorHtml(text)
+    markEditorModuleHeadings(editor)
+    onChange(text)
+  }
+
   const clearAll = () => {
     if (editorRef.current) editorRef.current.innerHTML = ''
     onChange('')
@@ -372,6 +415,7 @@ function RichPasteEditor({
           <span className="material-symbols-outlined">format_list_numbered</span>
         </button>
         <button type="button" className="rich-editor-tool" title="清除格式" onClick={clearFormatting}>清除格式</button>
+        <button type="button" className="rich-editor-tool accent" title="删除没有正文内容的模块" onClick={removeEmptyModules}>删除空模块</button>
         <button type="button" className="rich-editor-tool danger" title="清空内容" onClick={clearAll}>清空</button>
         <span className="rich-editor-count">{value.length.toLocaleString()} 字符</span>
       </div>

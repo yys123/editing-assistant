@@ -356,6 +356,14 @@ body {
 .rich-editor-tool.danger {
   color: var(--m3-error);
 }
+.rich-editor-tool.accent {
+  border-color: rgba(119, 83, 255, 0.28);
+  background: var(--dui-primary-container);
+  color: var(--dui-primary);
+}
+.rich-editor-tool.accent:hover {
+  background: rgba(119, 83, 255, 0.16);
+}
 .rich-editor-count {
   margin-left: auto;
   color: var(--dui-text-sub);
