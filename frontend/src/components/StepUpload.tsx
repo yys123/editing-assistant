@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { QAItem, ReferenceDoc, StandardsOverride } from '../types'
 import { apiFetch, safeJson, chunkedUpload } from '../api'
+import { articleContentToStructuredMarkers } from '../utils/articleStructure'
 
 interface Props {
   disease: string
@@ -553,10 +554,12 @@ function nodeToStructuredText(node: Node, state: NumberingState, listDepth = 0):
   if (tag === 'BR') return '\n'
 
   const explicitLevel = structuredLevelForElement(node)
-  const plain = nodeToPlainText(node, state, listDepth).trim()
-  if (explicitLevel && plain) {
-    if (explicitLevel === 1) resetNumberingForModule(state)
-    return `[H${explicitLevel}] ${plain}\n`
+  if (explicitLevel) {
+    const plain = nodeToPlainText(node, state, listDepth).trim()
+    if (plain) {
+      if (explicitLevel === 1) resetNumberingForModule(state)
+      return `[H${explicitLevel}] ${plain}\n`
+    }
   }
 
   return nodeToPlainText(node, state, listDepth)
@@ -587,7 +590,7 @@ function editorToPlainText(editor: HTMLElement) {
 function editorToStructuredText(editor: HTMLElement) {
   const state: NumberingState = { sectionCounters: {}, orderedCounters: {} }
   const structured = normalizeEditorText(Array.from(editor.childNodes).map(node => nodeToStructuredText(node, state)).join(''))
-  return structured.includes('[H1]') ? structured : editorToPlainText(editor)
+  return structured.includes('[H1]') ? articleContentToStructuredMarkers(structured) : editorToPlainText(editor)
 }
 
 function editorHtmlToPlainText(html: string) {

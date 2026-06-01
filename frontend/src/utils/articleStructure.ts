@@ -31,10 +31,10 @@ function isLevel3Heading(text: string) {
 
 export function articleContentToStructuredMarkers(text: string) {
   const normalizedText = text.replace(/\r\n?/g, '\n')
-  if (hasStructuredMarkers(normalizedText)) return normalizedText
 
   const lines = normalizedText.split('\n')
-  if (!lines.some(line => isTopLevelModuleHeading(line))) return normalizedText
+  const hasExplicitMarkers = hasStructuredMarkers(normalizedText)
+  if (!hasExplicitMarkers && !lines.some(line => isTopLevelModuleHeading(line))) return normalizedText
 
   let insideModule = false
   let hasLevel2InModule = false
@@ -42,6 +42,13 @@ export function articleContentToStructuredMarkers(text: string) {
   return lines.map(line => {
     const trimmed = line.trim()
     if (!trimmed) return line
+
+    const markerMatch = trimmed.match(/^\[H([123])\]\s+(.+)$/)
+    if (markerMatch) {
+      insideModule = Number(markerMatch[1]) === 1 || insideModule
+      hasLevel2InModule = Number(markerMatch[1]) === 2 ? true : Number(markerMatch[1]) === 1 ? false : hasLevel2InModule
+      return line
+    }
 
     if (isTopLevelModuleHeading(trimmed)) {
       insideModule = true
