@@ -59,6 +59,14 @@ function keyPointCardType(node: HTMLElement) {
   return ''
 }
 
+function hasClassPrefix(node: HTMLElement, prefix: string) {
+  return Array.from(node.classList).some(name => name.startsWith(prefix))
+}
+
+function isSourceFieldModuleHeading(node: HTMLElement) {
+  return hasClassPrefix(node, 'field-card-fieldName')
+}
+
 function htmlToSafeEditorHtml(html: string) {
   const doc = new DOMParser().parseFromString(html, 'text/html')
   const walk = (node: Node): string => {
@@ -74,6 +82,9 @@ function htmlToSafeEditorHtml(html: string) {
     const cardType = keyPointCardType(node)
     if (cardType) {
       return `<div class="rich-editor-keypoint-card" data-keypoint-card="${cardType}">${children}</div>`
+    }
+    if (isSourceFieldModuleHeading(node)) {
+      return `<p class="rich-editor-module-heading">${children}</p>`
     }
     if (tag === 'DIV') return `<p${attrs}>${children}</p>`
     if (tag === 'H4' || tag === 'H5' || tag === 'H6') return `<h3${attrs}>${children}</h3>`
