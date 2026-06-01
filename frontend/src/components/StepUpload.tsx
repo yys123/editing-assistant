@@ -20,6 +20,7 @@ type ArticleTab = 'file' | 'text'
 
 const BLOCK_TAGS = new Set(['ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'OL', 'P', 'SECTION', 'TABLE', 'TBODY', 'TD', 'TH', 'THEAD', 'TR', 'UL'])
 const INLINE_TAGS = new Set(['B', 'BR', 'EM', 'I', 'STRONG'])
+const TOP_LEVEL_MODULES = new Set(['基础知识', '诊断', '鉴别诊断', '治疗', '控制目标', '经典用药', '预后', '预防'])
 
 interface NumberingState {
   sectionCounters: Record<number, number>
@@ -161,6 +162,28 @@ function cleanElementText(node: HTMLElement) {
     .trim()
 }
 
+function normalizeModuleHeading(text: string) {
+  return text
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, '')
+    .replace(/^[#*\-—_\s]+|[#*\-—_\s]+$/g, '')
+    .replace(/^【(.+)】$/, '$1')
+    .replace(/^［(.+)］$/, '$1')
+    .replace(/^\[(.+)\]$/, '$1')
+    .replace(/^（(.+)）$/, '$1')
+    .replace(/^\((.+)\)$/, '$1')
+    .replace(/字段$/, '')
+}
+
+function isTopLevelModuleHeading(text: string) {
+  return TOP_LEVEL_MODULES.has(normalizeModuleHeading(text))
+}
+
+function resetNumberingForModule(state: NumberingState) {
+  state.sectionCounters = {}
+  state.orderedCounters = {}
+}
+
 function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
   if (!(node instanceof HTMLElement)) return ''
@@ -168,29 +191,30 @@ function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): stri
   const tag = node.tagName
   if (tag === 'BR') return '\n'
 
+  const elementText = cleanElementText(node)
+
   const sectionIndex = node.getAttribute('data-section-index')
   if (sectionIndex) {
     const level = Number(sectionIndex)
-    const text = cleanElementText(node)
-    if (!Number.isNaN(level) && text) {
+    if (!Number.isNaN(level) && elementText) {
+      if (isTopLevelModuleHeading(elementText)) resetNumberingForModule(state)
       state.sectionCounters[level] = (state.sectionCounters[level] || 0) + 1
       Object.keys(state.sectionCounters).forEach(key => {
         if (Number(key) > level) state.sectionCounters[Number(key)] = 0
       })
       state.orderedCounters = {}
-      return `${sectionPrefix(level, state.sectionCounters[level])} ${text}\n`
+      return `${sectionPrefix(level, state.sectionCounters[level])} ${elementText}\n`
     }
   }
 
   const orderedIndex = node.getAttribute('data-orderedlist-index')
   if (orderedIndex) {
-    const text = cleanElementText(node)
-    if (text) {
+    if (elementText) {
       Object.keys(state.orderedCounters).forEach(key => {
         if (Number(key) > Number(orderedIndex)) state.orderedCounters[key] = 0
       })
       state.orderedCounters[orderedIndex] = (state.orderedCounters[orderedIndex] || 0) + 1
-      return `${orderedPrefix(orderedIndex, state.orderedCounters[orderedIndex])} ${text}\n`
+      return `${orderedPrefix(orderedIndex, state.orderedCounters[orderedIndex])} ${elementText}\n`
     }
   }
 
@@ -208,6 +232,9 @@ function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): stri
 
   const content = Array.from(node.childNodes).map(child => nodeToPlainText(child, state, listDepth)).join('')
   if (['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P', 'DIV'].includes(tag)) {
+    if (isTopLevelModuleHeading(elementText)) {
+      resetNumberingForModule(state)
+    }
     return content.trim() ? `${content.trim()}\n` : ''
   }
   if (tag === 'TR') {
