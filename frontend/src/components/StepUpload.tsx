@@ -427,6 +427,16 @@ function prepareBlockPasteInsertion(editor: HTMLElement, html: string) {
   const selection = window.getSelection()
   if (!selection || selection.rangeCount === 0) return
 
+  const moduleHeading = closestModuleHeading(selection.anchorNode, editor)
+  if (moduleHeading) {
+    const range = document.createRange()
+    range.setStartAfter(moduleHeading)
+    range.collapse(true)
+    selection.removeAllRanges()
+    selection.addRange(range)
+    return
+  }
+
   const block = closestEditableBlock(selection.anchorNode, editor)
   if (!block || !isEmptyParagraph(block)) return
 
@@ -436,6 +446,26 @@ function prepareBlockPasteInsertion(editor: HTMLElement, html: string) {
   selection.removeAllRanges()
   selection.addRange(range)
   block.remove()
+}
+
+function insertHtmlAtSelection(html: string) {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return false
+
+  const range = selection.getRangeAt(0)
+  range.deleteContents()
+  const fragment = range.createContextualFragment(html)
+  const lastNode = fragment.lastChild
+  range.insertNode(fragment)
+
+  if (lastNode) {
+    const nextRange = document.createRange()
+    nextRange.setStartAfter(lastNode)
+    nextRange.collapse(true)
+    selection.removeAllRanges()
+    selection.addRange(nextRange)
+  }
+  return true
 }
 
 function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): string {
@@ -623,7 +653,11 @@ function RichPasteEditor({
     e.preventDefault()
     const editor = editorRef.current
     if (editor && safeHtml) prepareBlockPasteInsertion(editor, insertable)
-    document.execCommand(safeHtml ? 'insertHTML' : 'insertText', false, insertable)
+    if (safeHtml) {
+      insertHtmlAtSelection(insertable)
+    } else {
+      document.execCommand('insertText', false, insertable)
+    }
     if (editorRef.current) markEditorModuleHeadings(editorRef.current)
     syncFromEditor()
   }
