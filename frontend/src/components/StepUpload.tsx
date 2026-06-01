@@ -437,6 +437,53 @@ function editorHtmlToPlainText(html: string) {
   return normalizeEditorText(Array.from(doc.body.childNodes).map(node => nodeToPlainText(node, state)).join(''))
 }
 
+function prependTextToElement(element: HTMLElement, text: string) {
+  element.insertBefore(document.createTextNode(text), element.firstChild)
+}
+
+function recoverNumberingInEditorHtml(html: string) {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const state: NumberingState = { sectionCounters: {}, orderedCounters: {} }
+
+  const walk = (node: Node) => {
+    if (!(node instanceof HTMLElement)) return
+
+    const sectionIndex = node.getAttribute('data-section-index')
+    const orderedIndex = node.getAttribute('data-orderedlist-index')
+    const elementText = cleanElementText(node)
+
+    if (sectionIndex && elementText) {
+      const level = Number(sectionIndex)
+      if (!Number.isNaN(level)) {
+        if (isTopLevelModuleHeading(elementText)) resetNumberingForModule(state)
+        state.sectionCounters[level] = (state.sectionCounters[level] || 0) + 1
+        Object.keys(state.sectionCounters).forEach(key => {
+          if (Number(key) > level) state.sectionCounters[Number(key)] = 0
+        })
+        state.orderedCounters = {}
+        prependTextToElement(node, `${sectionPrefix(level, state.sectionCounters[level])} `)
+      }
+      node.removeAttribute('data-section-index')
+      return
+    }
+
+    if (orderedIndex && elementText) {
+      Object.keys(state.orderedCounters).forEach(key => {
+        if (Number(key) > Number(orderedIndex)) state.orderedCounters[key] = 0
+      })
+      state.orderedCounters[orderedIndex] = (state.orderedCounters[orderedIndex] || 0) + 1
+      prependTextToElement(node, `${orderedPrefix(orderedIndex, state.orderedCounters[orderedIndex])} `)
+      node.removeAttribute('data-orderedlist-index')
+      return
+    }
+
+    Array.from(node.childNodes).forEach(walk)
+  }
+
+  Array.from(doc.body.childNodes).forEach(walk)
+  return doc.body.innerHTML
+}
+
 function RichPasteEditor({
   value,
   onChange,
@@ -472,7 +519,7 @@ function RichPasteEditor({
     const plain = e.clipboardData.getData('text/plain')
     const safeHtml = html ? htmlToSafeEditorHtml(html) : ''
     const insertable = safeHtml && hasRecoveredNumbering(safeHtml)
-      ? textToEditorHtml(editorHtmlToPlainText(safeHtml))
+      ? recoverNumberingInEditorHtml(safeHtml)
       : safeHtml || normalizeEditorText(plain)
     if (!insertable) return
     e.preventDefault()
