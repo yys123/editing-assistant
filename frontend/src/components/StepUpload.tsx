@@ -428,7 +428,7 @@ function prepareBlockPasteInsertion(editor: HTMLElement, html: string) {
   if (!selection || selection.rangeCount === 0) return
 
   const block = closestEditableBlock(selection.anchorNode, editor)
-  if (!isEmptyParagraph(block)) return
+  if (!block || !isEmptyParagraph(block)) return
 
   const range = document.createRange()
   range.setStartBefore(block)
