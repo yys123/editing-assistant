@@ -216,6 +216,47 @@ function markEditorModuleHeadings(root: HTMLElement) {
   })
 }
 
+function directElementText(node: HTMLElement) {
+  return Array.from(node.childNodes)
+    .filter(child => child.nodeType === Node.TEXT_NODE || child.nodeName === 'BR')
+    .map(child => child.textContent || '')
+    .join('')
+    .trim()
+}
+
+function isModuleElement(node: Node) {
+  if (!(node instanceof HTMLElement)) return false
+  return isTopLevelModuleHeading(directElementText(node) || cleanElementText(node))
+}
+
+function isIgnorableModuleBodyNode(node: Node) {
+  if (node.nodeType === Node.TEXT_NODE) return !(node.textContent || '').trim()
+  if (!(node instanceof HTMLElement)) return true
+  if (node.matches('br')) return true
+  if (node.matches('[data-keypoint-card]')) return true
+  return !cleanElementText(node)
+}
+
+function removeEmptyModuleElements(editor: HTMLElement) {
+  const nodes = Array.from(editor.childNodes)
+  const removals: Node[] = []
+
+  nodes.forEach((node, index) => {
+    if (!isModuleElement(node)) return
+    let cursor = index + 1
+    while (cursor < nodes.length && !isModuleElement(nodes[cursor])) {
+      cursor += 1
+    }
+    const body = nodes.slice(index + 1, cursor)
+    if (body.every(isIgnorableModuleBodyNode)) {
+      removals.push(node)
+    }
+  })
+
+  removals.forEach(node => node.parentNode?.removeChild(node))
+  return removals.length
+}
+
 function resetNumberingForModule(state: NumberingState) {
   state.sectionCounters = {}
   state.orderedCounters = {}
@@ -441,6 +482,12 @@ function prependTextToElement(element: HTMLElement, text: string) {
   element.insertBefore(document.createTextNode(text), element.firstChild)
 }
 
+function resetNumberingIfModuleElement(element: HTMLElement, state: NumberingState) {
+  if (isModuleElement(element)) {
+    resetNumberingForModule(state)
+  }
+}
+
 function recoverNumberingInEditorHtml(html: string) {
   const doc = new DOMParser().parseFromString(html, 'text/html')
   const state: NumberingState = { sectionCounters: {}, orderedCounters: {} }
@@ -455,7 +502,7 @@ function recoverNumberingInEditorHtml(html: string) {
     if (sectionIndex && elementText) {
       const level = Number(sectionIndex)
       if (!Number.isNaN(level)) {
-        if (isTopLevelModuleHeading(elementText)) resetNumberingForModule(state)
+        resetNumberingIfModuleElement(node, state)
         state.sectionCounters[level] = (state.sectionCounters[level] || 0) + 1
         Object.keys(state.sectionCounters).forEach(key => {
           if (Number(key) > level) state.sectionCounters[Number(key)] = 0
@@ -477,6 +524,7 @@ function recoverNumberingInEditorHtml(html: string) {
       return
     }
 
+    resetNumberingIfModuleElement(node, state)
     Array.from(node.childNodes).forEach(walk)
   }
 
@@ -540,10 +588,13 @@ function RichPasteEditor({
   const removeEmptyModules = () => {
     const editor = editorRef.current
     if (!editor) return
-    const { text } = removeEmptyModulesFromText(editorToPlainText(editor))
-    editor.innerHTML = textToEditorHtml(text)
+    const removedCount = removeEmptyModuleElements(editor)
+    if (!removedCount) {
+      const { text } = removeEmptyModulesFromText(editorToPlainText(editor))
+      editor.innerHTML = textToEditorHtml(text)
+    }
     markEditorModuleHeadings(editor)
-    onChange(text)
+    onChange(editorToPlainText(editor))
   }
 
   const removeDiagnosisTreatmentKeyPoints = () => {
