@@ -233,6 +233,7 @@ export interface SessionRecord {
   disease: string
   articleSnippet: string
   articleContent?: string
+  articleParseContent?: string
   qaCount: number
   qaItems?: QAItem[]
   currentStep?: Step

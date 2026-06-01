@@ -7,6 +7,7 @@ interface Props {
   setDisease: (v: string) => void
   articleContent: string
   setArticleContent: (v: string) => void
+  setArticleParseContent: (v: string) => void
   qaItems: QAItem[]
   setQaItems: (items: QAItem[]) => void
   referenceDocs: ReferenceDoc[]
@@ -530,6 +531,35 @@ function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): stri
   return content
 }
 
+function structuredLevelForElement(node: HTMLElement) {
+  if (node.classList.contains('rich-editor-module-heading')) return 1
+
+  const sectionIndex = node.getAttribute('data-section-index')
+  if (sectionIndex && /^[123]$/.test(sectionIndex)) return Number(sectionIndex)
+
+  if (node.tagName === 'H1') return 1
+  if (node.tagName === 'H2') return 2
+  if (node.tagName === 'H3') return 3
+  return 0
+}
+
+function nodeToStructuredText(node: Node, state: NumberingState, listDepth = 0): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
+  if (!(node instanceof HTMLElement)) return ''
+
+  const tag = node.tagName
+  if (tag === 'BR') return '\n'
+
+  const explicitLevel = structuredLevelForElement(node)
+  const plain = nodeToPlainText(node, state, listDepth).trim()
+  if (explicitLevel && plain) {
+    if (explicitLevel === 1) resetNumberingForModule(state)
+    return `[H${explicitLevel}] ${plain}\n`
+  }
+
+  return nodeToPlainText(node, state, listDepth)
+}
+
 function liToPlainText(li: HTMLElement, state: NumberingState, depth: number) {
   const parts: string[] = []
   const nestedLists: string[] = []
@@ -550,6 +580,12 @@ function liToPlainText(li: HTMLElement, state: NumberingState, depth: number) {
 function editorToPlainText(editor: HTMLElement) {
   const state: NumberingState = { sectionCounters: {}, orderedCounters: {} }
   return normalizeEditorText(Array.from(editor.childNodes).map(node => nodeToPlainText(node, state)).join(''))
+}
+
+function editorToStructuredText(editor: HTMLElement) {
+  const state: NumberingState = { sectionCounters: {}, orderedCounters: {} }
+  const structured = normalizeEditorText(Array.from(editor.childNodes).map(node => nodeToStructuredText(node, state)).join(''))
+  return structured.includes('[H1]') ? structured : editorToPlainText(editor)
 }
 
 function editorHtmlToPlainText(html: string) {
@@ -615,9 +651,11 @@ function recoverNumberingInEditorHtml(html: string) {
 function RichPasteEditor({
   value,
   onChange,
+  onStructuredChange,
 }: {
   value: string
   onChange: (value: string) => void
+  onStructuredChange: (value: string) => void
 }) {
   const editorRef = useRef<HTMLDivElement>(null)
 
@@ -633,7 +671,9 @@ function RichPasteEditor({
 
   const syncFromEditor = () => {
     const editor = editorRef.current
-    if (editor) onChange(editorToPlainText(editor))
+    if (!editor) return
+    onChange(editorToPlainText(editor))
+    onStructuredChange(editorToStructuredText(editor))
   }
 
   const runCommand = (command: string, commandValue?: string) => {
@@ -699,6 +739,7 @@ function RichPasteEditor({
     }
     markEditorModuleHeadings(editor)
     onChange(editorToPlainText(editor))
+    onStructuredChange(editorToStructuredText(editor))
   }
 
   const removeDiagnosisTreatmentKeyPoints = () => {
@@ -712,6 +753,7 @@ function RichPasteEditor({
       markEditorModuleHeadings(editor)
     }
     onChange(text)
+    onStructuredChange(editorToStructuredText(editor))
   }
 
   const markSelectionAsModule = () => {
@@ -742,6 +784,7 @@ function RichPasteEditor({
   const clearAll = () => {
     if (editorRef.current) editorRef.current.innerHTML = ''
     onChange('')
+    onStructuredChange('')
   }
 
   return (
@@ -781,7 +824,7 @@ function RichPasteEditor({
 }
 
 export default function StepUpload({
-  disease, setDisease, articleContent, setArticleContent,
+  disease, setDisease, articleContent, setArticleContent, setArticleParseContent,
   qaItems, setQaItems, referenceDocs, setReferenceDocs,
   standardsOverride, setStandardsOverride, onNext
 }: Props) {
@@ -811,6 +854,7 @@ export default function StepUpload({
     try {
       const data = await chunkedUpload(file, 'article', {}, setArticleProgress)
       setArticleContent(data.content)
+      setArticleParseContent('')
     } catch (e: any) {
       setArticleError(e.message)
     } finally {
@@ -1043,7 +1087,7 @@ export default function StepUpload({
             )}
 
             {articleTab === 'text' && (
-              <RichPasteEditor value={articleContent} onChange={setArticleContent} />
+              <RichPasteEditor value={articleContent} onChange={setArticleContent} onStructuredChange={setArticleParseContent} />
             )}
 
             {articleContent && articleTab !== 'text' && (
