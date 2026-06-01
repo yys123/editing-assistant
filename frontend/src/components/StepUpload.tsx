@@ -49,6 +49,14 @@ function safeNumberingAttrs(node: HTMLElement) {
   return attrs.length ? ` ${attrs.join(' ')}` : ''
 }
 
+function keyPointCardType(node: HTMLElement) {
+  if (!node.classList.contains('dxy-card')) return ''
+  const text = cleanElementText(node).replace(/\s+/g, '')
+  if (text.startsWith('诊断要点：') || text.startsWith('诊断要点:')) return 'diagnosis'
+  if (text.startsWith('治疗要点：') || text.startsWith('治疗要点:')) return 'treatment'
+  return ''
+}
+
 function htmlToSafeEditorHtml(html: string) {
   const doc = new DOMParser().parseFromString(html, 'text/html')
   const walk = (node: Node): string => {
@@ -61,6 +69,10 @@ function htmlToSafeEditorHtml(html: string) {
     if (!children && tag !== 'BR') return ''
     if (tag === 'BR') return '<br>'
     const attrs = safeNumberingAttrs(node)
+    const cardType = keyPointCardType(node)
+    if (cardType) {
+      return `<div class="rich-editor-keypoint-card" data-keypoint-card="${cardType}">${children}</div>`
+    }
     if (tag === 'DIV') return `<p${attrs}>${children}</p>`
     if (tag === 'H4' || tag === 'H5' || tag === 'H6') return `<h3${attrs}>${children}</h3>`
     if (BLOCK_TAGS.has(tag) || INLINE_TAGS.has(tag)) {
@@ -251,6 +263,16 @@ function isModuleKeyPointHeading(line: string, moduleName: '诊断' | '治疗') 
   return normalized === `${moduleName}要点`
 }
 
+function keyPointHeadingFromLine(line: string) {
+  const normalized = line
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, '')
+    .replace(/^[#*\-—_\s]+/, '')
+  if (normalized.startsWith('诊断要点：') || normalized.startsWith('诊断要点:')) return '诊断'
+  if (normalized.startsWith('治疗要点：') || normalized.startsWith('治疗要点:')) return '治疗'
+  return ''
+}
+
 function isKeyPointDetailLine(line: string) {
   const text = line.trim()
   if (!text) return true
@@ -263,6 +285,15 @@ function removeDiagnosisTreatmentKeyPointsFromText(text: string) {
   let removedCount = 0
 
   for (let i = 0; i < lines.length;) {
+    if (keyPointHeadingFromLine(lines[i])) {
+      removedCount += 1
+      i += 1
+      while (i < lines.length && !isTopLevelModuleHeading(lines[i]) && isKeyPointDetailLine(lines[i])) {
+        i += 1
+      }
+      continue
+    }
+
     const moduleName = normalizeModuleHeading(lines[i])
     if (moduleName !== '诊断' && moduleName !== '治疗') {
       kept.push(lines[i])
@@ -295,6 +326,15 @@ function removeDiagnosisTreatmentKeyPointsFromText(text: string) {
     text: normalizeEditorText(kept.join('\n')),
     removedCount,
   }
+}
+
+function removeKeyPointCardsFromEditor(editor: HTMLElement) {
+  let removedCount = 0
+  editor.querySelectorAll('[data-keypoint-card]').forEach(card => {
+    card.remove()
+    removedCount += 1
+  })
+  return removedCount
 }
 
 function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): string {
@@ -452,9 +492,13 @@ function RichPasteEditor({
   const removeDiagnosisTreatmentKeyPoints = () => {
     const editor = editorRef.current
     if (!editor) return
-    const { text } = removeDiagnosisTreatmentKeyPointsFromText(editorToPlainText(editor))
-    editor.innerHTML = textToEditorHtml(text)
-    markEditorModuleHeadings(editor)
+    const removedCards = removeKeyPointCardsFromEditor(editor)
+    let text = editorToPlainText(editor)
+    if (!removedCards) {
+      text = removeDiagnosisTreatmentKeyPointsFromText(text).text
+      editor.innerHTML = textToEditorHtml(text)
+      markEditorModuleHeadings(editor)
+    }
     onChange(text)
   }
 
