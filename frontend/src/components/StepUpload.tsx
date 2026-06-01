@@ -279,6 +279,16 @@ function isKeyPointDetailLine(line: string) {
   return /^(?:\d+[、.)]|[（(]\d+[）)]|[a-zA-Z][、.)]|[①②③④⑤⑥⑦⑧⑨⑩])/.test(text)
 }
 
+function isStructuredContentHeading(line: string) {
+  const text = line.trim()
+  if (!text) return false
+  return /^(?:[一二三四五六七八九十百]+、|[（(][一二三四五六七八九十百\d]+[）)]|\d+[、.])\S+/.test(text)
+}
+
+function isKeyPointBlockBoundary(line: string) {
+  return isTopLevelModuleHeading(line) || isStructuredContentHeading(line)
+}
+
 function removeDiagnosisTreatmentKeyPointsFromText(text: string) {
   const lines = text.replace(/\r\n?/g, '\n').split('\n')
   const kept: string[] = []
@@ -288,7 +298,7 @@ function removeDiagnosisTreatmentKeyPointsFromText(text: string) {
     if (keyPointHeadingFromLine(lines[i])) {
       removedCount += 1
       i += 1
-      while (i < lines.length && !isTopLevelModuleHeading(lines[i]) && isKeyPointDetailLine(lines[i])) {
+      while (i < lines.length && !isKeyPointBlockBoundary(lines[i])) {
         i += 1
       }
       continue
@@ -317,7 +327,7 @@ function removeDiagnosisTreatmentKeyPointsFromText(text: string) {
 
     removedCount += 1
     i += 1
-    while (i < lines.length && !isTopLevelModuleHeading(lines[i]) && isKeyPointDetailLine(lines[i])) {
+    while (i < lines.length && !isKeyPointBlockBoundary(lines[i])) {
       i += 1
     }
   }
