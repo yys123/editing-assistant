@@ -623,7 +623,6 @@ function recoverNumberingInEditorHtml(html: string) {
     if (sectionIndex && elementText) {
       const level = Number(sectionIndex)
       if (!Number.isNaN(level)) {
-        if (level === 1) node.classList.add('rich-editor-module-heading')
         resetNumberingIfModuleElement(node, state)
         state.sectionCounters[level] = (state.sectionCounters[level] || 0) + 1
         Object.keys(state.sectionCounters).forEach(key => {
