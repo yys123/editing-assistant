@@ -242,6 +242,61 @@ function removeEmptyModulesFromText(text: string) {
   }
 }
 
+function isModuleKeyPointHeading(line: string, moduleName: '诊断' | '治疗') {
+  const normalized = line
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, '')
+    .replace(/^[#*\-—_\s]+|[#*\-—_\s]+$/g, '')
+    .replace(/[：:]+$/, '')
+  return normalized === `${moduleName}要点`
+}
+
+function isKeyPointDetailLine(line: string) {
+  const text = line.trim()
+  if (!text) return true
+  return /^(?:\d+[、.)]|[（(]\d+[）)]|[a-zA-Z][、.)]|[①②③④⑤⑥⑦⑧⑨⑩])/.test(text)
+}
+
+function removeDiagnosisTreatmentKeyPointsFromText(text: string) {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n')
+  const kept: string[] = []
+  let removedCount = 0
+
+  for (let i = 0; i < lines.length;) {
+    const moduleName = normalizeModuleHeading(lines[i])
+    if (moduleName !== '诊断' && moduleName !== '治疗') {
+      kept.push(lines[i])
+      i += 1
+      continue
+    }
+
+    kept.push(lines[i])
+    i += 1
+
+    const whitespaceAfterModule: string[] = []
+    while (i < lines.length && !lines[i].trim()) {
+      whitespaceAfterModule.push(lines[i])
+      i += 1
+    }
+
+    if (i >= lines.length || !isModuleKeyPointHeading(lines[i], moduleName)) {
+      kept.push(...whitespaceAfterModule)
+      continue
+    }
+
+    removedCount += 1
+    i += 1
+    while (i < lines.length && !isTopLevelModuleHeading(lines[i]) && isKeyPointDetailLine(lines[i])) {
+      i += 1
+    }
+  }
+
+  return {
+    text: normalizeEditorText(kept.join('\n')),
+    removedCount,
+  }
+}
+
 function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
   if (!(node instanceof HTMLElement)) return ''
@@ -394,6 +449,15 @@ function RichPasteEditor({
     onChange(text)
   }
 
+  const removeDiagnosisTreatmentKeyPoints = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    const { text } = removeDiagnosisTreatmentKeyPointsFromText(editorToPlainText(editor))
+    editor.innerHTML = textToEditorHtml(text)
+    markEditorModuleHeadings(editor)
+    onChange(text)
+  }
+
   const clearAll = () => {
     if (editorRef.current) editorRef.current.innerHTML = ''
     onChange('')
@@ -415,6 +479,7 @@ function RichPasteEditor({
         </button>
         <button type="button" className="rich-editor-tool" title="清除格式" onClick={clearFormatting}>清除格式</button>
         <button type="button" className="rich-editor-tool accent" title="删除没有正文内容的模块" onClick={removeEmptyModules}>删除空模块</button>
+        <button type="button" className="rich-editor-tool accent" title="删除诊断/治疗模块开头的要点卡片" onClick={removeDiagnosisTreatmentKeyPoints}>删除要点</button>
         <button type="button" className="rich-editor-tool danger" title="清空内容" onClick={clearAll}>清空</button>
         <span className="rich-editor-count">{value.length.toLocaleString()} 字符</span>
       </div>
