@@ -175,7 +175,6 @@ function normalizeModuleHeading(text: string) {
     .replace(/\u00a0/g, ' ')
     .replace(/\s+/g, '')
     .replace(/^[#*\-—_\s]+|[#*\-—_\s]+$/g, '')
-    .replace(/^([一二三四五六七八九十百]+、|\d+[、.)]|[（(][一二三四五六七八九十百\d]+[）)]|[a-zA-Z]\.)/, '')
     .replace(/^【(.+)】$/, '$1')
     .replace(/^［(.+)］$/, '$1')
     .replace(/^\[(.+)\]$/, '$1')
