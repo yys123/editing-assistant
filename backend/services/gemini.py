@@ -4,11 +4,13 @@ from datetime import date
 import google.generativeai as genai
 from config import settings
 
-# Use REST transport so HTTP_PROXY / HTTPS_PROXY env vars are respected
-# Only set proxy when running locally (not in Docker)
-if not os.environ.get("RUNNING_IN_DOCKER"):
-    os.environ.setdefault("HTTPS_PROXY", "http://127.0.0.1:6152")
-    os.environ.setdefault("HTTP_PROXY", "http://127.0.0.1:6152")
+# Use REST transport so HTTP_PROXY / HTTPS_PROXY env vars are respected.
+# Do not force a local proxy by default: if that port is not running, every
+# Gemini request fails before reaching Google. Set GEMINI_PROXY explicitly when
+# a local network proxy is required, for example http://127.0.0.1:7890.
+if settings.gemini_proxy:
+    os.environ.setdefault("HTTPS_PROXY", settings.gemini_proxy)
+    os.environ.setdefault("HTTP_PROXY", settings.gemini_proxy)
 
 genai.configure(api_key=settings.gemini_api_key, transport="rest")
 
