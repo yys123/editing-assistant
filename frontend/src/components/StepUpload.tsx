@@ -417,6 +417,27 @@ function placeCaretInside(element: HTMLElement) {
   selection?.addRange(range)
 }
 
+function isEmptyParagraph(node: HTMLElement | null) {
+  if (!node || node.tagName !== 'P') return false
+  return !cleanElementText(node)
+}
+
+function prepareBlockPasteInsertion(editor: HTMLElement, html: string) {
+  if (!/<(?:div|h[1-6]|p|section|table|ul|ol)\b/i.test(html)) return
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return
+
+  const block = closestEditableBlock(selection.anchorNode, editor)
+  if (!isEmptyParagraph(block)) return
+
+  const range = document.createRange()
+  range.setStartBefore(block)
+  range.collapse(true)
+  selection.removeAllRanges()
+  selection.addRange(range)
+  block.remove()
+}
+
 function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
   if (!(node instanceof HTMLElement)) return ''
@@ -600,6 +621,8 @@ function RichPasteEditor({
       : safeHtml || normalizeEditorText(plain)
     if (!insertable) return
     e.preventDefault()
+    const editor = editorRef.current
+    if (editor && safeHtml) prepareBlockPasteInsertion(editor, insertable)
     document.execCommand(safeHtml ? 'insertHTML' : 'insertText', false, insertable)
     if (editorRef.current) markEditorModuleHeadings(editorRef.current)
     syncFromEditor()
