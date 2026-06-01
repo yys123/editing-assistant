@@ -388,6 +388,17 @@ function removeKeyPointCardsFromEditor(editor: HTMLElement) {
   return removedCount
 }
 
+function closestEditableBlock(node: Node | null, root: HTMLElement) {
+  let current = node instanceof HTMLElement ? node : node?.parentElement
+  while (current && current !== root) {
+    if (/^(H1|H2|H3|H4|H5|H6|P|DIV|LI)$/i.test(current.tagName)) {
+      return current
+    }
+    current = current.parentElement
+  }
+  return null
+}
+
 function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
   if (!(node instanceof HTMLElement)) return ''
@@ -610,6 +621,31 @@ function RichPasteEditor({
     onChange(text)
   }
 
+  const markSelectionAsModule = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    editor.focus()
+
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return
+
+    const selectedText = selection.toString().trim()
+    if (selectedText) {
+      document.execCommand(
+        'insertHTML',
+        false,
+        `<p><span class="rich-editor-module-heading">${escapeHtml(selectedText)}</span></p>`,
+      )
+    } else {
+      const block = closestEditableBlock(selection.anchorNode, editor)
+      if (block) {
+        block.classList.add('rich-editor-module-heading')
+      }
+    }
+
+    syncFromEditor()
+  }
+
   const clearAll = () => {
     if (editorRef.current) editorRef.current.innerHTML = ''
     onChange('')
@@ -630,6 +666,7 @@ function RichPasteEditor({
           <span className="material-symbols-outlined">format_list_numbered</span>
         </button>
         <button type="button" className="rich-editor-tool" title="清除格式" onClick={clearFormatting}>清除格式</button>
+        <button type="button" className="rich-editor-tool accent" title="将选中内容或当前行标记为模块标题" onClick={markSelectionAsModule}>标记模块</button>
         <button type="button" className="rich-editor-tool accent" title="删除没有正文内容的模块" onClick={removeEmptyModules}>删除空模块</button>
         <button type="button" className="rich-editor-tool accent" title="删除诊断/治疗模块开头的要点卡片" onClick={removeDiagnosisTreatmentKeyPoints}>删除要点</button>
         <button type="button" className="rich-editor-tool danger" title="清空内容" onClick={clearAll}>清空</button>
