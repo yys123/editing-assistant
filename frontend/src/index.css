@@ -387,6 +387,17 @@ body {
 .rich-editor h1 { font-size: 20px; }
 .rich-editor h2 { font-size: 17px; }
 .rich-editor h3 { font-size: 15px; }
+.rich-editor .rich-editor-module-heading {
+  display: block;
+  margin: 14px 0 10px;
+  padding: 9px 12px;
+  border-left: 4px solid var(--dui-primary);
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(119, 83, 255, 0.14), rgba(119, 83, 255, 0.04));
+  color: var(--dui-primary);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
 .rich-editor p {
   margin: 0 0 10px;
 }

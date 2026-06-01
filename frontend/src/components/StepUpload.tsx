@@ -83,7 +83,15 @@ function textToEditorHtml(text: string) {
   if (!text) return ''
   return text
     .split(/\n{2,}/)
-    .map(block => `<p>${escapeHtml(block).replace(/\n/g, '<br>')}</p>`)
+    .map(block => {
+      const lines = block.split('\n').map(line => {
+        const escaped = escapeHtml(line)
+        return isTopLevelModuleHeading(line)
+          ? `<span class="rich-editor-module-heading">${escaped}</span>`
+          : escaped
+      })
+      return `<p>${lines.join('<br>')}</p>`
+    })
     .join('')
 }
 
@@ -177,6 +185,23 @@ function normalizeModuleHeading(text: string) {
 
 function isTopLevelModuleHeading(text: string) {
   return TOP_LEVEL_MODULES.has(normalizeModuleHeading(text))
+}
+
+function markEditorModuleHeadings(root: HTMLElement) {
+  const blockSelector = 'h1,h2,h3,h4,h5,h6,p,div,li'
+  root.querySelectorAll(blockSelector).forEach(node => {
+    if (!(node instanceof HTMLElement)) return
+    const directText = Array.from(node.childNodes)
+      .filter(child => child.nodeType === Node.TEXT_NODE || child.nodeName === 'BR')
+      .map(child => child.textContent || '')
+      .join('')
+      .trim()
+    const fullText = cleanElementText(node)
+    node.classList.toggle(
+      'rich-editor-module-heading',
+      isTopLevelModuleHeading(directText || fullText),
+    )
+  })
 }
 
 function resetNumberingForModule(state: NumberingState) {
@@ -289,6 +314,7 @@ function RichPasteEditor({
     if (document.activeElement === editor) return
     if (editorToPlainText(editor) !== normalizeEditorText(value)) {
       editor.innerHTML = textToEditorHtml(value)
+      markEditorModuleHeadings(editor)
     }
   }, [value])
 
@@ -313,6 +339,7 @@ function RichPasteEditor({
     if (!insertable) return
     e.preventDefault()
     document.execCommand(safeHtml ? 'insertHTML' : 'insertText', false, insertable)
+    if (editorRef.current) markEditorModuleHeadings(editorRef.current)
     syncFromEditor()
   }
 
@@ -321,6 +348,7 @@ function RichPasteEditor({
     if (!editor) return
     const text = editorToPlainText(editor)
     editor.innerHTML = textToEditorHtml(text)
+    markEditorModuleHeadings(editor)
     onChange(text)
   }
 
