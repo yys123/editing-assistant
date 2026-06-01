@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ParsedArticle } from '../types'
 import { isSummarySection } from './StepSectionAnalysis'
 import { apiFetch } from '../api'
+import { articleContentToStructuredMarkers } from '../utils/articleStructure'
 
 interface Props {
   articleContent: string
@@ -22,7 +23,7 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
       const res = await apiFetch('/api/article/parse-sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ article_content: articleContent }),
+        body: JSON.stringify({ article_content: articleContentToStructuredMarkers(articleContent) }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || '解析失败')
