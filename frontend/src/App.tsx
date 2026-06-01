@@ -129,6 +129,7 @@ function AppContent() {
   // Step 1
   const [disease, setDisease] = useState('')
   const [articleContent, setArticleContent] = useState('')
+  const [articleParseContent, setArticleParseContent] = useState('')
   const [qaItems, setQaItems] = useState<QAItem[]>([])
   const [qaCount, setQaCount] = useState(0)
   const [referenceDocs, setReferenceDocs] = useState<ReferenceDoc[]>([])
@@ -222,6 +223,7 @@ function AppContent() {
       disease,
       articleSnippet: articleContent.slice(0, 150),
       articleContent,
+      articleParseContent,
       qaCount: qaItems.length > 0 ? qaItems.length : qaCount,
       qaItems,
       currentStep: step,
@@ -248,7 +250,7 @@ function AppContent() {
         body: JSON.stringify(record),
       }).catch(() => {})
     }, 1500)
-  }, [refEvalResult, parsedArticle, sectionAnalyses, gapAnalysis, gapItems, draftHistory, qaItems, step])
+  }, [refEvalResult, parsedArticle, sectionAnalyses, gapAnalysis, gapItems, draftHistory, qaItems, step, articleParseContent])
 
   // ── Article content helpers ──────────────────────────────────────────────────
   const handleSetArticleContent = (content: string) => {
@@ -260,6 +262,10 @@ function AppContent() {
       setGapAnalysis(null)
       setGapItems([])
     }
+  }
+
+  const handleSetArticleParseContent = (content: string) => {
+    setArticleParseContent(content)
   }
 
   // ── Reference docs change handler ──────────────────────────────────────────
@@ -300,6 +306,7 @@ function AppContent() {
     setSessionOwnerId(null)
     setDisease('')
     setArticleContent('')
+    setArticleParseContent('')
     setQaItems([])
     setQaCount(0)
     setReferenceDocs([])
@@ -325,6 +332,7 @@ function AppContent() {
     setSessionOwnerId(session.owner_id ?? null)
     setDisease(session.disease)
     setArticleContent(session.articleContent ?? '')
+    setArticleParseContent(session.articleParseContent ?? '')
     setQaItems(session.qaItems ?? [])
     setQaCount(session.qaCount)
     setReferenceDocs(session.referenceDocs ?? [])
@@ -716,6 +724,7 @@ function AppContent() {
               setDisease={setDisease}
               articleContent={articleContent}
               setArticleContent={handleSetArticleContent}
+              setArticleParseContent={handleSetArticleParseContent}
               qaItems={qaItems}
               setQaItems={handleSetQaItems}
               referenceDocs={referenceDocs}
@@ -740,6 +749,7 @@ function AppContent() {
           {step === 3 && (
             <StepSectionPreview
               articleContent={articleContent}
+              articleParseContent={articleParseContent}
               parsedArticle={parsedArticle}
               setParsedArticle={setParsedArticle}
               onBack={() => setStep(2)}

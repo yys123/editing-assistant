@@ -6,12 +6,13 @@ import { articleContentToStructuredMarkers } from '../utils/articleStructure'
 
 interface Props {
   articleContent: string
+  articleParseContent?: string
   parsedArticle: ParsedArticle | null
   setParsedArticle: (a: ParsedArticle) => void
   onBack: () => void
 }
 
-export default function StepSectionPreview({ articleContent, parsedArticle, setParsedArticle, onBack }: Props) {
+export default function StepSectionPreview({ articleContent, articleParseContent, parsedArticle, setParsedArticle, onBack }: Props) {
   const [loading, setLoading] = useState(!parsedArticle)
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -23,7 +24,7 @@ export default function StepSectionPreview({ articleContent, parsedArticle, setP
       const res = await apiFetch('/api/article/parse-sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ article_content: articleContentToStructuredMarkers(articleContent) }),
+        body: JSON.stringify({ article_content: articleParseContent?.trim() || articleContentToStructuredMarkers(articleContent) }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || '解析失败')

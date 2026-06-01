@@ -204,6 +204,7 @@ function markEditorModuleHeadings(root: HTMLElement) {
   const blockSelector = 'h1,h2,h3,h4,h5,h6,p,div,li'
   root.querySelectorAll(blockSelector).forEach(node => {
     if (!(node instanceof HTMLElement)) return
+    if (node.classList.contains('rich-editor-module-heading')) return
     const directText = Array.from(node.childNodes)
       .filter(child => child.nodeType === Node.TEXT_NODE || child.nodeName === 'BR')
       .map(child => child.textContent || '')
@@ -227,6 +228,7 @@ function directElementText(node: HTMLElement) {
 
 function isModuleElement(node: Node) {
   if (!(node instanceof HTMLElement)) return false
+  if (node.classList.contains('rich-editor-module-heading')) return true
   return isTopLevelModuleHeading(directElementText(node) || cleanElementText(node))
 }
 
@@ -618,6 +620,7 @@ function recoverNumberingInEditorHtml(html: string) {
     if (sectionIndex && elementText) {
       const level = Number(sectionIndex)
       if (!Number.isNaN(level)) {
+        if (level === 1) node.classList.add('rich-editor-module-heading')
         resetNumberingIfModuleElement(node, state)
         state.sectionCounters[level] = (state.sectionCounters[level] || 0) + 1
         Object.keys(state.sectionCounters).forEach(key => {
