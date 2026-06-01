@@ -399,6 +399,24 @@ function closestEditableBlock(node: Node | null, root: HTMLElement) {
   return null
 }
 
+function closestModuleHeading(node: Node | null, root: HTMLElement) {
+  let current = node instanceof HTMLElement ? node : node?.parentElement
+  while (current && current !== root) {
+    if (current.classList.contains('rich-editor-module-heading')) return current
+    current = current.parentElement
+  }
+  return null
+}
+
+function placeCaretInside(element: HTMLElement) {
+  const range = document.createRange()
+  range.selectNodeContents(element)
+  range.collapse(false)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+}
+
 function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
   if (!(node instanceof HTMLElement)) return ''
@@ -587,6 +605,24 @@ function RichPasteEditor({
     syncFromEditor()
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' || e.shiftKey) return
+    const editor = editorRef.current
+    if (!editor) return
+
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return
+    const moduleHeading = closestModuleHeading(selection.anchorNode, editor)
+    if (!moduleHeading) return
+
+    e.preventDefault()
+    const paragraph = document.createElement('p')
+    paragraph.appendChild(document.createElement('br'))
+    moduleHeading.parentNode?.insertBefore(paragraph, moduleHeading.nextSibling)
+    placeCaretInside(paragraph)
+    syncFromEditor()
+  }
+
   const clearFormatting = () => {
     const editor = editorRef.current
     if (!editor) return
@@ -681,6 +717,7 @@ function RichPasteEditor({
         onInput={syncFromEditor}
         onBlur={syncFromEditor}
         onPaste={handlePaste}
+        onKeyDown={handleKeyDown}
       />
     </div>
   )
