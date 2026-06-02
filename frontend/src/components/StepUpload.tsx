@@ -203,20 +203,6 @@ function normalizeModuleHeading(text: string) {
     .replace(/字段$/, '')
 }
 
-function markEditorModuleHeadings(root: HTMLElement) {
-  root.querySelectorAll('.rich-editor-module-heading').forEach(node => {
-    if (node instanceof HTMLElement) node.classList.add('rich-editor-module-heading')
-  })
-}
-
-function directElementText(node: HTMLElement) {
-  return Array.from(node.childNodes)
-    .filter(child => child.nodeType === Node.TEXT_NODE || child.nodeName === 'BR')
-    .map(child => child.textContent || '')
-    .join('')
-    .trim()
-}
-
 function isModuleElement(node: Node) {
   if (!(node instanceof HTMLElement)) return false
   return node.classList.contains('rich-editor-module-heading')
@@ -253,13 +239,6 @@ function removeEmptyModuleElements(editor: HTMLElement) {
 function resetNumberingForModule(state: NumberingState) {
   state.sectionCounters = {}
   state.orderedCounters = {}
-}
-
-function removeEmptyModulesFromText(text: string) {
-  return {
-    text: normalizeEditorText(text),
-    removedCount: 0,
-  }
 }
 
 function isModuleKeyPointHeading(line: string, moduleName: '诊断' | '治疗') {
@@ -629,7 +608,6 @@ function RichPasteEditor({
     if (document.activeElement === editor) return
     if (editorToPlainText(editor) !== normalizeEditorText(value)) {
       editor.innerHTML = textToEditorHtml(value)
-      markEditorModuleHeadings(editor)
     }
   }, [value])
 
@@ -662,7 +640,6 @@ function RichPasteEditor({
     } else {
       document.execCommand('insertText', false, insertable)
     }
-    if (editorRef.current) markEditorModuleHeadings(editorRef.current)
     syncFromEditor()
   }
 
@@ -689,19 +666,13 @@ function RichPasteEditor({
     if (!editor) return
     const text = editorToPlainText(editor)
     editor.innerHTML = textToEditorHtml(text)
-    markEditorModuleHeadings(editor)
     onChange(text)
   }
 
   const removeEmptyModules = () => {
     const editor = editorRef.current
     if (!editor) return
-    const removedCount = removeEmptyModuleElements(editor)
-    if (!removedCount) {
-      const { text } = removeEmptyModulesFromText(editorToPlainText(editor))
-      editor.innerHTML = textToEditorHtml(text)
-    }
-    markEditorModuleHeadings(editor)
+    removeEmptyModuleElements(editor)
     onChange(editorToPlainText(editor))
     onStructuredChange(editorToStructuredText(editor))
   }
@@ -714,7 +685,6 @@ function RichPasteEditor({
     if (!removedCards) {
       text = removeDiagnosisTreatmentKeyPointsFromText(text).text
       editor.innerHTML = textToEditorHtml(text)
-      markEditorModuleHeadings(editor)
     }
     onChange(text)
     onStructuredChange(editorToStructuredText(editor))
