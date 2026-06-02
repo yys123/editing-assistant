@@ -663,6 +663,7 @@ function RichPasteEditor({
   onStructuredChange: (value: string) => void
 }) {
   const editorRef = useRef<HTMLDivElement>(null)
+  const [cuckooExpertMode, setCuckooExpertMode] = useState(false)
 
   useEffect(() => {
     const editor = editorRef.current
@@ -701,6 +702,9 @@ function RichPasteEditor({
       insertHtmlAtSelection(insertable)
     } else {
       document.execCommand('insertText', false, insertable)
+    }
+    if (cuckooExpertMode && editorRef.current) {
+      applyCuckooExpertReviewModules(editorRef.current)
     }
     syncFromEditor()
   }
@@ -752,12 +756,15 @@ function RichPasteEditor({
     onStructuredChange(editorToStructuredText(editor))
   }
 
-  const applyCuckooExpertReview = () => {
+  const toggleCuckooExpertReview = () => {
     const editor = editorRef.current
-    if (!editor) return
-    applyCuckooExpertReviewModules(editor)
-    onChange(editorToPlainText(editor))
-    onStructuredChange(editorToStructuredText(editor))
+    const nextMode = !cuckooExpertMode
+    setCuckooExpertMode(nextMode)
+    if (nextMode && editor) {
+      applyCuckooExpertReviewModules(editor)
+      onChange(editorToPlainText(editor))
+      onStructuredChange(editorToStructuredText(editor))
+    }
   }
 
   const markSelectionAsModule = () => {
@@ -806,7 +813,16 @@ function RichPasteEditor({
           <span className="material-symbols-outlined">format_list_numbered</span>
         </button>
         <button type="button" className="rich-editor-tool" title="清除格式" onClick={clearFormatting}>清除格式</button>
-        <button type="button" className="rich-editor-tool cuckoo" title="按布谷鸟专家审核页面格式识别模块标题" onClick={applyCuckooExpertReview}>布谷鸟专家审核</button>
+        <button
+          type="button"
+          className={`rich-editor-tool cuckoo ${cuckooExpertMode ? 'active' : ''}`}
+          title={cuckooExpertMode ? '已启用布谷鸟专家审核模块识别' : '点击后按布谷鸟专家审核页面格式识别模块标题'}
+          aria-pressed={cuckooExpertMode}
+          onClick={toggleCuckooExpertReview}
+        >
+          <span className="rich-editor-tool-dot" aria-hidden="true" />
+          布谷鸟专家审核
+        </button>
         <button type="button" className="rich-editor-tool accent" title="将选中内容或当前行标记为模块标题" onClick={markSelectionAsModule}>标记模块</button>
         <button type="button" className="rich-editor-tool accent" title="删除没有正文内容的模块" onClick={removeEmptyModules}>删除空模块</button>
         <button type="button" className="rich-editor-tool accent" title="删除诊断/治疗模块开头的要点卡片" onClick={removeDiagnosisTreatmentKeyPoints}>删除要点</button>
