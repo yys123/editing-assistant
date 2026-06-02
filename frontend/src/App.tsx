@@ -130,6 +130,7 @@ function AppContent() {
   const [disease, setDisease] = useState('')
   const [articleContent, setArticleContent] = useState('')
   const [articleParseContent, setArticleParseContent] = useState('')
+  const [articleRichHtml, setArticleRichHtml] = useState('')
   const [qaItems, setQaItems] = useState<QAItem[]>([])
   const [qaCount, setQaCount] = useState(0)
   const [referenceDocs, setReferenceDocs] = useState<ReferenceDoc[]>([])
@@ -214,7 +215,7 @@ function AppContent() {
   // ── Auto-save (debounced) ────────────────────────────────────────────────────
   useEffect(() => {
     if (readOnly) return  // Don't save others' sessions
-    const hasProgress = refEvalResult || parsedArticle || sectionAnalyses.length > 0 || gapAnalysis || draftHistory.length > 0
+    const hasProgress = articleContent.trim() || articleRichHtml.trim() || refEvalResult || parsedArticle || sectionAnalyses.length > 0 || gapAnalysis || draftHistory.length > 0
     if (!sessionId || !hasProgress) return
 
     const record: SessionRecord = {
@@ -224,6 +225,7 @@ function AppContent() {
       articleSnippet: articleContent.slice(0, 150),
       articleContent,
       articleParseContent,
+      articleRichHtml,
       qaCount: qaItems.length > 0 ? qaItems.length : qaCount,
       qaItems,
       currentStep: step,
@@ -250,10 +252,11 @@ function AppContent() {
         body: JSON.stringify(record),
       }).catch(() => {})
     }, 1500)
-  }, [refEvalResult, parsedArticle, sectionAnalyses, gapAnalysis, gapItems, draftHistory, qaItems, step, articleParseContent])
+  }, [refEvalResult, parsedArticle, sectionAnalyses, gapAnalysis, gapItems, draftHistory, qaItems, step, articleContent, articleParseContent, articleRichHtml, disease, qaCount, referenceDocs])
 
   // ── Article content helpers ──────────────────────────────────────────────────
   const handleSetArticleContent = (content: string) => {
+    if (content && !sessionId) setSessionId(new Date().toISOString())
     setArticleContent(content)
     // Invalidate downstream caches when content actually changes
     if (content !== articleContent) {
@@ -272,6 +275,11 @@ function AppContent() {
       setGapAnalysis(null)
       setGapItems([])
     }
+  }
+
+  const handleSetArticleRichHtml = (content: string) => {
+    if (content && !sessionId) setSessionId(new Date().toISOString())
+    setArticleRichHtml(content)
   }
 
   // ── Reference docs change handler ──────────────────────────────────────────
@@ -313,6 +321,7 @@ function AppContent() {
     setDisease('')
     setArticleContent('')
     setArticleParseContent('')
+    setArticleRichHtml('')
     setQaItems([])
     setQaCount(0)
     setReferenceDocs([])
@@ -339,6 +348,7 @@ function AppContent() {
     setDisease(session.disease)
     setArticleContent(session.articleContent ?? '')
     setArticleParseContent(session.articleParseContent ?? '')
+    setArticleRichHtml(session.articleRichHtml ?? '')
     setQaItems(session.qaItems ?? [])
     setQaCount(session.qaCount)
     setReferenceDocs(session.referenceDocs ?? [])
@@ -731,6 +741,8 @@ function AppContent() {
               articleContent={articleContent}
               setArticleContent={handleSetArticleContent}
               setArticleParseContent={handleSetArticleParseContent}
+              articleRichHtml={articleRichHtml}
+              setArticleRichHtml={handleSetArticleRichHtml}
               qaItems={qaItems}
               setQaItems={handleSetQaItems}
               referenceDocs={referenceDocs}

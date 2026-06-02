@@ -9,6 +9,8 @@ interface Props {
   articleContent: string
   setArticleContent: (v: string) => void
   setArticleParseContent: (v: string) => void
+  articleRichHtml: string
+  setArticleRichHtml: (v: string) => void
   qaItems: QAItem[]
   setQaItems: (items: QAItem[]) => void
   referenceDocs: ReferenceDoc[]
@@ -655,12 +657,16 @@ function recoverNumberingInEditorHtml(html: string) {
 
 function RichPasteEditor({
   value,
+  richHtml,
   onChange,
   onStructuredChange,
+  onRichHtmlChange,
 }: {
   value: string
+  richHtml: string
   onChange: (value: string) => void
   onStructuredChange: (value: string) => void
+  onRichHtmlChange: (value: string) => void
 }) {
   const editorRef = useRef<HTMLDivElement>(null)
   const [cuckooExpertMode, setCuckooExpertMode] = useState(false)
@@ -669,16 +675,21 @@ function RichPasteEditor({
     const editor = editorRef.current
     if (!editor) return
     if (document.activeElement === editor) return
+    if (richHtml && editor.innerHTML !== richHtml) {
+      editor.innerHTML = richHtml
+      return
+    }
     if (editorToPlainText(editor) !== normalizeEditorText(value)) {
       editor.innerHTML = textToEditorHtml(value)
     }
-  }, [value])
+  }, [value, richHtml])
 
   const syncFromEditor = () => {
     const editor = editorRef.current
     if (!editor) return
     onChange(editorToPlainText(editor))
     onStructuredChange(editorToStructuredText(editor))
+    onRichHtmlChange(editor.innerHTML)
   }
 
   const runCommand = (command: string, commandValue?: string) => {
@@ -733,6 +744,7 @@ function RichPasteEditor({
     const text = editorToPlainText(editor)
     editor.innerHTML = textToEditorHtml(text)
     onChange(text)
+    onRichHtmlChange(editor.innerHTML)
   }
 
   const removeEmptyModules = () => {
@@ -796,6 +808,7 @@ function RichPasteEditor({
     if (editorRef.current) editorRef.current.innerHTML = ''
     onChange('')
     onStructuredChange('')
+    onRichHtmlChange('')
   }
 
   return (
@@ -846,6 +859,7 @@ function RichPasteEditor({
 
 export default function StepUpload({
   disease, setDisease, articleContent, setArticleContent, setArticleParseContent,
+  articleRichHtml, setArticleRichHtml,
   qaItems, setQaItems, referenceDocs, setReferenceDocs,
   standardsOverride, setStandardsOverride, onNext
 }: Props) {
@@ -876,6 +890,7 @@ export default function StepUpload({
       const data = await chunkedUpload(file, 'article', {}, setArticleProgress)
       setArticleContent(data.content)
       setArticleParseContent('')
+      setArticleRichHtml('')
     } catch (e: any) {
       setArticleError(e.message)
     } finally {
@@ -1108,7 +1123,13 @@ export default function StepUpload({
             )}
 
             {articleTab === 'text' && (
-              <RichPasteEditor value={articleContent} onChange={setArticleContent} onStructuredChange={setArticleParseContent} />
+              <RichPasteEditor
+                value={articleContent}
+                richHtml={articleRichHtml}
+                onChange={setArticleContent}
+                onStructuredChange={setArticleParseContent}
+                onRichHtmlChange={setArticleRichHtml}
+              />
             )}
 
             {articleContent && articleTab !== 'text' && (
@@ -1117,7 +1138,17 @@ export default function StepUpload({
                   <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>check_circle</span>
                   已加载词条内容（{articleContent.length} 字符）
                 </span>
-                <button className="btn-m3-outline" style={{ fontSize: 12, padding: '4px 12px', color: 'var(--m3-error)' }} onClick={() => setArticleContent('')}>清除</button>
+                <button
+                  className="btn-m3-outline"
+                  style={{ fontSize: 12, padding: '4px 12px', color: 'var(--m3-error)' }}
+                  onClick={() => {
+                    setArticleContent('')
+                    setArticleParseContent('')
+                    setArticleRichHtml('')
+                  }}
+                >
+                  清除
+                </button>
               </div>
             )}
           </div>

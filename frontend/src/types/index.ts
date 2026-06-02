@@ -234,6 +234,7 @@ export interface SessionRecord {
   articleSnippet: string
   articleContent?: string
   articleParseContent?: string
+  articleRichHtml?: string
   qaCount: number
   qaItems?: QAItem[]
   currentStep?: Step
