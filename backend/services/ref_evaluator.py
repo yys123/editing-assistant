@@ -73,7 +73,7 @@ async def evaluate_references(
 - 如果某篇文献质量明显不足，给出"建议替换"并说明理由
 - 对每篇文献的评估应简洁客观"""
 
-    text = await generate_text(prompt, system_prompt)
+    text = await generate_text(prompt, system_prompt, context="reference_eval")
     data = extract_json(text)
 
     items = []

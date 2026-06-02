@@ -14,6 +14,7 @@ interface Props {
 // Summary/overview sections that should NOT be analyzed as independent chapters.
 // Their content is merged as contextual background into the adjacent real section.
 const SUMMARY_HEADINGS = ['更新要点', '诊断要点', '治疗要点']
+const MAX_SECTION_ANALYSIS_CONCURRENCY = 3
 export function isSummarySection(heading: string): boolean {
   return SUMMARY_HEADINGS.some(p => heading.includes(p))
 }
@@ -211,25 +212,40 @@ export default function StepSectionAnalysis({
     setErrors({})
     setSectionAnalyses([])
 
-    // Analyze each section independently so results appear progressively
+    // Analyze sections with limited concurrency so Gemini RPM/TPM limits are less likely to trip.
     resultsRef.current = []
-    await Promise.all(
-      groups.map(async group => {
-        const id = group.representative.id
-        try {
-          const result = await analyzeGroup(group)
-          resultsRef.current = [...resultsRef.current.filter(a => a.section_id !== id), result]
-          setSectionAnalyses([...resultsRef.current])
-        } catch (e: any) {
-          setErrors(prev => ({ ...prev, [id]: e.message }))
-          const placeholder: SectionAnalysis = { section_id: id, section_heading: group.representative.heading, issues: [] }
-          resultsRef.current = [...resultsRef.current.filter(a => a.section_id !== id), placeholder]
-          setSectionAnalyses([...resultsRef.current])
-        } finally {
-          setAnalysing(prev => { const n = { ...prev }; delete n[id]; return n })
-        }
-      })
-    )
+    let cursor = 0
+    const inFlight = new Set<Promise<void>>()
+
+    const runGroup = async (group: AnalysisGroup) => {
+      const id = group.representative.id
+      try {
+        const result = await analyzeGroup(group)
+        resultsRef.current = [...resultsRef.current.filter(a => a.section_id !== id), result]
+        setSectionAnalyses([...resultsRef.current])
+      } catch (e: any) {
+        setErrors(prev => ({ ...prev, [id]: e.message }))
+        const placeholder: SectionAnalysis = { section_id: id, section_heading: group.representative.heading, issues: [] }
+        resultsRef.current = [...resultsRef.current.filter(a => a.section_id !== id), placeholder]
+        setSectionAnalyses([...resultsRef.current])
+      } finally {
+        setAnalysing(prev => { const n = { ...prev }; delete n[id]; return n })
+      }
+    }
+
+    const launchNext = () => {
+      const group = groups[cursor]
+      cursor += 1
+      const task = runGroup(group).finally(() => inFlight.delete(task))
+      inFlight.add(task)
+    }
+
+    while (cursor < groups.length || inFlight.size > 0) {
+      while (cursor < groups.length && inFlight.size < MAX_SECTION_ANALYSIS_CONCURRENCY) {
+        launchNext()
+      }
+      if (inFlight.size > 0) await Promise.race(inFlight)
+    }
   }
 
   const retryGroup = async (groupId: string) => {

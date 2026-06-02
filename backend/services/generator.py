@@ -196,7 +196,7 @@ async def generate_section_draft(req: GenerationRequest) -> GeneratedDraft:
   "references_used": ["引用的参考文献和Q&A编号，如[1][Q1][Q3]等"]
 }}"""
 
-    text = await generate_text(prompt, SYSTEM_PROMPT)
+    text = await generate_text(prompt, SYSTEM_PROMPT, context="draft_generation")
     data = extract_json(text)
 
     return GeneratedDraft(
@@ -292,7 +292,7 @@ async def generate_multi_section_draft(req: BatchGenerationRequest) -> BatchGene
   "coordination_notes": "跨章节协调说明：①各章节如何分工 ②哪些内容做了去重处理 ③术语如何统一"
 }}"""
 
-    text = await generate_text(prompt, SYSTEM_PROMPT)
+    text = await generate_text(prompt, SYSTEM_PROMPT, context="batch_draft_generation")
     data = extract_json(text)
 
     drafts = []

@@ -303,7 +303,7 @@ async def _parse_with_ai(text: str) -> ParsedArticle:
     else:
         prompt = _build_plain_prompt(text, framework_summary)
 
-    raw = await generate_text(prompt, _SYSTEM_PROMPT)
+    raw = await generate_text(prompt, _SYSTEM_PROMPT, context="article_parse_sections")
     data = extract_json(raw)
 
     sections: List[ArticleSection] = []
