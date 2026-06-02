@@ -19,10 +19,10 @@ async def evaluate_references(
 
     standard = get_ref_eval_standard(ref_eval_standard_override)
 
-    # Build reference summary for the prompt (filename + first 1500 chars each)
+    # Build reference summary for the prompt (filename + first 1000 chars each)
     ref_summaries = []
     for i, doc in enumerate(reference_docs):
-        preview = doc.text[:1500].strip()
+        preview = doc.text[:1000].strip()
         ref_summaries.append(
             f"### 文献 {i+1}: {doc.filename}\n"
             f"字数: {doc.char_count}\n"

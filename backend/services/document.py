@@ -3,10 +3,11 @@ import subprocess
 import tempfile
 import zipfile
 from pathlib import Path
+from typing import Optional
 from xml.etree import ElementTree
 
 
-def extract_docx_text(file_bytes: bytes, max_chars: int = 6000) -> str:
+def extract_docx_text(file_bytes: bytes, max_chars: Optional[int] = None) -> str:
     """Extract text from a .docx file using the Word XML document body."""
     with tempfile.NamedTemporaryFile(suffix=".docx") as tmp:
         tmp.write(file_bytes)
@@ -26,7 +27,7 @@ def extract_docx_text(file_bytes: bytes, max_chars: int = 6000) -> str:
     return _truncate_text("\n".join(paragraphs), max_chars)
 
 
-def extract_doc_text(file_bytes: bytes, max_chars: int = 6000) -> str:
+def extract_doc_text(file_bytes: bytes, max_chars: Optional[int] = None) -> str:
     """Extract text from a legacy .doc file via macOS textutil when available."""
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = Path(tmpdir) / "input.doc"
@@ -45,7 +46,7 @@ def extract_doc_text(file_bytes: bytes, max_chars: int = 6000) -> str:
     return _truncate_text(text, max_chars)
 
 
-def extract_word_text(file_bytes: bytes, filename: str, max_chars: int = 6000) -> str:
+def extract_word_text(file_bytes: bytes, filename: str, max_chars: Optional[int] = None) -> str:
     lower = filename.lower()
     if lower.endswith(".docx"):
         text = extract_docx_text(file_bytes, max_chars=max_chars)
@@ -58,8 +59,10 @@ def extract_word_text(file_bytes: bytes, filename: str, max_chars: int = 6000) -
     return text
 
 
-def _truncate_text(text: str, max_chars: int) -> str:
+def _truncate_text(text: str, max_chars: Optional[int]) -> str:
     clean = re.sub(r"\n{3,}", "\n\n", text).strip()
+    if max_chars is None:
+        return clean
     if len(clean) <= max_chars:
         return clean
     truncated = clean[:max_chars]

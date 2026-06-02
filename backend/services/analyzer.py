@@ -321,6 +321,19 @@ def _split_into_chunks(content: str, chunk_size: int, overlap: int) -> List[str]
     return chunks
 
 
+def _build_reference_block(reference_texts: List[str]) -> str:
+    if not reference_texts:
+        return ""
+    blocks = [
+        f"### 参考数据源 {i + 1}\n{text.strip()}"
+        for i, text in enumerate(reference_texts)
+        if text and text.strip()
+    ]
+    if not blocks:
+        return ""
+    return "\n\n## 参考数据源全文\n" + "\n---\n".join(blocks)
+
+
 async def _analyze_section_chunk(
     disease: str,
     chunk_section: ArticleSection,
@@ -332,10 +345,7 @@ async def _analyze_section_chunk(
     article_outline: Optional[List[str]],
 ) -> List[SectionIssue]:
     """Analyze one chunk of a section. Returns raw issues without verification."""
-    ref_block = ""
-    if reference_texts:
-        snippets = [t[:1000] for t in reference_texts[:3]]
-        ref_block = "\n\n## 参考文献摘录\n" + "\n---\n".join(snippets)
+    ref_block = _build_reference_block(reference_texts)
 
     outline_block = ""
     if article_outline:
@@ -532,10 +542,7 @@ async def analyze_section(
             verification_summary=summary,
         )
 
-    ref_block = ""
-    if reference_texts:
-        snippets = [t[:1000] for t in reference_texts[:3]]
-        ref_block = "\n\n## 参考文献摘录\n" + "\n---\n".join(snippets)
+    ref_block = _build_reference_block(reference_texts)
 
     outline_block = ""
     if article_outline:

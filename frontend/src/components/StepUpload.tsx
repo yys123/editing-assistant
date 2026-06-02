@@ -1196,7 +1196,7 @@ export default function StepUpload({
               <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', background: 'var(--m3-surface-container-low)', padding: '2px 8px', borderRadius: 4 }}>可选</span>
             </div>
             <p style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 14 }}>
-              上传参考文件（指南、综述等），AI分析时将引用其内容（PDF/Word 每文件截取前6000字符）
+              上传参考文件（指南、综述等），PDF/Word 将完整解析；后续环节按场景截取或筛选使用
             </p>
 
             <div className="pdf-grid">
