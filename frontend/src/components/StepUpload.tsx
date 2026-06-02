@@ -61,8 +61,28 @@ function hasClassPrefix(node: HTMLElement, prefix: string) {
   return Array.from(node.classList).some(name => name.startsWith(prefix))
 }
 
+function hasClassName(node: HTMLElement, name: string) {
+  return Array.from(node.classList).includes(name)
+}
+
+function findDescendantWithClassPrefix(node: HTMLElement, prefix: string) {
+  return Array.from(node.querySelectorAll('*')).find(
+    (child): child is HTMLElement => child instanceof HTMLElement && hasClassPrefix(child, prefix),
+  )
+}
+
+function findDescendantWithClassName(node: HTMLElement, name: string) {
+  return Array.from(node.querySelectorAll('*')).find(
+    (child): child is HTMLElement => child instanceof HTMLElement && hasClassName(child, name),
+  )
+}
+
 function isSourceFieldModuleHeading(node: HTMLElement) {
   return hasClassPrefix(node, 'field-card-fieldName')
+}
+
+function isSourceFieldCard(node: HTMLElement) {
+  return hasClassPrefix(node, 'field-card___')
 }
 
 function htmlToSafeEditorHtml(html: string) {
@@ -80,6 +100,15 @@ function htmlToSafeEditorHtml(html: string) {
     const cardType = keyPointCardType(node)
     if (cardType) {
       return `<div class="rich-editor-keypoint-card" data-keypoint-card="${cardType}">${children}</div>`
+    }
+    if (isSourceFieldCard(node)) {
+      const fieldName = findDescendantWithClassPrefix(node, 'field-card-fieldName')
+      const content = findDescendantWithClassName(node, 'ck-content')
+      if (fieldName) {
+        const headingHtml = `<p class="rich-editor-module-heading">${Array.from(fieldName.childNodes).map(walk).join('')}</p>`
+        const contentHtml = content ? Array.from(content.childNodes).map(walk).join('') : ''
+        return headingHtml + contentHtml
+      }
     }
     if (isSourceFieldModuleHeading(node)) {
       return `<p class="rich-editor-module-heading">${children}</p>`
