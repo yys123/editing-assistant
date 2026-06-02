@@ -364,6 +364,15 @@ body {
 .rich-editor-tool.accent:hover {
   background: rgba(119, 83, 255, 0.16);
 }
+.rich-editor-tool.cuckoo {
+  border-color: rgba(34, 139, 108, 0.28);
+  background: linear-gradient(135deg, rgba(34, 139, 108, 0.12), rgba(34, 139, 108, 0.04));
+  color: #1c765d;
+  font-weight: 700;
+}
+.rich-editor-tool.cuckoo:hover {
+  background: linear-gradient(135deg, rgba(34, 139, 108, 0.18), rgba(34, 139, 108, 0.08));
+}
 .rich-editor-count {
   margin-left: auto;
   color: var(--dui-text-sub);

@@ -85,6 +85,10 @@ function isSourceFieldCard(node: HTMLElement) {
   return hasClassPrefix(node, 'field-card___')
 }
 
+function isSourceExpertModuleHeading(node: HTMLElement) {
+  return hasClassPrefix(node, 'titleName___')
+}
+
 function htmlToSafeEditorHtml(html: string) {
   const doc = new DOMParser().parseFromString(html, 'text/html')
   const walk = (node: Node): string => {
@@ -100,6 +104,13 @@ function htmlToSafeEditorHtml(html: string) {
     const cardType = keyPointCardType(node)
     if (cardType) {
       return `<div class="rich-editor-keypoint-card" data-keypoint-card="${cardType}">${children}</div>`
+    }
+    if (isSourceExpertModuleHeading(node)) {
+      const heading = node.querySelector('h1,h2,h3')
+      const headingHtml = heading
+        ? Array.from(heading.childNodes).map(walk).join('')
+        : children
+      return `<p class="rich-editor-expert-module-candidate">${headingHtml}</p>`
     }
     if (isSourceFieldCard(node)) {
       const fieldName = findDescendantWithClassPrefix(node, 'field-card-fieldName')
@@ -263,6 +274,20 @@ function removeEmptyModuleElements(editor: HTMLElement) {
 
   removals.forEach(node => node.parentNode?.removeChild(node))
   return removals.length
+}
+
+function applyCuckooExpertReviewModules(editor: HTMLElement) {
+  let convertedCount = 0
+  editor.querySelectorAll('.rich-editor-expert-module-candidate').forEach(node => {
+    if (!(node instanceof HTMLElement)) return
+    const heading = cleanElementText(node)
+    if (!heading) return
+    node.innerHTML = escapeHtml(heading)
+    node.classList.remove('rich-editor-expert-module-candidate')
+    node.classList.add('rich-editor-module-heading')
+    convertedCount += 1
+  })
+  return convertedCount
 }
 
 function resetNumberingForModule(state: NumberingState) {
@@ -727,6 +752,14 @@ function RichPasteEditor({
     onStructuredChange(editorToStructuredText(editor))
   }
 
+  const applyCuckooExpertReview = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    applyCuckooExpertReviewModules(editor)
+    onChange(editorToPlainText(editor))
+    onStructuredChange(editorToStructuredText(editor))
+  }
+
   const markSelectionAsModule = () => {
     const editor = editorRef.current
     if (!editor) return
@@ -773,6 +806,7 @@ function RichPasteEditor({
           <span className="material-symbols-outlined">format_list_numbered</span>
         </button>
         <button type="button" className="rich-editor-tool" title="清除格式" onClick={clearFormatting}>清除格式</button>
+        <button type="button" className="rich-editor-tool cuckoo" title="按布谷鸟专家审核页面格式识别模块标题" onClick={applyCuckooExpertReview}>布谷鸟专家审核</button>
         <button type="button" className="rich-editor-tool accent" title="将选中内容或当前行标记为模块标题" onClick={markSelectionAsModule}>标记模块</button>
         <button type="button" className="rich-editor-tool accent" title="删除没有正文内容的模块" onClick={removeEmptyModules}>删除空模块</button>
         <button type="button" className="rich-editor-tool accent" title="删除诊断/治疗模块开头的要点卡片" onClick={removeDiagnosisTreatmentKeyPoints}>删除要点</button>
