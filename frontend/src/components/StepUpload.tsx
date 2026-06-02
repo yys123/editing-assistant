@@ -753,6 +753,7 @@ function RichPasteEditor({
     removeEmptyModuleElements(editor)
     onChange(editorToPlainText(editor))
     onStructuredChange(editorToStructuredText(editor))
+    onRichHtmlChange(editor.innerHTML)
   }
 
   const removeDiagnosisTreatmentKeyPoints = () => {
@@ -766,6 +767,7 @@ function RichPasteEditor({
     }
     onChange(text)
     onStructuredChange(editorToStructuredText(editor))
+    onRichHtmlChange(editor.innerHTML)
   }
 
   const toggleCuckooExpertReview = () => {
@@ -776,6 +778,7 @@ function RichPasteEditor({
       applyCuckooExpertReviewModules(editor)
       onChange(editorToPlainText(editor))
       onStructuredChange(editorToStructuredText(editor))
+      onRichHtmlChange(editor.innerHTML)
     }
   }
 
