@@ -22,8 +22,6 @@ type ArticleTab = 'file' | 'text'
 
 const BLOCK_TAGS = new Set(['ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'OL', 'P', 'SECTION', 'TABLE', 'TBODY', 'TD', 'TH', 'THEAD', 'TR', 'UL'])
 const INLINE_TAGS = new Set(['B', 'BR', 'EM', 'I', 'STRONG'])
-const TOP_LEVEL_MODULES = new Set(['基础知识', '诊断', '鉴别诊断', '治疗', '控制目标', '经典用药', '预后', '预防'])
-
 interface NumberingState {
   sectionCounters: Record<number, number>
   orderedCounters: Record<string, number>
@@ -110,10 +108,7 @@ function textToEditorHtml(text: string) {
     .split(/\n{2,}/)
     .map(block => {
       const lines = block.split('\n').map(line => {
-        const escaped = escapeHtml(line)
-        return isTopLevelModuleHeading(line)
-          ? `<span class="rich-editor-module-heading">${escaped}</span>`
-          : escaped
+        return escapeHtml(line)
       })
       return `<p>${lines.join('<br>')}</p>`
     })
@@ -208,25 +203,9 @@ function normalizeModuleHeading(text: string) {
     .replace(/字段$/, '')
 }
 
-function isTopLevelModuleHeading(text: string) {
-  return TOP_LEVEL_MODULES.has(normalizeModuleHeading(text))
-}
-
 function markEditorModuleHeadings(root: HTMLElement) {
-  const blockSelector = 'h1,h2,h3,h4,h5,h6,p,div,li'
-  root.querySelectorAll(blockSelector).forEach(node => {
-    if (!(node instanceof HTMLElement)) return
-    if (node.classList.contains('rich-editor-module-heading')) return
-    const directText = Array.from(node.childNodes)
-      .filter(child => child.nodeType === Node.TEXT_NODE || child.nodeName === 'BR')
-      .map(child => child.textContent || '')
-      .join('')
-      .trim()
-    const fullText = cleanElementText(node)
-    node.classList.toggle(
-      'rich-editor-module-heading',
-      isTopLevelModuleHeading(directText || fullText),
-    )
+  root.querySelectorAll('.rich-editor-module-heading').forEach(node => {
+    if (node instanceof HTMLElement) node.classList.add('rich-editor-module-heading')
   })
 }
 
@@ -240,8 +219,7 @@ function directElementText(node: HTMLElement) {
 
 function isModuleElement(node: Node) {
   if (!(node instanceof HTMLElement)) return false
-  if (node.classList.contains('rich-editor-module-heading')) return true
-  return isTopLevelModuleHeading(directElementText(node) || cleanElementText(node))
+  return node.classList.contains('rich-editor-module-heading')
 }
 
 function isIgnorableModuleBodyNode(node: Node) {
@@ -278,35 +256,9 @@ function resetNumberingForModule(state: NumberingState) {
 }
 
 function removeEmptyModulesFromText(text: string) {
-  const lines = text.replace(/\r\n?/g, '\n').split('\n')
-  const kept: string[] = []
-  let removedCount = 0
-
-  for (let i = 0; i < lines.length;) {
-    if (!isTopLevelModuleHeading(lines[i])) {
-      kept.push(lines[i])
-      i += 1
-      continue
-    }
-
-    const moduleStart = i
-    let nextModule = i + 1
-    while (nextModule < lines.length && !isTopLevelModuleHeading(lines[nextModule])) {
-      nextModule += 1
-    }
-
-    const body = lines.slice(moduleStart + 1, nextModule)
-    if (body.some(line => line.trim())) {
-      kept.push(...lines.slice(moduleStart, nextModule))
-    } else {
-      removedCount += 1
-    }
-    i = nextModule
-  }
-
   return {
-    text: normalizeEditorText(kept.join('\n')),
-    removedCount,
+    text: normalizeEditorText(text),
+    removedCount: 0,
   }
 }
 
@@ -342,7 +294,7 @@ function isStructuredContentHeading(line: string) {
 }
 
 function isKeyPointBlockBoundary(line: string) {
-  return isTopLevelModuleHeading(line) || isStructuredContentHeading(line)
+  return isStructuredContentHeading(line)
 }
 
 function removeDiagnosisTreatmentKeyPointsFromText(text: string) {
@@ -496,7 +448,6 @@ function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): stri
   if (sectionIndex) {
     const level = Number(sectionIndex)
     if (!Number.isNaN(level) && elementText) {
-      if (isTopLevelModuleHeading(elementText)) resetNumberingForModule(state)
       state.sectionCounters[level] = (state.sectionCounters[level] || 0) + 1
       Object.keys(state.sectionCounters).forEach(key => {
         if (Number(key) > level) state.sectionCounters[Number(key)] = 0
@@ -531,9 +482,6 @@ function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): stri
 
   const content = Array.from(node.childNodes).map(child => nodeToPlainText(child, state, listDepth)).join('')
   if (['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P', 'DIV'].includes(tag)) {
-    if (isTopLevelModuleHeading(elementText)) {
-      resetNumberingForModule(state)
-    }
     return content.trim() ? `${content.trim()}\n` : ''
   }
   if (tag === 'TR') {

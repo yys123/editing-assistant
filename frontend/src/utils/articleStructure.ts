@@ -1,22 +1,3 @@
-const TOP_LEVEL_MODULES = new Set(['基础知识', '诊断', '鉴别诊断', '治疗', '控制目标', '经典用药', '预后', '预防'])
-
-function normalizeModuleHeading(text: string) {
-  return text
-    .replace(/\u00a0/g, ' ')
-    .replace(/\s+/g, '')
-    .replace(/^[#*\-—_\s]+|[#*\-—_\s]+$/g, '')
-    .replace(/^【(.+)】$/, '$1')
-    .replace(/^［(.+)］$/, '$1')
-    .replace(/^\[(.+)\]$/, '$1')
-    .replace(/^（(.+)）$/, '$1')
-    .replace(/^\((.+)\)$/, '$1')
-    .replace(/字段$/, '')
-}
-
-function isTopLevelModuleHeading(text: string) {
-  return TOP_LEVEL_MODULES.has(normalizeModuleHeading(text))
-}
-
 function hasStructuredMarkers(text: string) {
   return /^\[H[123]\]\s+.+$/m.test(text)
 }
@@ -34,7 +15,7 @@ export function articleContentToStructuredMarkers(text: string) {
 
   const lines = normalizedText.split('\n')
   const hasExplicitMarkers = hasStructuredMarkers(normalizedText)
-  if (!hasExplicitMarkers && !lines.some(line => isTopLevelModuleHeading(line))) return normalizedText
+  if (!hasExplicitMarkers) return normalizedText
 
   let insideModule = false
   let hasLevel2InModule = false
@@ -48,12 +29,6 @@ export function articleContentToStructuredMarkers(text: string) {
       insideModule = Number(markerMatch[1]) === 1 || insideModule
       hasLevel2InModule = Number(markerMatch[1]) === 2 ? true : Number(markerMatch[1]) === 1 ? false : hasLevel2InModule
       return line
-    }
-
-    if (isTopLevelModuleHeading(trimmed)) {
-      insideModule = true
-      hasLevel2InModule = false
-      return `[H1] ${trimmed}`
     }
 
     if (!insideModule) return line
