@@ -1188,15 +1188,15 @@ export default function StepUpload({
             )}
           </div>
 
-          {/* Reference PDFs */}
+          {/* Reference data sources */}
           <div className="section-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--m3-tertiary)' }}>menu_book</span>
-              <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--m3-on-surface)' }}>参考文献 PDF 库</span>
+              <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--m3-on-surface)' }}>参考数据源</span>
               <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', background: 'var(--m3-surface-container-low)', padding: '2px 8px', borderRadius: 4 }}>可选</span>
             </div>
             <p style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 14 }}>
-              上传参考文件（指南、综述等），AI分析时将引用其内容（每文件截取前6000字符）
+              上传参考文件（指南、综述等），AI分析时将引用其内容（PDF/Word 每文件截取前6000字符）
             </p>
 
             <div className="pdf-grid">
@@ -1211,8 +1211,8 @@ export default function StepUpload({
                 <span style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)', fontWeight: 500 }}>
                   {pdfLoading ? (pdfProgress > 0 ? `上传中 ${pdfProgress}%` : '解析中...') : '添加文件'}
                 </span>
-                <span style={{ fontSize: 12, color: 'var(--m3-outline)' }}>.pdf .html .htm</span>
-                <input ref={pdfInputRef} type="file" accept=".pdf,.html,.htm" multiple style={{ display: 'none' }} onChange={e => {
+                <span style={{ fontSize: 12, color: 'var(--m3-outline)' }}>.pdf .doc .docx .html</span>
+                <input ref={pdfInputRef} type="file" accept=".pdf,.doc,.docx,.html,.htm" multiple style={{ display: 'none' }} onChange={e => {
                   if (e.target.files?.length) loadPdfFiles(e.target.files)
                 }} />
               </div>
@@ -1221,7 +1221,9 @@ export default function StepUpload({
               {referenceDocs.map((doc, i) => (
                 <div key={i} className="pdf-item-card">
                   <span className="material-symbols-outlined" style={{ fontSize: 28, color: doc.filename.toLowerCase().endsWith('.pdf') ? 'var(--dui-danger)' : 'var(--dui-primary)' }}>
-                    {doc.filename.toLowerCase().endsWith('.pdf') ? 'picture_as_pdf' : 'language'}
+                    {doc.filename.toLowerCase().endsWith('.pdf')
+                      ? 'picture_as_pdf'
+                      : (doc.filename.toLowerCase().endsWith('.doc') || doc.filename.toLowerCase().endsWith('.docx')) ? 'description' : 'language'}
                   </span>
                   <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--m3-on-surface)', textAlign: 'center', wordBreak: 'break-all', lineHeight: 1.3 }}>
                     {doc.filename.length > 30 ? doc.filename.slice(0, 27) + '...' : doc.filename}

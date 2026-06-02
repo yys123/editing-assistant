@@ -6,6 +6,7 @@ from typing import Dict, List
 from services.scraper import fetch_article_from_url, parse_html_to_text, parse_html_structured, parse_txt_structured, extract_images_from_html
 from services.gemini import analyze_image
 from services.pdf import extract_pdf_text
+from services.document import extract_word_text
 from services.section_parser import parse_article_sections
 from models import ReferenceDoc
 from pydantic import BaseModel
@@ -20,8 +21,11 @@ _chunk_store: Dict[str, dict] = {}
 SUPPORTED_TYPES = {
     "text/plain", "text/markdown",
     "application/pdf",
+    "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 }
+
+REFERENCE_EXTENSIONS = (".pdf", ".html", ".htm", ".doc", ".docx")
 
 
 @router.post("/url")
@@ -103,25 +107,16 @@ async def parse_sections(req: ParseSectionsRequest):
 
 @router.post("/upload-pdf")
 async def upload_pdf(files: List[UploadFile] = File(...)):
-    """Upload multiple PDF or HTML files and extract their text."""
+    """Upload multiple reference source files and extract their text."""
     results = []
     for file in files:
         filename = file.filename or "unknown"
         lower = filename.lower()
-        if not (lower.endswith(".pdf") or lower.endswith(".html") or lower.endswith(".htm")):
-            raise HTTPException(400, f"文件 {filename} 格式不支持，请上传 PDF 或 HTML 文件")
+        if not lower.endswith(REFERENCE_EXTENSIONS):
+            raise HTTPException(400, f"文件 {filename} 格式不支持，请上传 PDF、HTML 或 Word 文件")
         try:
             content_bytes = await file.read()
-            if lower.endswith(".pdf"):
-                text = extract_pdf_text(content_bytes)
-            else:
-                try:
-                    html = content_bytes.decode("utf-8-sig")
-                except Exception:
-                    html = content_bytes.decode("gbk", errors="replace")
-                text = parse_html_to_text(html)
-                if not text.strip():
-                    raise ValueError("HTML 文件内容为空或无法提取正文")
+            text = _extract_reference_source_text(content_bytes, filename)
             results.append(ReferenceDoc(
                 filename=filename,
                 text=text,
@@ -246,25 +241,16 @@ async def upload_article_b64(req: B64FileUpload):
 
 @router.post("/upload-pdf-b64")
 async def upload_pdf_b64(req: B64PdfUpload):
-    """Upload PDFs via base64 JSON (avoids multipart)."""
+    """Upload reference source files via base64 JSON (avoids multipart)."""
     results = []
     for item in req.files:
         filename = item.filename or "unknown"
         lower = filename.lower()
-        if not (lower.endswith(".pdf") or lower.endswith(".html") or lower.endswith(".htm")):
-            raise HTTPException(400, f"文件 {filename} 格式不支持，请上传 PDF 或 HTML 文件")
+        if not lower.endswith(REFERENCE_EXTENSIONS):
+            raise HTTPException(400, f"文件 {filename} 格式不支持，请上传 PDF、HTML 或 Word 文件")
         try:
             content_bytes = _decode_b64(item.data)
-            if lower.endswith(".pdf"):
-                text = extract_pdf_text(content_bytes)
-            else:
-                try:
-                    html = content_bytes.decode("utf-8-sig")
-                except Exception:
-                    html = content_bytes.decode("gbk", errors="replace")
-                text = parse_html_to_text(html)
-                if not text.strip():
-                    raise ValueError("HTML 文件内容为空或无法提取正文")
+            text = _extract_reference_source_text(content_bytes, filename)
             results.append(ReferenceDoc(
                 filename=filename,
                 text=text,
@@ -406,27 +392,36 @@ async def _process_article(content_bytes: bytes, filename: str):
 
 
 async def _process_pdfs(content_bytes: bytes, filenames: list):
-    """Process concatenated PDF files. For single file upload."""
+    """Process a single reference source file upload."""
     results = []
     filename = filenames[0] if filenames else "unknown"
     lower = filename.lower()
     try:
-        if lower.endswith(".pdf"):
-            text = extract_pdf_text(content_bytes)
-        else:
-            try:
-                html = content_bytes.decode("utf-8-sig")
-            except Exception:
-                html = content_bytes.decode("gbk", errors="replace")
-            text = parse_html_to_text(html)
-            if not text.strip():
-                raise ValueError("HTML 文件内容为空或无法提取正文")
+        if not lower.endswith(REFERENCE_EXTENSIONS):
+            raise ValueError("格式不支持，请上传 PDF、HTML 或 Word 文件")
+        text = _extract_reference_source_text(content_bytes, filename)
         results.append(ReferenceDoc(
             filename=filename, text=text, char_count=len(text),
         ).model_dump())
     except Exception as e:
         raise HTTPException(500, f"解析 {filename} 失败: {str(e)}")
     return results
+
+
+def _extract_reference_source_text(content_bytes: bytes, filename: str) -> str:
+    lower = filename.lower()
+    if lower.endswith(".pdf"):
+        return extract_pdf_text(content_bytes)
+    if lower.endswith((".doc", ".docx")):
+        return extract_word_text(content_bytes, filename)
+    try:
+        html = content_bytes.decode("utf-8-sig")
+    except Exception:
+        html = content_bytes.decode("gbk", errors="replace")
+    text = parse_html_to_text(html)
+    if not text.strip():
+        raise ValueError("HTML 文件内容为空或无法提取正文")
+    return text
 
 
 def _process_qa(content_bytes: bytes, filename: str):
