@@ -484,6 +484,10 @@ function structuredLevelForElement(node: HTMLElement) {
   return 0
 }
 
+function hasStructuredDescendant(node: HTMLElement) {
+  return Boolean(node.querySelector('.rich-editor-module-heading,[data-section-index],h1,h2,h3'))
+}
+
 function nodeToStructuredText(node: Node, state: NumberingState, listDepth = 0): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
   if (!(node instanceof HTMLElement)) return ''
@@ -498,6 +502,10 @@ function nodeToStructuredText(node: Node, state: NumberingState, listDepth = 0):
       if (explicitLevel === 1) resetNumberingForModule(state)
       return `[H${explicitLevel}] ${plain}\n`
     }
+  }
+
+  if (hasStructuredDescendant(node)) {
+    return Array.from(node.childNodes).map(child => nodeToStructuredText(child, state, listDepth)).join('')
   }
 
   return nodeToPlainText(node, state, listDepth)
