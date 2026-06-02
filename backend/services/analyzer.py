@@ -1,3 +1,4 @@
+import re
 from typing import List, Optional, Tuple
 from models import (
     QAItem, QualityReport, NeedsAnalysis, IterationPlan,
@@ -321,17 +322,95 @@ def _split_into_chunks(content: str, chunk_size: int, overlap: int) -> List[str]
     return chunks
 
 
-def _build_reference_block(reference_texts: List[str]) -> str:
+def _chunk_reference_text(text: str, chunk_size: int = 900) -> List[str]:
+    chunks: List[str] = []
+    buf = ""
+    for paragraph in re.split(r"\n{2,}", text):
+        paragraph = paragraph.strip()
+        if not paragraph:
+            continue
+        if buf and len(buf) + len(paragraph) > chunk_size:
+            chunks.append(buf)
+            buf = paragraph
+        else:
+            buf = f"{buf}\n{paragraph}".strip() if buf else paragraph
+    if buf:
+        chunks.append(buf)
+    return chunks
+
+
+def _reference_keywords(section_heading: str, section_content: str, limit: int = 180) -> List[str]:
+    query = f"{section_heading}\n{section_content[:5000]}".lower()
+    keywords: List[str] = []
+    for token in re.findall(r"[a-z0-9]{2,}|[\u4e00-\u9fff]{2,}", query):
+        if len(token) <= 12:
+            keywords.append(token)
+        elif re.fullmatch(r"[\u4e00-\u9fff]+", token):
+            keywords.extend(token[i:i + 4] for i in range(0, max(0, len(token) - 3), 2))
+    seen = set()
+    result = []
+    for keyword in keywords:
+        if keyword in seen:
+            continue
+        seen.add(keyword)
+        result.append(keyword)
+        if len(result) >= limit:
+            break
+    return result
+
+
+def _extract_relevant_reference_chunks(
+    reference_texts: List[str],
+    section_heading: str,
+    section_content: str,
+    max_total_chars: int = 30000,
+) -> List[Tuple[int, str]]:
+    keywords = _reference_keywords(section_heading, section_content)
+    scored: List[Tuple[int, int, str]] = []
+    for ref_idx, text in enumerate(reference_texts):
+        for chunk in _chunk_reference_text(text):
+            lower = chunk.lower()
+            score = sum(1 for keyword in keywords if keyword and keyword in lower)
+            if score > 0:
+                scored.append((score, ref_idx + 1, chunk))
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    selected: List[Tuple[int, str]] = []
+    total = 0
+    for _score, ref_idx, chunk in scored:
+        if total + len(chunk) > max_total_chars:
+            continue
+        selected.append((ref_idx, chunk))
+        total += len(chunk)
+        if total >= max_total_chars:
+            break
+
+    if selected:
+        return selected
+
+    fallback: List[Tuple[int, str]] = []
+    total = 0
+    for ref_idx, text in enumerate(reference_texts):
+        chunk = text.strip()[:2000]
+        if not chunk:
+            continue
+        if total + len(chunk) > max_total_chars:
+            break
+        fallback.append((ref_idx + 1, chunk))
+        total += len(chunk)
+    return fallback
+
+
+def _build_reference_block(reference_texts: List[str], section_heading: str, section_content: str) -> str:
     if not reference_texts:
         return ""
     blocks = [
-        f"### 参考数据源 {i + 1}\n{text.strip()}"
-        for i, text in enumerate(reference_texts)
-        if text and text.strip()
+        f"### 参考数据源 {ref_idx}\n{text.strip()}"
+        for ref_idx, text in _extract_relevant_reference_chunks(reference_texts, section_heading, section_content)
     ]
     if not blocks:
         return ""
-    return "\n\n## 参考数据源全文\n" + "\n---\n".join(blocks)
+    return "\n\n## 参考数据源相关片段\n" + "\n---\n".join(blocks)
 
 
 async def _analyze_section_chunk(
@@ -345,7 +424,7 @@ async def _analyze_section_chunk(
     article_outline: Optional[List[str]],
 ) -> List[SectionIssue]:
     """Analyze one chunk of a section. Returns raw issues without verification."""
-    ref_block = _build_reference_block(reference_texts)
+    ref_block = _build_reference_block(reference_texts, chunk_section.heading, chunk_section.content)
 
     outline_block = ""
     if article_outline:
@@ -542,7 +621,7 @@ async def analyze_section(
             verification_summary=summary,
         )
 
-    ref_block = _build_reference_block(reference_texts)
+    ref_block = _build_reference_block(reference_texts, section.heading, section.content)
 
     outline_block = ""
     if article_outline:

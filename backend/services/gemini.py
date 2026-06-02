@@ -1,5 +1,7 @@
 import os
 import asyncio
+import logging
+import time
 from datetime import date
 import google.generativeai as genai
 from config import settings
@@ -15,6 +17,7 @@ if settings.gemini_proxy:
 genai.configure(api_key=settings.gemini_api_key, transport="rest")
 
 _model_cache: dict = {}
+_log = logging.getLogger(__name__)
 
 
 def _date_prefix() -> str:
@@ -68,10 +71,26 @@ async def analyze_image(image_bytes: bytes, mime_type: str, caption: str = "") -
         return ""
 
 
-async def generate_text(prompt: str, system_instruction: str = None) -> str:
+async def generate_text(prompt: str, system_instruction: str = None, context: str = "unknown") -> str:
     model = get_model(system_instruction)
     loop = asyncio.get_event_loop()
+    started_at = time.perf_counter()
     response = await loop.run_in_executor(None, model.generate_content, prompt)
+    elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+    usage = getattr(response, "usage_metadata", None)
+    prompt_tokens = getattr(usage, "prompt_token_count", None)
+    output_tokens = getattr(usage, "candidates_token_count", None)
+    total_tokens = getattr(usage, "total_token_count", None)
+    _log.info(
+        "gemini_call context=%s model=%s prompt_tokens=%s output_tokens=%s total_tokens=%s elapsed_ms=%s prompt_chars=%s",
+        context,
+        settings.gemini_model,
+        prompt_tokens,
+        output_tokens,
+        total_tokens,
+        elapsed_ms,
+        len(prompt),
+    )
 
     # Handle blocked prompt
     if not response.candidates:
