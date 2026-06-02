@@ -167,6 +167,7 @@ function AppContent() {
   const [sessionsLoaded, setSessionsLoaded] = useState(false)
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingSessionIdRef = useRef<string | null>(null)
 
   // Whether current session is read-only (belongs to another user)
   const readOnly = !!(sessionOwnerId && user && sessionOwnerId !== user.id)
@@ -255,8 +256,17 @@ function AppContent() {
   }, [refEvalResult, parsedArticle, sectionAnalyses, gapAnalysis, gapItems, draftHistory, qaItems, step, articleContent, articleParseContent, articleRichHtml, disease, qaCount, referenceDocs])
 
   // ── Article content helpers ──────────────────────────────────────────────────
+  const ensureSessionId = () => {
+    if (sessionId) return sessionId
+    if (pendingSessionIdRef.current) return pendingSessionIdRef.current
+    const id = new Date().toISOString()
+    pendingSessionIdRef.current = id
+    setSessionId(id)
+    return id
+  }
+
   const handleSetArticleContent = (content: string) => {
-    if (content && !sessionId) setSessionId(new Date().toISOString())
+    if (content) ensureSessionId()
     setArticleContent(content)
     // Invalidate downstream caches when content actually changes
     if (content !== articleContent) {
@@ -278,7 +288,7 @@ function AppContent() {
   }
 
   const handleSetArticleRichHtml = (content: string) => {
-    if (content && !sessionId) setSessionId(new Date().toISOString())
+    if (content) ensureSessionId()
     setArticleRichHtml(content)
   }
 
@@ -317,6 +327,7 @@ function AppContent() {
 
   const startNewTask = () => {
     setSessionId(null)
+    pendingSessionIdRef.current = null
     setSessionOwnerId(null)
     setDisease('')
     setArticleContent('')
@@ -344,6 +355,7 @@ function AppContent() {
 
   const resumeSession = (session: SessionRecord) => {
     setSessionId(session.id)
+    pendingSessionIdRef.current = session.id
     setSessionOwnerId(session.owner_id ?? null)
     setDisease(session.disease)
     setArticleContent(session.articleContent ?? '')
