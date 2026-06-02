@@ -266,6 +266,12 @@ function AppContent() {
 
   const handleSetArticleParseContent = (content: string) => {
     setArticleParseContent(content)
+    if (content !== articleParseContent) {
+      setParsedArticle(null)
+      setSectionAnalyses([])
+      setGapAnalysis(null)
+      setGapItems([])
+    }
   }
 
   // ── Reference docs change handler ──────────────────────────────────────────

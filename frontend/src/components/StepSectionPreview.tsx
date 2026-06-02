@@ -21,10 +21,14 @@ export default function StepSectionPreview({ articleContent, articleParseContent
     setLoading(true)
     setError('')
     try {
+      const sourceContent = articleParseContent?.trim() || articleContent
+      const structuredContent = sourceContent.includes('[H1]')
+        ? sourceContent
+        : articleContentToStructuredMarkers(sourceContent)
       const res = await apiFetch('/api/article/parse-sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ article_content: articleParseContent?.trim() || articleContentToStructuredMarkers(articleContent) }),
+        body: JSON.stringify({ article_content: structuredContent }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || '解析失败')

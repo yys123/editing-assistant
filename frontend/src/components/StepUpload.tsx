@@ -601,7 +601,7 @@ function editorToPlainText(editor: HTMLElement) {
 function editorToStructuredText(editor: HTMLElement) {
   const state: NumberingState = { sectionCounters: {}, orderedCounters: {} }
   const structured = normalizeEditorText(Array.from(editor.childNodes).map(node => nodeToStructuredText(node, state)).join(''))
-  return structured.includes('[H1]') ? articleContentToStructuredMarkers(structured) : editorToPlainText(editor)
+  return articleContentToStructuredMarkers(structured.includes('[H1]') ? structured : editorToPlainText(editor))
 }
 
 function editorHtmlToPlainText(html: string) {
