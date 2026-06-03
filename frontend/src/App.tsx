@@ -15,6 +15,7 @@ import {
   QAItem, DraftRecord, SessionRecord, GeneratedDraft,
   ParsedArticle, SectionAnalysis, GapAnalysis, GapItem, ReferenceDoc, RefEvalResult, StandardsOverride, Step,
 } from './types'
+import { ARTICLE_PARSE_CACHE_VERSION, getArticleParseCacheKey } from './utils/parseCache'
 
 const STEP_LABELS: Record<Step, string> = {
   1: '上传数据',
@@ -143,6 +144,8 @@ function AppContent() {
 
   // Step 3
   const [parsedArticle, setParsedArticle] = useState<ParsedArticle | null>(null)
+  const [parsedArticleSourceHash, setParsedArticleSourceHash] = useState('')
+  const [parsedArticleParserVersion, setParsedArticleParserVersion] = useState<number | undefined>(undefined)
 
   // Step 4
   const [sectionAnalyses, setSectionAnalyses] = useState<SectionAnalysis[]>([])
@@ -233,6 +236,8 @@ function AppContent() {
       qaItems,
       currentStep: step,
       parsedArticle,
+      parsedArticleSourceHash,
+      parsedArticleParserVersion,
       sectionAnalyses,
       gapAnalysis,
       gapItems,
@@ -255,7 +260,29 @@ function AppContent() {
         body: JSON.stringify(record),
       }).catch(() => {})
     }, 1500)
-  }, [refEvalResult, parsedArticle, sectionAnalyses, gapAnalysis, gapItems, draftHistory, qaItems, step, articleContent, articleParseContent, articleRichHtml, disease, qaCount, referenceDocs])
+  }, [refEvalResult, parsedArticle, parsedArticleSourceHash, parsedArticleParserVersion, sectionAnalyses, gapAnalysis, gapItems, draftHistory, qaItems, step, articleContent, articleParseContent, articleRichHtml, disease, qaCount, referenceDocs])
+
+  const handleSetParsedArticle = (article: ParsedArticle, sourceHash: string, parserVersion: number) => {
+    setParsedArticle(article)
+    setParsedArticleSourceHash(sourceHash)
+    setParsedArticleParserVersion(parserVersion)
+  }
+
+  useEffect(() => {
+    if (!parsedArticle) return
+    const expectedParsedHash = getArticleParseCacheKey(articleContent, articleParseContent)
+    const hasValidParsedArticle = parsedArticleSourceHash === expectedParsedHash
+      && parsedArticleParserVersion === ARTICLE_PARSE_CACHE_VERSION
+    if (hasValidParsedArticle) return
+
+    setParsedArticle(null)
+    setParsedArticleSourceHash('')
+    setParsedArticleParserVersion(undefined)
+    setSectionAnalyses([])
+    setGapAnalysis(null)
+    setGapItems([])
+    if (step > 3) setStep(3)
+  }, [articleContent, articleParseContent, parsedArticle, parsedArticleSourceHash, parsedArticleParserVersion, step])
 
   // ── Article content helpers ──────────────────────────────────────────────────
   const ensureSessionId = () => {
@@ -273,6 +300,8 @@ function AppContent() {
     // Invalidate downstream caches when content actually changes
     if (content !== articleContent) {
       setParsedArticle(null)
+      setParsedArticleSourceHash('')
+      setParsedArticleParserVersion(undefined)
       setSectionAnalyses([])
       setGapAnalysis(null)
       setGapItems([])
@@ -283,6 +312,8 @@ function AppContent() {
     setArticleParseContent(content)
     if (content !== articleParseContent) {
       setParsedArticle(null)
+      setParsedArticleSourceHash('')
+      setParsedArticleParserVersion(undefined)
       setSectionAnalyses([])
       setGapAnalysis(null)
       setGapItems([])
@@ -341,6 +372,8 @@ function AppContent() {
     setStandardsOverride({})
     setRefEvalResult(null)
     setParsedArticle(null)
+    setParsedArticleSourceHash('')
+    setParsedArticleParserVersion(undefined)
     setSectionAnalyses([])
     setGapAnalysis(null)
     setGapItems([])
@@ -368,10 +401,16 @@ function AppContent() {
     setReferenceDocs(session.referenceDocs ?? [])
     setStandardsOverride({})
     setRefEvalResult(session.refEvalResult ?? null)
-    setParsedArticle(session.parsedArticle ?? null)
-    setSectionAnalyses(session.sectionAnalyses ?? [])
-    setGapAnalysis(session.gapAnalysis ?? null)
-    setGapItems(session.gapItems ?? [])
+    const expectedParsedHash = getArticleParseCacheKey(session.articleContent ?? '', session.articleParseContent)
+    const hasValidParsedArticle = !!session.parsedArticle
+      && session.parsedArticleSourceHash === expectedParsedHash
+      && session.parsedArticleParserVersion === ARTICLE_PARSE_CACHE_VERSION
+    setParsedArticle(hasValidParsedArticle ? session.parsedArticle ?? null : null)
+    setParsedArticleSourceHash(hasValidParsedArticle ? session.parsedArticleSourceHash ?? '' : '')
+    setParsedArticleParserVersion(hasValidParsedArticle ? session.parsedArticleParserVersion : undefined)
+    setSectionAnalyses(hasValidParsedArticle ? session.sectionAnalyses ?? [] : [])
+    setGapAnalysis(hasValidParsedArticle ? session.gapAnalysis ?? null : null)
+    setGapItems(hasValidParsedArticle ? session.gapItems ?? [] : [])
     setSelectedGap(null)
     setDraftHistory(session.draftHistory ?? [])
     // Remap old step numbers to new 7-step numbering
@@ -386,10 +425,10 @@ function AppContent() {
     let maxSafeStep: Step = 1
     if (session.articleContent) maxSafeStep = 2
     if (session.refEvalResult || (session.referenceDocs && session.referenceDocs.length === 0)) maxSafeStep = 3
-    if (session.parsedArticle) maxSafeStep = 4
-    if (session.sectionAnalyses?.length) maxSafeStep = 5
-    if (session.gapAnalysis) maxSafeStep = 6
-    if (session.draftHistory?.length) maxSafeStep = 7
+    if (hasValidParsedArticle) maxSafeStep = 4
+    if (hasValidParsedArticle && session.sectionAnalyses?.length) maxSafeStep = 5
+    if (hasValidParsedArticle && session.gapAnalysis) maxSafeStep = 6
+    if (hasValidParsedArticle && session.draftHistory?.length) maxSafeStep = 7
     const rawTarget = session.currentStep ?? (session.plan ? 7 : 1)
     // If session was saved with old 6-step numbering (max 6 and no refEvalResult field),
     // remap; otherwise use as-is
@@ -791,7 +830,9 @@ function AppContent() {
               articleContent={articleContent}
               articleParseContent={articleParseContent}
               parsedArticle={parsedArticle}
-              setParsedArticle={setParsedArticle}
+              parsedArticleSourceHash={parsedArticleSourceHash}
+              parsedArticleParserVersion={parsedArticleParserVersion}
+              setParsedArticle={handleSetParsedArticle}
               onBack={() => setStep(2)}
             />
           )}

@@ -2,18 +2,36 @@ import { useState, useEffect } from 'react'
 import { ParsedArticle } from '../types'
 import { isSummarySection } from './StepSectionAnalysis'
 import { apiFetch } from '../api'
-import { articleContentToStructuredMarkers } from '../utils/articleStructure'
+import {
+  ARTICLE_PARSE_CACHE_VERSION,
+  buildArticleParseSource,
+  getArticleParseCacheKey,
+} from '../utils/parseCache'
 
 interface Props {
   articleContent: string
   articleParseContent?: string
   parsedArticle: ParsedArticle | null
-  setParsedArticle: (a: ParsedArticle) => void
+  parsedArticleSourceHash?: string
+  parsedArticleParserVersion?: number
+  setParsedArticle: (a: ParsedArticle, sourceHash: string, parserVersion: number) => void
   onBack: () => void
 }
 
-export default function StepSectionPreview({ articleContent, articleParseContent, parsedArticle, setParsedArticle, onBack }: Props) {
-  const [loading, setLoading] = useState(!parsedArticle)
+export default function StepSectionPreview({
+  articleContent,
+  articleParseContent,
+  parsedArticle,
+  parsedArticleSourceHash,
+  parsedArticleParserVersion,
+  setParsedArticle,
+  onBack,
+}: Props) {
+  const expectedSourceHash = getArticleParseCacheKey(articleContent, articleParseContent)
+  const hasValidParsedArticle = !!parsedArticle
+    && parsedArticleSourceHash === expectedSourceHash
+    && parsedArticleParserVersion === ARTICLE_PARSE_CACHE_VERSION
+  const [loading, setLoading] = useState(!hasValidParsedArticle)
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
@@ -21,10 +39,8 @@ export default function StepSectionPreview({ articleContent, articleParseContent
     setLoading(true)
     setError('')
     try {
-      const sourceContent = articleParseContent?.trim() || articleContent
-      const structuredContent = sourceContent.includes('[H1]')
-        ? sourceContent
-        : articleContentToStructuredMarkers(sourceContent)
+      const structuredContent = buildArticleParseSource(articleContent, articleParseContent)
+      const sourceHash = getArticleParseCacheKey(articleContent, articleParseContent)
       const res = await apiFetch('/api/article/parse-sections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -32,7 +48,7 @@ export default function StepSectionPreview({ articleContent, articleParseContent
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || '解析失败')
-      setParsedArticle(data as ParsedArticle)
+      setParsedArticle(data as ParsedArticle, sourceHash, ARTICLE_PARSE_CACHE_VERSION)
       setExpanded(new Set())
     } catch (e: any) {
       setError(e.message)
@@ -42,8 +58,8 @@ export default function StepSectionPreview({ articleContent, articleParseContent
   }
 
   useEffect(() => {
-    if (!parsedArticle) parse()
-  }, [])
+    if (!hasValidParsedArticle) parse()
+  }, [expectedSourceHash, hasValidParsedArticle])
 
   const toggle = (id: string) =>
     setExpanded(prev => {
