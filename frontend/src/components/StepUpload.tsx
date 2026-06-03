@@ -920,21 +920,30 @@ export default function StepUpload({
     setPdfLoading(true)
     setPdfError('')
     setPdfProgress(0)
+    const allResults: ReferenceDoc[] = []
+    const failedFiles: string[] = []
+    const fileArr = Array.from(files)
     try {
-      const allResults: any[] = []
-      const fileArr = Array.from(files)
       for (let fi = 0; fi < fileArr.length; fi++) {
         const f = fileArr[fi]
-        const data = await chunkedUpload(f, 'pdf', { filenames: [f.name] }, (pct) => {
-          // 多文件时计算整体进度：已完成的文件 + 当前文件进度
-          const overall = Math.round(((fi + pct / 100) / fileArr.length) * 100)
-          setPdfProgress(overall)
-        })
-        allResults.push(...data)
+        try {
+          const data = await chunkedUpload(f, 'pdf', { filenames: [f.name] }, (pct) => {
+            // 多文件时计算整体进度：已完成的文件 + 当前文件进度
+            const overall = Math.round(((fi + pct / 100) / fileArr.length) * 100)
+            setPdfProgress(overall)
+          })
+          allResults.push(...(data as ReferenceDoc[]))
+        } catch (e: any) {
+          failedFiles.push(`${f.name}：${e.message || '解析失败'}`)
+          setPdfProgress(Math.round(((fi + 1) / fileArr.length) * 100))
+        }
       }
-      setReferenceDocs([...referenceDocs, ...allResults])
-    } catch (e: any) {
-      setPdfError(e.message)
+      if (allResults.length > 0) {
+        setReferenceDocs([...referenceDocs, ...allResults])
+      }
+      if (failedFiles.length > 0) {
+        setPdfError(`已跳过 ${failedFiles.length} 篇解析失败的参考数据源：${failedFiles.join('；')}`)
+      }
     } finally {
       setPdfLoading(false)
       setPdfProgress(0)
