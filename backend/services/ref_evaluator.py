@@ -1,6 +1,6 @@
 from typing import List, Optional
 from models import ReferenceDoc, RefEvalResult, RefEvalItemResult
-from services.gemini import generate_text
+from services.text_llm import generate_text
 from services.utils import extract_json
 from services.standards import get_ref_eval_standard
 

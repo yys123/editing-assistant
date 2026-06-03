@@ -7,7 +7,7 @@ from models import (
     ArticleSection, SectionAnalysis, SectionIssue, GapAnalysis, ParsedArticle,
     NeedSectionMapping, SectionNeedsGap, NeedCoverage,
 )
-from services.gemini import generate_text
+from services.text_llm import generate_text
 from services.utils import extract_json
 
 SYSTEM_PROMPT = "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"

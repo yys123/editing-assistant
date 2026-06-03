@@ -19,7 +19,7 @@ class SectionParserLongContentTests(unittest.IsolatedAsyncioTestCase):
         tail_heading = "[H1] 超长尾部章节"
         text = f"[H1] 基础知识\n{long_body}\n{tail_heading}\n尾部正文"
 
-        async def fake_generate_text(prompt, system_instruction=None):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
             self.assertIn(tail_heading, prompt)
             return '{"sections":[{"heading":"基础知识","content":"正文","level":1}]}'
 

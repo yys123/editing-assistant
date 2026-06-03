@@ -4,7 +4,7 @@ from models import (
     GenerationRequest, GeneratedDraft, QAItem, ReferenceInput,
     BatchGenerationRequest, BatchGeneratedDraft,
 )
-from services.gemini import generate_text
+from services.text_llm import generate_text
 from services.utils import extract_json
 
 SYSTEM_PROMPT = """你是一位资深临床医学编辑，专注于为临床医生撰写实用、循证的诊疗内容。

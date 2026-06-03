@@ -110,7 +110,3 @@ async def generate_text_with_gemini(
     if not text or not text.strip():
         raise ValueError("模型返回了空响应，请重试")
     return text
-
-
-async def generate_text(prompt: str, system_instruction: str = None, context: str = "unknown") -> str:
-    return await generate_text_with_gemini(prompt, system_instruction, context=context)

@@ -2,6 +2,7 @@ import os
 import re
 from typing import List, Optional
 from models import ArticleSection, ParsedArticle
+from services.text_llm import generate_text
 
 # ── Load content framework spec at module init ─────────────────────────────────
 _FRAMEWORK_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "content_framework.md")
@@ -291,7 +292,6 @@ async def parse_article_sections(text: str) -> ParsedArticle:
 
 
 async def _parse_with_ai(text: str) -> ParsedArticle:
-    from services.gemini import generate_text
     from services.utils import extract_json
 
     is_structured = bool(re.search(r"^\[H[123]\]", text, re.MULTILINE))
