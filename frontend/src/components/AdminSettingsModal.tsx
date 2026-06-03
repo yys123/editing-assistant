@@ -39,7 +39,11 @@ export default function AdminSettingsModal({ onClose }: Props) {
 
   useEffect(() => {
     apiFetch('/api/admin/runtime-config')
-      .then(safeJson)
+      .then(async r => {
+        const data = await safeJson(r)
+        if (!r.ok) throw new Error(data.detail || '读取管理员配置失败')
+        return data
+      })
       .then(data => {
         setConfig({ ...EMPTY_CONFIG, ...data.defaults, ...data.config })
         setHasApiKey(!!data.has_deepseek_api_key)
