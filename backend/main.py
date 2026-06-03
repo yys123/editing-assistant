@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
-from routers import article, qa, analyze, generate, history, standards, auth
+from routers import article, qa, analyze, generate, history, standards, auth, admin
 import db
 
 app = FastAPI(title="Editing Assistant API", version="1.0.0")
@@ -24,6 +24,7 @@ app.include_router(analyze.router)
 app.include_router(generate.router)
 app.include_router(history.router)
 app.include_router(standards.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")

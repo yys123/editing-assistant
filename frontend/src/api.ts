@@ -16,7 +16,7 @@ export function getStoredUser() {
   return raw ? JSON.parse(raw) : null
 }
 
-export function setStoredUser(user: { id: string; email: string; display_name: string }) {
+export function setStoredUser(user: { id: string; email: string; display_name: string; is_admin?: boolean }) {
   localStorage.setItem('auth_user', JSON.stringify(user))
 }
 

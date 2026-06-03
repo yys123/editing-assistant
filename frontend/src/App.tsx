@@ -6,6 +6,7 @@ import StepSectionAnalysis from './components/StepSectionAnalysis'
 import StepGapAnalysis from './components/StepGapAnalysis'
 import StepPlanReview from './components/StepPlanReview'
 import StepGenerate, { extractSectionContent } from './components/StepGenerate'
+import AdminSettingsModal from './components/AdminSettingsModal'
 import HistoryView from './components/HistoryView'
 import AuthPage from './components/AuthPage'
 import { AuthProvider, useAuth } from './AuthContext'
@@ -119,6 +120,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 function AppContent() {
   const { user, loading: authLoading, logout } = useAuth()
   const [showChangePwd, setShowChangePwd] = useState(false)
+  const [showAdminSettings, setShowAdminSettings] = useState(false)
 
   // Capture URL session param immediately at render time, before any effect can modify the URL
   const initialUrlSession = useRef(new URLSearchParams(window.location.search).get('session'))
@@ -170,7 +172,7 @@ function AppContent() {
   const pendingSessionIdRef = useRef<string | null>(null)
 
   // Whether current session is read-only (belongs to another user)
-  const readOnly = !!(sessionOwnerId && user && sessionOwnerId !== user.id)
+  const readOnly = !!(sessionOwnerId && user && sessionOwnerId !== user.id && !user.is_admin)
 
   // ── Load history ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -615,8 +617,9 @@ function AppContent() {
   const isHistoryView = appView === 'history'
 
   return (
-    <div className="app">
+      <div className="app">
       {showChangePwd && <ChangePasswordModal onClose={() => setShowChangePwd(false)} />}
+      {showAdminSettings && <AdminSettingsModal onClose={() => setShowAdminSettings(false)} />}
 
       {/* ── Fixed Header ── */}
       <header className="app-header">
@@ -652,6 +655,12 @@ function AppContent() {
             <span className="material-symbols-outlined">lock_reset</span>
             <span>修改密码</span>
           </button>
+          {user.is_admin && (
+            <button className="btn-m3-icon-label" onClick={() => setShowAdminSettings(true)}>
+              <span className="material-symbols-outlined">admin_panel_settings</span>
+              <span>管理员设置</span>
+            </button>
+          )}
           <button className="btn-m3-icon-label" onClick={logout}>
             <span className="material-symbols-outlined">logout</span>
             <span>退出</span>
@@ -715,6 +724,7 @@ function AppContent() {
           <HistoryView
             sessions={allSessions}
             currentUserId={user.id}
+            isAdmin={!!user.is_admin}
             loading={!sessionsLoaded}
             onClose={() => setAppView('main')}
             onDelete={deleteSession}

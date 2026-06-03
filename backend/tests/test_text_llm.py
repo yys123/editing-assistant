@@ -8,7 +8,10 @@ from services import text_llm
 
 class TextLlmRoutingTests(unittest.IsolatedAsyncioTestCase):
     async def test_routes_to_gemini_when_provider_is_gemini(self):
-        with patch("services.text_llm.settings.text_model_provider", "gemini"), patch(
+        with patch(
+            "services.text_llm.get_effective_text_config",
+            return_value={"text_model_provider": "gemini"},
+        ), patch(
             "services.text_llm.generate_text_with_gemini",
             new=AsyncMock(return_value="ok"),
         ) as mock_gemini:
@@ -18,17 +21,36 @@ class TextLlmRoutingTests(unittest.IsolatedAsyncioTestCase):
         mock_gemini.assert_awaited_once_with("prompt", "sys", context="ctx")
 
     async def test_routes_to_deepseek_when_provider_is_deepseek(self):
-        with patch("services.text_llm.settings.text_model_provider", "deepseek"), patch(
+        runtime_config = {
+            "text_model_provider": "deepseek",
+            "deepseek_model": "deepseek-chat",
+            "deepseek_base_url": "https://api.deepseek.com",
+            "deepseek_temperature": 0.7,
+            "deepseek_top_p": 1.0,
+            "deepseek_max_tokens": 0,
+        }
+        with patch(
+            "services.text_llm.get_effective_text_config",
+            return_value=runtime_config,
+        ), patch(
             "services.text_llm.generate_text_with_deepseek",
             new=AsyncMock(return_value="ok"),
         ) as mock_deepseek:
             result = await text_llm.generate_text("prompt", "sys", context="ctx")
 
         self.assertEqual(result, "ok")
-        mock_deepseek.assert_awaited_once_with("prompt", "sys", context="ctx")
+        mock_deepseek.assert_awaited_once_with(
+            "prompt",
+            "sys",
+            context="ctx",
+            runtime_config=runtime_config,
+        )
 
     async def test_rejects_unknown_provider(self):
-        with patch("services.text_llm.settings.text_model_provider", "bad-provider"):
+        with patch(
+            "services.text_llm.get_effective_text_config",
+            return_value={"text_model_provider": "bad-provider"},
+        ):
             with self.assertRaises(ValueError):
                 await text_llm.generate_text("prompt")
 
@@ -82,6 +104,9 @@ class DeepSeekClientTests(unittest.IsolatedAsyncioTestCase):
             deepseek_api_key="secret",
             deepseek_model="deepseek-chat",
             deepseek_base_url="https://api.deepseek.com",
+            deepseek_temperature=0.7,
+            deepseek_top_p=1.0,
+            deepseek_max_tokens=0,
         )
         fake_httpx = SimpleNamespace(AsyncClient=lambda **kwargs: fake_client)
 
@@ -119,6 +144,9 @@ class DeepSeekClientTests(unittest.IsolatedAsyncioTestCase):
             deepseek_api_key="secret",
             deepseek_model="deepseek-chat",
             deepseek_base_url="https://api.deepseek.com",
+            deepseek_temperature=0.7,
+            deepseek_top_p=1.0,
+            deepseek_max_tokens=0,
         )
         fake_httpx = SimpleNamespace(AsyncClient=lambda **kwargs: fake_client)
 

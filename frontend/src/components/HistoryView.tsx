@@ -16,6 +16,7 @@ const STEP_ICONS: Record<number, string> = {
 interface Props {
   sessions: SessionRecord[]
   currentUserId: string
+  isAdmin?: boolean
   loading?: boolean
   onClose: () => void
   onDelete: (id: string) => void
@@ -39,7 +40,7 @@ function getSessionUrl(id: string) {
   return `${window.location.origin}${window.location.pathname}?session=${encodeURIComponent(id)}`
 }
 
-export default function HistoryView({ sessions, currentUserId, loading, onClose, onDelete, onResume }: Props) {
+export default function HistoryView({ sessions, currentUserId, isAdmin, loading, onClose, onDelete, onResume }: Props) {
   const sorted = [...sessions].sort((a, b) => b.id.localeCompare(a.id))
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [tab, setTab] = useState<'analysis' | 'drafts'>('analysis')
@@ -150,6 +151,7 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
               const isSelected = s.id === selectedId
               const hasDrafts = (s.draftHistory?.length ?? 0) > 0
               const isOwn = !s.owner_id || s.owner_id === currentUserId
+              const canEdit = isOwn || !!isAdmin
               return (
                 <div key={s.id}>
                   <div
@@ -202,14 +204,14 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
                       <button
                         className="btn-m3-icon"
                         onClick={e => { e.stopPropagation(); onResume(s) }}
-                        title={isOwn ? '继续编辑' : '查看'}
+                        title={canEdit ? '继续编辑' : '查看'}
                         style={{ width: 28, height: 28 }}
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-                          {isOwn ? 'edit' : 'visibility'}
+                          {canEdit ? 'edit' : 'visibility'}
                         </span>
                       </button>
-                      {isOwn && (
+                      {canEdit && (
                         <button
                           className="btn-m3-icon"
                           onClick={e => { e.stopPropagation(); handleDelete(s.id, s.disease) }}
@@ -238,7 +240,7 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           {selected.owner_id && selected.owner_id !== currentUserId && (
                             <span style={{ fontSize: 12, color: 'var(--dui-warning)', background: 'var(--dui-warning-container)', padding: '3px 10px', borderRadius: 999, fontWeight: 500 }}>
-                              他人任务
+                              {isAdmin ? '管理员编辑他人任务' : '他人任务'}
                             </span>
                           )}
                           <a
@@ -253,9 +255,9 @@ export default function HistoryView({ sessions, currentUserId, loading, onClose,
                           </a>
                           <button className="btn-gradient" style={{ fontSize: 12, padding: '6px 14px' }} onClick={() => onResume(selected)}>
                             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-                              {selected.owner_id && selected.owner_id !== currentUserId ? 'visibility' : 'edit'}
+                              {selected.owner_id && selected.owner_id !== currentUserId && !isAdmin ? 'visibility' : 'edit'}
                             </span>
-                            {selected.owner_id && selected.owner_id !== currentUserId ? '查看' : '继续编辑'}
+                            {selected.owner_id && selected.owner_id !== currentUserId && !isAdmin ? '查看' : '继续编辑'}
                           </button>
                         </div>
                       </div>

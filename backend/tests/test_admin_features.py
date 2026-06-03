@@ -40,6 +40,34 @@ class AdminRuntimeConfigTests(unittest.TestCase):
             self.assertEqual(loaded["deepseek_temperature"], 0.4)
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["deepseek_model"], "deepseek-chat")
 
+    def test_effective_text_config_only_applies_to_admin_when_scope_is_admin_only(self):
+        fake_settings = SimpleNamespace(
+            text_model_provider="gemini",
+            deepseek_model="deepseek-chat",
+            deepseek_base_url="https://api.deepseek.com",
+            deepseek_temperature=0.7,
+            deepseek_top_p=1.0,
+            deepseek_max_tokens=0,
+            deepseek_api_key="secret",
+        )
+        runtime = {
+            "scope": "admin_only",
+            "text_model_provider": "deepseek",
+            "deepseek_model": "deepseek-reasoner",
+            "deepseek_base_url": "https://api.deepseek.com",
+            "deepseek_temperature": 0.3,
+            "deepseek_top_p": 0.8,
+            "deepseek_max_tokens": 1024,
+        }
+        with patch.object(admin_runtime, "settings", fake_settings), patch.object(
+            admin_runtime, "load_runtime_config", return_value=runtime
+        ):
+            admin_effective = admin_runtime.get_effective_text_config({"is_admin": True})
+            user_effective = admin_runtime.get_effective_text_config({"is_admin": False})
+        self.assertEqual(admin_effective["text_model_provider"], "deepseek")
+        self.assertEqual(admin_effective["deepseek_model"], "deepseek-reasoner")
+        self.assertEqual(user_effective["text_model_provider"], "gemini")
+
 
 class AdminHistoryPermissionTests(unittest.TestCase):
     def test_admin_can_update_other_users_session_without_changing_owner(self):
