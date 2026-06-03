@@ -71,7 +71,11 @@ async def analyze_image(image_bytes: bytes, mime_type: str, caption: str = "") -
         return ""
 
 
-async def generate_text(prompt: str, system_instruction: str = None, context: str = "unknown") -> str:
+async def generate_text_with_gemini(
+    prompt: str,
+    system_instruction: str = None,
+    context: str = "unknown",
+) -> str:
     model = get_model(system_instruction)
     loop = asyncio.get_event_loop()
     started_at = time.perf_counter()
@@ -106,3 +110,7 @@ async def generate_text(prompt: str, system_instruction: str = None, context: st
     if not text or not text.strip():
         raise ValueError("模型返回了空响应，请重试")
     return text
+
+
+async def generate_text(prompt: str, system_instruction: str = None, context: str = "unknown") -> str:
+    return await generate_text_with_gemini(prompt, system_instruction, context=context)

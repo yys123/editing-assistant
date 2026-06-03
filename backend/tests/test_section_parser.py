@@ -23,7 +23,7 @@ class SectionParserLongContentTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(tail_heading, prompt)
             return '{"sections":[{"heading":"基础知识","content":"正文","level":1}]}'
 
-        with patch("services.gemini.generate_text", side_effect=fake_generate_text):
+        with patch("services.section_parser.generate_text", side_effect=fake_generate_text):
             await section_parser._parse_with_ai(text)
 
 
