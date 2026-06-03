@@ -70,6 +70,16 @@ def _fix_cjk_en_replacements(text: str) -> str:
 _fix_cjk_and_replacement = _fix_cjk_en_replacements
 
 
+def _normalize_structured_markers(text: str) -> str:
+    """Ensure [H1]/[H2]/[H3] markers always start on their own line.
+
+    Some upstream structured text contains inline markers like:
+    "...正文。 [H2] 二、 标题"
+    which would otherwise be treated as body content instead of a new section.
+    """
+    return re.sub(r'(?<!\n)\s*(\[H[123]\]\s*)', r'\n\1', text)
+
+
 def _fix_section_levels(sections: List[ArticleSection]) -> List[ArticleSection]:
     """Post-parse normalization: correct known-wrong level assignments.
 
@@ -282,13 +292,14 @@ async def parse_article_sections(text: str) -> ParsedArticle:
 
     Falls back to regex/BS4 parsing if AI fails.
     """
-    if re.search(r"^\[H[123]\]", text, re.MULTILINE):
-        return _parse_structured_markers(text)
+    normalized = _normalize_structured_markers(text)
+    if re.search(r"^\[H[123]\]", normalized, re.MULTILINE):
+        return _parse_structured_markers(normalized)
 
     try:
-        return await _parse_with_ai(text)
+        return await _parse_with_ai(normalized)
     except Exception:
-        return _parse_with_fallback(text)
+        return _parse_with_fallback(normalized)
 
 
 async def _parse_with_ai(text: str) -> ParsedArticle:
