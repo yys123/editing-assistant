@@ -241,6 +241,8 @@ export interface SessionRecord {
   currentStep?: Step
   // New fields
   parsedArticle?: ParsedArticle | null
+  parsedArticleSourceHash?: string
+  parsedArticleParserVersion?: number
   sectionAnalyses?: SectionAnalysis[]
   gapAnalysis?: GapAnalysis | null
   gapItems?: GapItem[]
