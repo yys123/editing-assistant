@@ -36,6 +36,7 @@ def register(req: RegisterRequest):
     display_name = req.display_name or req.email.split("@")[0]
     password_hash = hash_password(req.password)
     user = db.create_user(user_id, req.email, password_hash, display_name)
+    user["is_admin"] = user["email"] in {e.strip() for e in db.get_user_by_id(user_id).get("email", "").split(",")} if False else False
     token = create_token(user_id, req.email)
     return {"token": token, "user": user}
 
@@ -52,13 +53,23 @@ def login(req: LoginRequest):
     token = create_token(user["id"], user["email"])
     return {
         "token": token,
-        "user": {"id": user["id"], "email": user["email"], "display_name": user["display_name"]},
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "display_name": user["display_name"],
+            "is_admin": user.get("is_admin", False),
+        },
     }
 
 
 @router.get("/me")
 def me(user: dict = Depends(get_current_user)):
-    return {"id": user["id"], "email": user["email"], "display_name": user["display_name"]}
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "display_name": user["display_name"],
+        "is_admin": user.get("is_admin", False),
+    }
 
 
 class ChangePasswordRequest(BaseModel):

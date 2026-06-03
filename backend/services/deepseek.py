@@ -16,19 +16,37 @@ def _build_messages(prompt: str, system_instruction: str = None) -> list:
     return messages
 
 
+def _get_param(runtime_config: dict, key: str, fallback):
+    if runtime_config is None:
+        return fallback
+    value = runtime_config.get(key)
+    return fallback if value in (None, "") else value
+
+
 async def generate_text_with_deepseek(
     prompt: str,
     system_instruction: str = None,
     context: str = "unknown",
+    runtime_config: dict = None,
 ) -> str:
     if not settings.deepseek_api_key:
         raise ValueError("未配置 DEEPSEEK_API_KEY")
 
-    url = settings.deepseek_base_url.rstrip("/") + "/chat/completions"
+    model = _get_param(runtime_config, "deepseek_model", settings.deepseek_model)
+    base_url = _get_param(runtime_config, "deepseek_base_url", settings.deepseek_base_url)
+    temperature = _get_param(runtime_config, "deepseek_temperature", settings.deepseek_temperature)
+    top_p = _get_param(runtime_config, "deepseek_top_p", settings.deepseek_top_p)
+    max_tokens = _get_param(runtime_config, "deepseek_max_tokens", settings.deepseek_max_tokens)
+
+    url = str(base_url).rstrip("/") + "/chat/completions"
     payload = {
-        "model": settings.deepseek_model,
+        "model": model,
         "messages": _build_messages(prompt, system_instruction),
+        "temperature": temperature,
+        "top_p": top_p,
     }
+    if max_tokens:
+        payload["max_tokens"] = max_tokens
     headers = {
         "Authorization": f"Bearer {settings.deepseek_api_key}",
         "Content-Type": "application/json",
@@ -57,7 +75,7 @@ async def generate_text_with_deepseek(
     _log.info(
         "gemini_call context=%s model=%s prompt_tokens=%s output_tokens=%s total_tokens=%s elapsed_ms=%s prompt_chars=%s",
         context,
-        settings.deepseek_model,
+        model,
         usage.get("prompt_tokens"),
         usage.get("completion_tokens"),
         usage.get("total_tokens"),

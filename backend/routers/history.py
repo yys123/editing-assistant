@@ -19,11 +19,12 @@ def save_session(session_id: str, record: Dict[str, Any] = Body(...), user: dict
     try:
         # Check ownership: if session exists, only owner can update
         existing_owner = db.get_session_owner(session_id)
-        if existing_owner and existing_owner != user["id"]:
+        if existing_owner and existing_owner != user["id"] and not user.get("is_admin"):
             raise HTTPException(403, "无权修改他人的会话")
         updated_at = record.get("updatedAt", record.get("id", ""))
         disease = record.get("disease", "")
-        db.upsert_session(session_id, user["id"], updated_at, disease, record)
+        owner_id = existing_owner or user["id"]
+        db.upsert_session(session_id, owner_id, updated_at, disease, record)
         return {"ok": True}
     except HTTPException:
         raise
@@ -34,7 +35,10 @@ def save_session(session_id: str, record: Dict[str, Any] = Body(...), user: dict
 @router.delete("/{session_id}")
 def remove_session(session_id: str, user: dict = Depends(get_current_user)):
     try:
-        deleted = db.delete_session(session_id, user["id"])
+        if user.get("is_admin"):
+            deleted = db.delete_session_admin(session_id)
+        else:
+            deleted = db.delete_session(session_id, user["id"])
         if not deleted:
             existing_owner = db.get_session_owner(session_id)
             if existing_owner:

@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timedelta, timezone
+from contextvars import ContextVar
 
 import jwt
 import bcrypt
@@ -7,6 +8,8 @@ from fastapi import Request, HTTPException
 
 from config import settings
 import db
+
+_CURRENT_USER = ContextVar("current_user", default=None)
 
 # ── Password hashing ──────────────────────────────────────────────────────────
 
@@ -34,6 +37,15 @@ def decode_token(token: str) -> dict:
     except jwt.InvalidTokenError:
         raise HTTPException(401, "无效的认证信息")
 
+
+def is_admin_email(email: str) -> bool:
+    allowed = {item.strip().lower() for item in settings.admin_emails.split(",") if item.strip()}
+    return email.strip().lower() in allowed
+
+
+def get_current_user_context():
+    return _CURRENT_USER.get()
+
 # ── Registration codes ─────────────────────────────────────────────────────────
 
 def validate_registration_code(code: str, user_id: str) -> bool:
@@ -51,4 +63,6 @@ def get_current_user(request: Request) -> dict:
     user = db.get_user_by_id(payload["sub"])
     if not user:
         raise HTTPException(401, "用户不存在")
+    user["is_admin"] = is_admin_email(user["email"])
+    _CURRENT_USER.set(user)
     return user

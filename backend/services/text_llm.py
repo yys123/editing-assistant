@@ -1,4 +1,4 @@
-from config import settings
+from services.admin_runtime import get_effective_text_config
 from services.deepseek import generate_text_with_deepseek
 from services.gemini import generate_text_with_gemini
 
@@ -8,9 +8,15 @@ async def generate_text(
     system_instruction: str = None,
     context: str = "unknown",
 ) -> str:
-    provider = settings.text_model_provider.strip().lower()
+    config = get_effective_text_config()
+    provider = str(config["text_model_provider"]).strip().lower()
     if provider == "gemini":
         return await generate_text_with_gemini(prompt, system_instruction, context=context)
     if provider == "deepseek":
-        return await generate_text_with_deepseek(prompt, system_instruction, context=context)
-    raise ValueError(f"Unsupported TEXT_MODEL_PROVIDER: {settings.text_model_provider}")
+        return await generate_text_with_deepseek(
+            prompt,
+            system_instruction,
+            context=context,
+            runtime_config=config,
+        )
+    raise ValueError(f"Unsupported TEXT_MODEL_PROVIDER: {config['text_model_provider']}")

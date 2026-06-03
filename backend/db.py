@@ -175,3 +175,10 @@ def delete_session(session_id: str, user_id: str) -> bool:
         )
         conn.commit()
     return cursor.rowcount > 0
+
+
+def delete_session_admin(session_id: str) -> bool:
+    with _conn() as conn:
+        cursor = conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+        conn.commit()
+    return cursor.rowcount > 0
