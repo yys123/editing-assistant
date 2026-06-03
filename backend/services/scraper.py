@@ -20,6 +20,9 @@ _SKIP_TAGS = {
 }
 _HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 _REFERENCE_STOP_KEYWORDS = {"参考文献", "相关指南", "参考资料", "references"}
+_CN_NUMS = "一二三四五六七八九十百"
+_H2_NUM_RE = re.compile(r'^[' + _CN_NUMS + r']+[、]')
+_H3_PAREN_RE = re.compile(r'^（[' + _CN_NUMS + r']+）')
 
 
 def _extract_text_with_refs(tag: Tag) -> str:
@@ -42,6 +45,22 @@ def _extract_text_with_refs(tag: Tag) -> str:
             else:
                 parts.append(_extract_text_with_refs(child))
     return re.sub(r"\s+", " ", "".join(parts)).strip()
+
+
+def _append_structured_text(lines: list[str], text: str) -> None:
+    if not text or len(text) <= 3:
+        return
+    clean = re.sub(r"\d+$", "", text).strip()
+    if not clean:
+        return
+    if any(kw in clean for kw in _REFERENCE_STOP_KEYWORDS):
+        return
+    if _H2_NUM_RE.match(clean):
+        lines.append(f"[H2] {clean}")
+    elif _H3_PAREN_RE.match(clean):
+        lines.append(f"[H3] {clean}")
+    else:
+        lines.append(text)
 
 
 # ---------------------------------------------------------------------------
@@ -138,8 +157,7 @@ def parse_html_structured(html: str) -> str:
             # ── Text blocks ────────────────────────────────────────────
             if tag in _TEXT_BLOCK_TAGS:
                 text = _extract_text_with_refs(child)
-                if text and len(text) > 3:
-                    lines.append(text)
+                _append_structured_text(lines, text)
                 continue
 
             # ── Inline tags inside block context – skip ────────────────
@@ -202,8 +220,7 @@ def parse_html_structured(html: str) -> str:
             if not has_block:
                 # Leaf container – collect its text preserving ref markers
                 text = _extract_text_with_refs(child)
-                if text and len(text) > 3:
-                    lines.append(text)
+                _append_structured_text(lines, text)
             else:
                 walk(child)
 
@@ -368,13 +385,8 @@ def extract_images_from_html(html: str) -> List[Dict[str, Any]]:
 # Public: structured TXT parser (for knowledge base article upload)
 # ---------------------------------------------------------------------------
 
-_CN_NUMS = "一二三四五六七八九十百"
 # Reference markers like [12], [12-34], [12,34]
 _REF_RE = re.compile(r'\[\d+(?:[,，\-~～至]\d+)*\]')
-# H2: 一、二、三... prefixed sections
-_H2_NUM_RE = re.compile(r'^[' + _CN_NUMS + r']+[、]')
-# H3: （一）（二）... prefixed sub-sections
-_H3_PAREN_RE = re.compile(r'^（[' + _CN_NUMS + r']+）')
 # Short standalone section title: 2-8 CJK chars only (e.g. 基础知识, 诊断, 治疗)
 _SHORT_TITLE_RE = re.compile(r'^[\u4e00-\u9fff]{2,8}$')
 # Table caption: 表 N
