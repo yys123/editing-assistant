@@ -606,7 +606,10 @@ function prependTextToElement(element: HTMLElement, text: string) {
 }
 
 function resetNumberingIfModuleElement(element: HTMLElement, state: NumberingState) {
-  if (isModuleElement(element)) {
+  if (
+    isModuleElement(element) ||
+    element.classList.contains('rich-editor-expert-module-candidate')
+  ) {
     resetNumberingForModule(state)
   }
 }
