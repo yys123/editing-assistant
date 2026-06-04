@@ -14,6 +14,8 @@ DEFAULT_CONFIG = {
     "deepseek_temperature": None,
     "deepseek_top_p": None,
     "deepseek_max_tokens": None,
+    "deepseek_context_window_tokens": None,
+    "gemini_context_window_tokens": None,
 }
 
 
@@ -25,6 +27,8 @@ def _base_text_config() -> dict:
         "deepseek_temperature": settings.deepseek_temperature,
         "deepseek_top_p": settings.deepseek_top_p,
         "deepseek_max_tokens": settings.deepseek_max_tokens,
+        "deepseek_context_window_tokens": getattr(settings, "deepseek_context_window_tokens", 64000),
+        "gemini_context_window_tokens": getattr(settings, "gemini_context_window_tokens", 1000000),
     }
 
 

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from auth import get_current_user
 from services.admin_runtime import get_admin_runtime_payload, save_runtime_config
+import db
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -17,6 +18,8 @@ class RuntimeConfigRequest(BaseModel):
     deepseek_temperature: Optional[float] = None
     deepseek_top_p: Optional[float] = None
     deepseek_max_tokens: Optional[int] = None
+    deepseek_context_window_tokens: Optional[int] = None
+    gemini_context_window_tokens: Optional[int] = None
 
 
 def _require_admin(user: dict):
@@ -38,4 +41,13 @@ def update_runtime_config(req: RuntimeConfigRequest, user: dict = Depends(get_cu
         "ok": True,
         **get_admin_runtime_payload(),
         "config": saved,
+    }
+
+
+@router.get("/ai-call-logs")
+def get_ai_call_logs(limit: int = 100, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    return {
+        "summary": db.summarize_ai_call_logs(),
+        "items": db.list_ai_call_logs(limit),
     }

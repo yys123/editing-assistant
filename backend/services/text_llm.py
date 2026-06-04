@@ -11,7 +11,12 @@ async def generate_text(
     config = get_effective_text_config()
     provider = str(config["text_model_provider"]).strip().lower()
     if provider == "gemini":
-        return await generate_text_with_gemini(prompt, system_instruction, context=context)
+        return await generate_text_with_gemini(
+            prompt,
+            system_instruction,
+            context=context,
+            runtime_config=config,
+        )
     if provider == "deepseek":
         return await generate_text_with_deepseek(
             prompt,

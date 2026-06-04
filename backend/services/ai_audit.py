@@ -61,10 +61,16 @@ def record_ai_call(**entry) -> None:
         return
 
 
-def build_preflight(provider: str, model: str, prompt: str, system_instruction: str = None) -> dict:
+def build_preflight(
+    provider: str,
+    model: str,
+    prompt: str,
+    system_instruction: str = None,
+    context_window_tokens: Optional[int] = None,
+) -> dict:
     full_prompt = f"{system_instruction or ''}\n{prompt or ''}"
     estimated = estimate_prompt_tokens(full_prompt)
-    window = get_context_window_tokens(provider, model)
+    window = context_window_tokens or get_context_window_tokens(provider, model)
     ratio = (estimated / window) if window else None
     warning = context_warning(estimated, window)
     return {
@@ -82,8 +88,12 @@ def raise_if_context_exceeded(
     context: str,
     prompt: str,
     system_instruction: str = None,
+    context_window_tokens: Optional[int] = None,
 ) -> dict:
-    preflight = build_preflight(provider, model, prompt, system_instruction)
+    preflight = build_preflight(
+        provider, model, prompt, system_instruction,
+        context_window_tokens=context_window_tokens,
+    )
     if preflight["warning"] == "over_context_window":
         record_ai_call(
             context=context,

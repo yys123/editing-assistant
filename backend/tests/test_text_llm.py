@@ -18,7 +18,12 @@ class TextLlmRoutingTests(unittest.IsolatedAsyncioTestCase):
             result = await text_llm.generate_text("prompt", "sys", context="ctx")
 
         self.assertEqual(result, "ok")
-        mock_gemini.assert_awaited_once_with("prompt", "sys", context="ctx")
+        mock_gemini.assert_awaited_once_with(
+            "prompt",
+            "sys",
+            context="ctx",
+            runtime_config={"text_model_provider": "gemini"},
+        )
 
     async def test_routes_to_deepseek_when_provider_is_deepseek(self):
         runtime_config = {

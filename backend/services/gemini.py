@@ -5,6 +5,7 @@ import time
 from datetime import date
 import google.generativeai as genai
 from config import settings
+from services import ai_audit
 
 # Use REST transport so HTTP_PROXY / HTTPS_PROXY env vars are respected.
 # Do not force a local proxy by default: if that port is not running, every
@@ -75,38 +76,72 @@ async def generate_text_with_gemini(
     prompt: str,
     system_instruction: str = None,
     context: str = "unknown",
+    runtime_config: dict = None,
 ) -> str:
     model = get_model(system_instruction)
     loop = asyncio.get_event_loop()
-    started_at = time.perf_counter()
-    response = await loop.run_in_executor(None, model.generate_content, prompt)
-    elapsed_ms = int((time.perf_counter() - started_at) * 1000)
-    usage = getattr(response, "usage_metadata", None)
-    prompt_tokens = getattr(usage, "prompt_token_count", None)
-    output_tokens = getattr(usage, "candidates_token_count", None)
-    total_tokens = getattr(usage, "total_token_count", None)
-    _log.info(
-        "gemini_call context=%s model=%s prompt_tokens=%s output_tokens=%s total_tokens=%s elapsed_ms=%s prompt_chars=%s",
-        context,
-        settings.gemini_model,
-        prompt_tokens,
-        output_tokens,
-        total_tokens,
-        elapsed_ms,
-        len(prompt),
+    context_window = None
+    if runtime_config:
+        context_window = runtime_config.get("gemini_context_window_tokens")
+    audit = ai_audit.raise_if_context_exceeded(
+        "gemini", settings.gemini_model, context, prompt, system_instruction,
+        context_window_tokens=context_window,
     )
+    started_at = time.perf_counter()
+    try:
+        response = await loop.run_in_executor(None, model.generate_content, prompt)
+        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        usage = getattr(response, "usage_metadata", None)
+        prompt_tokens = getattr(usage, "prompt_token_count", None)
+        output_tokens = getattr(usage, "candidates_token_count", None)
+        total_tokens = getattr(usage, "total_token_count", None)
+        _log.info(
+            "llm_call context=%s provider=gemini model=%s prompt_tokens=%s output_tokens=%s total_tokens=%s elapsed_ms=%s prompt_chars=%s warning=%s",
+            context,
+            settings.gemini_model,
+            prompt_tokens,
+            output_tokens,
+            total_tokens,
+            elapsed_ms,
+            audit["prompt_chars"],
+            audit["warning"],
+        )
 
-    # Handle blocked prompt
-    if not response.candidates:
-        block_reason = getattr(getattr(response, 'prompt_feedback', None), 'block_reason', 'unknown')
-        raise ValueError(f"请求被模型拒绝（block_reason={block_reason}）")
+        # Handle blocked prompt
+        if not response.candidates:
+            block_reason = getattr(getattr(response, 'prompt_feedback', None), 'block_reason', 'unknown')
+            raise ValueError(f"请求被模型拒绝（block_reason={block_reason}）")
 
-    candidate = response.candidates[0]
-    finish = candidate.finish_reason.name if hasattr(candidate.finish_reason, 'name') else str(candidate.finish_reason)
-    if finish not in ('STOP', 'MAX_TOKENS', '1', '2'):
-        raise ValueError(f"生成异常终止（finish_reason={finish}）")
+        candidate = response.candidates[0]
+        finish = candidate.finish_reason.name if hasattr(candidate.finish_reason, 'name') else str(candidate.finish_reason)
+        if finish not in ('STOP', 'MAX_TOKENS', '1', '2'):
+            raise ValueError(f"生成异常终止（finish_reason={finish}）")
 
-    text = response.text
-    if not text or not text.strip():
-        raise ValueError("模型返回了空响应，请重试")
-    return text
+        text = response.text
+        if not text or not text.strip():
+            raise ValueError("模型返回了空响应，请重试")
+
+        ai_audit.record_ai_call(
+            context=context,
+            provider="gemini",
+            model=settings.gemini_model,
+            prompt_tokens=prompt_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            elapsed_ms=elapsed_ms,
+            status="success",
+            **audit,
+        )
+        return text
+    except Exception as e:
+        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        ai_audit.record_ai_call(
+            context=context,
+            provider="gemini",
+            model=settings.gemini_model,
+            elapsed_ms=elapsed_ms,
+            status="error",
+            error=str(e)[:500],
+            **audit,
+        )
+        raise
