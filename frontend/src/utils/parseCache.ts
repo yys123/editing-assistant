@@ -1,12 +1,10 @@
 import { articleContentToStructuredMarkers } from './articleStructure'
 
-export const ARTICLE_PARSE_CACHE_VERSION = 3
+export const ARTICLE_PARSE_CACHE_VERSION = 4
 
 export function buildArticleParseSource(articleContent: string, articleParseContent?: string) {
   const sourceContent = articleParseContent?.trim() || articleContent
-  return sourceContent.includes('[H1]')
-    ? sourceContent
-    : articleContentToStructuredMarkers(sourceContent)
+  return articleContentToStructuredMarkers(sourceContent)
 }
 
 export function hashArticleParseSource(source: string) {

@@ -10,6 +10,14 @@ function isLevel3Heading(text: string) {
   return /^(?:[（(][一二三四五六七八九十百\d]+[）)]|\d+[、.)])\s*\S+/.test(text.trim())
 }
 
+function splitInlineLevel3Heading(text: string) {
+  const trimmed = text.trim()
+  const match = trimmed.match(/^(.+[。；;：:])\s+((?:[（(][一二三四五六七八九十百\d]+[）)]|\d+[、.)])\s*\S.*)$/)
+  if (!match) return null
+  const [, body, heading] = match
+  return { body, heading }
+}
+
 export function articleContentToStructuredMarkers(text: string) {
   const normalizedText = text.replace(/\r\n?/g, '\n')
 
@@ -40,6 +48,13 @@ export function articleContentToStructuredMarkers(text: string) {
 
     if (hasLevel2InModule && isLevel3Heading(trimmed)) {
       return `[H3] ${trimmed}`
+    }
+
+    if (hasLevel2InModule) {
+      const inlineLevel3 = splitInlineLevel3Heading(trimmed)
+      if (inlineLevel3) {
+        return `${inlineLevel3.body}\n[H3] ${inlineLevel3.heading}`
+      }
     }
 
     return line
