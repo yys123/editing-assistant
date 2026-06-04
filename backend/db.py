@@ -1,5 +1,6 @@
 import sqlite3
 import json
+import uuid
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "data" / "sessions.db"
@@ -51,6 +52,33 @@ def init_db():
                 used_by    TEXT
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ai_call_logs (
+                id                       TEXT PRIMARY KEY,
+                created_at               TEXT NOT NULL,
+                user_id                  TEXT,
+                context                  TEXT NOT NULL,
+                provider                 TEXT NOT NULL,
+                model                    TEXT NOT NULL,
+                prompt_chars             INTEGER NOT NULL,
+                estimated_prompt_tokens  INTEGER,
+                prompt_tokens            INTEGER,
+                output_tokens            INTEGER,
+                total_tokens             INTEGER,
+                elapsed_ms               INTEGER,
+                context_window_tokens    INTEGER,
+                context_usage_ratio      REAL,
+                status                   TEXT NOT NULL,
+                warning                  TEXT DEFAULT '',
+                error                    TEXT DEFAULT ''
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ai_call_logs_created ON ai_call_logs(created_at DESC)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ai_call_logs_user ON ai_call_logs(user_id)"
+        )
         conn.commit()
 
 
@@ -182,3 +210,85 @@ def delete_session_admin(session_id: str) -> bool:
         cursor = conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
         conn.commit()
     return cursor.rowcount > 0
+
+
+# ── AI call audit logs ─────────────────────────────────────────────────────────
+
+def insert_ai_call_log(entry: dict) -> dict:
+    from datetime import datetime, timezone
+    row = {
+        "id": entry.get("id") or uuid.uuid4().hex,
+        "created_at": entry.get("created_at") or datetime.now(timezone.utc).isoformat(),
+        "user_id": entry.get("user_id"),
+        "context": entry.get("context") or "unknown",
+        "provider": entry.get("provider") or "unknown",
+        "model": entry.get("model") or "unknown",
+        "prompt_chars": int(entry.get("prompt_chars") or 0),
+        "estimated_prompt_tokens": entry.get("estimated_prompt_tokens"),
+        "prompt_tokens": entry.get("prompt_tokens"),
+        "output_tokens": entry.get("output_tokens"),
+        "total_tokens": entry.get("total_tokens"),
+        "elapsed_ms": entry.get("elapsed_ms"),
+        "context_window_tokens": entry.get("context_window_tokens"),
+        "context_usage_ratio": entry.get("context_usage_ratio"),
+        "status": entry.get("status") or "unknown",
+        "warning": entry.get("warning") or "",
+        "error": entry.get("error") or "",
+    }
+    with _conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO ai_call_logs (
+                id, created_at, user_id, context, provider, model, prompt_chars,
+                estimated_prompt_tokens, prompt_tokens, output_tokens, total_tokens,
+                elapsed_ms, context_window_tokens, context_usage_ratio, status,
+                warning, error
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                row["id"], row["created_at"], row["user_id"], row["context"],
+                row["provider"], row["model"], row["prompt_chars"],
+                row["estimated_prompt_tokens"], row["prompt_tokens"],
+                row["output_tokens"], row["total_tokens"], row["elapsed_ms"],
+                row["context_window_tokens"], row["context_usage_ratio"],
+                row["status"], row["warning"], row["error"],
+            ),
+        )
+        conn.commit()
+    return row
+
+
+def list_ai_call_logs(limit: int = 100) -> list:
+    safe_limit = max(1, min(int(limit or 100), 500))
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM ai_call_logs ORDER BY created_at DESC LIMIT ?",
+            (safe_limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def summarize_ai_call_logs() -> dict:
+    with _conn() as conn:
+        row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS calls,
+                SUM(COALESCE(total_tokens, 0)) AS total_tokens,
+                SUM(COALESCE(prompt_tokens, estimated_prompt_tokens, 0)) AS input_tokens,
+                SUM(COALESCE(output_tokens, 0)) AS output_tokens,
+                SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS success_calls,
+                SUM(CASE WHEN status != 'success' THEN 1 ELSE 0 END) AS failed_calls,
+                MAX(context_usage_ratio) AS max_context_usage_ratio
+            FROM ai_call_logs
+            """
+        ).fetchone()
+    return dict(row) if row else {
+        "calls": 0,
+        "total_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "success_calls": 0,
+        "failed_calls": 0,
+        "max_context_usage_ratio": None,
+    }

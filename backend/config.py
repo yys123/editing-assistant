@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     gemini_api_key: str
     cors_origins: str = "http://localhost:5177"
     gemini_model: str = "gemini-3-flash-preview"
+    gemini_context_window_tokens: int = 1000000
     gemini_proxy: str = ""
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"
@@ -15,6 +16,7 @@ class Settings(BaseSettings):
     deepseek_temperature: float = 0.7
     deepseek_top_p: float = 1.0
     deepseek_max_tokens: int = 0
+    deepseek_context_window_tokens: int = 64000
     jwt_secret: str = "editing-assistant-secret-change-in-production"
     jwt_expire_days: int = 7
 
