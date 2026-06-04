@@ -397,11 +397,18 @@ export default function StepSectionAnalysis({
 
               {/* Split view: always shown so original content is visible */}
               {showSplit && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 0 }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+                  minHeight: 560,
+                  maxHeight: 'calc(100vh - 240px)',
+                  minWidth: 0,
+                }}>
                   {/* Left: original content */}
                   <div style={{
                     borderRight: '0.5px solid var(--dui-divider)',
                     display: 'flex', flexDirection: 'column',
+                    minHeight: 0, minWidth: 0,
                   }}>
                     <div style={{
                       padding: '6px 12px', fontSize: 12, fontWeight: 500,
@@ -412,7 +419,7 @@ export default function StepSectionAnalysis({
                     </div>
                     <div style={{
                       padding: '10px 12px',
-                      maxHeight: 400, overflowY: 'auto',
+                      flex: 1, minHeight: 0, overflowY: 'auto',
                       fontSize: 12, lineHeight: 1.9, color: 'var(--gray-700)',
                     }}>
                       {group.combinedContent.split('\n').map((line, li) => {
@@ -433,7 +440,7 @@ export default function StepSectionAnalysis({
                   </div>
 
                   {/* Right: issues or per-section loading state */}
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
                     <div style={{
                       padding: '6px 12px', fontSize: 12, fontWeight: 500,
                       color: isAnalysing ? 'var(--gray-400)' : hasError ? 'var(--red)' : issues.length > 0 ? 'var(--orange)' : 'var(--green)',
@@ -463,7 +470,7 @@ export default function StepSectionAnalysis({
                     )}
 
                     {!isAnalysing && allIssues.length > 0 && (
-                      <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+                      <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 7, minHeight: 0, overflowY: 'auto' }}>
                         {allIssues.map((issue, j) => {
                           const dim = TYPE_TO_DIM[issue.issue_type] ?? 1
                           const sevColor = issue.severity === 'high' ? 'var(--red)' : issue.severity === 'medium' ? 'var(--orange)' : 'var(--blue)'
