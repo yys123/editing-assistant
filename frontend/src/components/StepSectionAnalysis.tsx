@@ -400,8 +400,7 @@ export default function StepSectionAnalysis({
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-                  minHeight: 560,
-                  maxHeight: 'calc(100vh - 240px)',
+                  height: 'clamp(420px, calc(100vh - 240px), 760px)',
                   minWidth: 0,
                 }}>
                   {/* Left: original content */}
@@ -450,155 +449,157 @@ export default function StepSectionAnalysis({
                       {isAnalysing ? '分析中…' : hasError ? '分析失败' : issues.length > 0 ? `发现问题（${issues.length} 项）` : '✓ 无问题'}
                     </div>
 
-                    {isAnalysing && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 16px', gap: 10, color: 'var(--gray-400)', fontSize: 13 }}>
-                        <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
-                        AI 正在审核此章节…
-                      </div>
-                    )}
+                    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                      {isAnalysing && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 16px', gap: 10, color: 'var(--gray-400)', fontSize: 13 }}>
+                          <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
+                          AI 正在审核此章节…
+                        </div>
+                      )}
 
-                    {hasError && (
-                      <div style={{ fontSize: 12, color: 'var(--red)', padding: '12px 14px' }}>
-                        {errors[group.representative.id]}
-                      </div>
-                    )}
+                      {hasError && (
+                        <div style={{ fontSize: 12, color: 'var(--red)', padding: '12px 14px' }}>
+                          {errors[group.representative.id]}
+                        </div>
+                      )}
 
-                    {!isAnalysing && !hasError && issues.length === 0 && (
-                      <div style={{ fontSize: 12, color: 'var(--gray-400)', padding: '16px 14px' }}>
-                        本章节未发现问题
-                      </div>
-                    )}
+                      {!isAnalysing && !hasError && issues.length === 0 && (
+                        <div style={{ fontSize: 12, color: 'var(--gray-400)', padding: '16px 14px' }}>
+                          本章节未发现问题
+                        </div>
+                      )}
 
-                    {!isAnalysing && allIssues.length > 0 && (
-                      <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 7, minHeight: 0, overflowY: 'auto' }}>
-                        {allIssues.map((issue, j) => {
-                          const dim = TYPE_TO_DIM[issue.issue_type] ?? 1
-                          const sevColor = issue.severity === 'high' ? 'var(--red)' : issue.severity === 'medium' ? 'var(--orange)' : 'var(--blue)'
-                          const sevBg = issue.severity === 'high' ? 'var(--red-light)' : issue.severity === 'medium' ? 'var(--orange-light)' : 'var(--blue-light)'
-                          const isRejected = issue.status === 'rejected'
-                          const isConfirmed = issue.status === 'confirmed'
-                          const isExpanded = expandedId === issue.id
-                          return (
-                            <div key={j} style={{
-                              background: isRejected ? 'var(--gray-50)' : 'white',
-                              border: isRejected
-                                ? '1px solid var(--gray-200)'
-                                : isConfirmed
-                                  ? '1px solid var(--green)'
-                                  : `0.5px solid ${issue.severity === 'high' ? 'var(--dui-danger)' : issue.severity === 'medium' ? 'var(--dui-warning)' : 'var(--dui-primary)'}`,
-                              borderRadius: 6, padding: '8px 10px',
-                              opacity: isRejected ? 0.5 : 1,
-                            }}>
-                              {/* Tags + actions row */}
-                              <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 5, flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: 12, fontWeight: 500, padding: '1px 6px', borderRadius: 3, background: isRejected ? 'var(--gray-100)' : sevBg, color: isRejected ? 'var(--gray-400)' : sevColor }}>
-                                  {issue.severity === 'high' ? '高优先' : issue.severity === 'medium' ? '中优先' : '低优先'}
-                                </span>
-                                <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: 'var(--gray-200)', color: 'var(--gray-600)' }}>
-                                  {ISSUE_TYPE_LABELS[issue.issue_type] ?? issue.issue_type}
-                                </span>
-                                <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: 'var(--gray-100)', color: 'var(--gray-500)' }}>
-                                  D{dim} {DIM_CONFIG[dim].label}
-                                </span>
-                                {(dim === 1) && (
-                                  <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: issue.is_key_content ? 'var(--dui-warning-container)' : 'var(--dui-surface-soft)', color: issue.is_key_content ? 'var(--dui-warning)' : 'var(--dui-text-sub)' }}>
-                                    {issue.is_key_content ? '重点内容' : '非重点内容'}
+                      {!isAnalysing && allIssues.length > 0 && (
+                        <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+                          {allIssues.map((issue, j) => {
+                            const dim = TYPE_TO_DIM[issue.issue_type] ?? 1
+                            const sevColor = issue.severity === 'high' ? 'var(--red)' : issue.severity === 'medium' ? 'var(--orange)' : 'var(--blue)'
+                            const sevBg = issue.severity === 'high' ? 'var(--red-light)' : issue.severity === 'medium' ? 'var(--orange-light)' : 'var(--blue-light)'
+                            const isRejected = issue.status === 'rejected'
+                            const isConfirmed = issue.status === 'confirmed'
+                            const isExpanded = expandedId === issue.id
+                            return (
+                              <div key={j} style={{
+                                background: isRejected ? 'var(--gray-50)' : 'white',
+                                border: isRejected
+                                  ? '1px solid var(--gray-200)'
+                                  : isConfirmed
+                                    ? '1px solid var(--green)'
+                                    : `0.5px solid ${issue.severity === 'high' ? 'var(--dui-danger)' : issue.severity === 'medium' ? 'var(--dui-warning)' : 'var(--dui-primary)'}`,
+                                borderRadius: 6, padding: '8px 10px',
+                                opacity: isRejected ? 0.5 : 1,
+                              }}>
+                                {/* Tags + actions row */}
+                                <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 5, flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: 12, fontWeight: 500, padding: '1px 6px', borderRadius: 3, background: isRejected ? 'var(--gray-100)' : sevBg, color: isRejected ? 'var(--gray-400)' : sevColor }}>
+                                    {issue.severity === 'high' ? '高优先' : issue.severity === 'medium' ? '中优先' : '低优先'}
                                   </span>
-                                )}
-                                {(dim === 2) && (
-                                  <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: issue.severity === 'high' ? 'var(--dui-warning-container)' : 'var(--dui-surface-soft)', color: issue.severity === 'high' ? 'var(--dui-warning)' : 'var(--dui-text-sub)' }}>
-                                    {issue.severity === 'high' ? '重点内容' : '非重点内容'}
+                                  <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: 'var(--gray-200)', color: 'var(--gray-600)' }}>
+                                    {ISSUE_TYPE_LABELS[issue.issue_type] ?? issue.issue_type}
                                   </span>
-                                )}
-                                {(issue.deduction_score ?? 0) > 0 && (
-                                  <span style={{ fontSize: 12, fontWeight: 500, color: isRejected ? 'var(--gray-400)' : 'var(--red)', marginLeft: 'auto' }}>
-                                    -{issue.deduction_score}分
+                                  <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: 'var(--gray-100)', color: 'var(--gray-500)' }}>
+                                    D{dim} {DIM_CONFIG[dim].label}
                                   </span>
-                                )}
-                                {/* Action buttons */}
-                                <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-                                  {isConfirmed && (
-                                    <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--green)', padding: '1px 6px' }}>✓ 已确认</span>
+                                  {(dim === 1) && (
+                                    <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: issue.is_key_content ? 'var(--dui-warning-container)' : 'var(--dui-surface-soft)', color: issue.is_key_content ? 'var(--dui-warning)' : 'var(--dui-text-sub)' }}>
+                                      {issue.is_key_content ? '重点内容' : '非重点内容'}
+                                    </span>
                                   )}
-                                  {!isRejected && !isConfirmed && (
-                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, background: 'var(--green-light)', color: 'var(--green)' }}
-                                      onClick={() => updateIssue(group.representative.id, issue.id, { status: 'confirmed' })}>
-                                      ✓ 确认
-                                    </button>
+                                  {(dim === 2) && (
+                                    <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: issue.severity === 'high' ? 'var(--dui-warning-container)' : 'var(--dui-surface-soft)', color: issue.severity === 'high' ? 'var(--dui-warning)' : 'var(--dui-text-sub)' }}>
+                                      {issue.severity === 'high' ? '重点内容' : '非重点内容'}
+                                    </span>
                                   )}
-                                  {isConfirmed && (
-                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12 }}
-                                      onClick={() => updateIssue(group.representative.id, issue.id, { status: 'ai' })}>
-                                      撤销
-                                    </button>
+                                  {(issue.deduction_score ?? 0) > 0 && (
+                                    <span style={{ fontSize: 12, fontWeight: 500, color: isRejected ? 'var(--gray-400)' : 'var(--red)', marginLeft: 'auto' }}>
+                                      -{issue.deduction_score}分
+                                    </span>
                                   )}
-                                  {!isRejected ? (
-                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, background: 'var(--red-light)', color: 'var(--red)' }}
-                                      onClick={() => updateIssue(group.representative.id, issue.id, { status: 'rejected' })}>
-                                      ✕ 排除
+                                  {/* Action buttons */}
+                                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                                    {isConfirmed && (
+                                      <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--green)', padding: '1px 6px' }}>✓ 已确认</span>
+                                    )}
+                                    {!isRejected && !isConfirmed && (
+                                      <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, background: 'var(--green-light)', color: 'var(--green)' }}
+                                        onClick={() => updateIssue(group.representative.id, issue.id, { status: 'confirmed' })}>
+                                        ✓ 确认
+                                      </button>
+                                    )}
+                                    {isConfirmed && (
+                                      <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12 }}
+                                        onClick={() => updateIssue(group.representative.id, issue.id, { status: 'ai' })}>
+                                        撤销
+                                      </button>
+                                    )}
+                                    {!isRejected ? (
+                                      <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, background: 'var(--red-light)', color: 'var(--red)' }}
+                                        onClick={() => updateIssue(group.representative.id, issue.id, { status: 'rejected' })}>
+                                        ✕ 排除
+                                      </button>
+                                    ) : (
+                                      <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, background: 'var(--gray-100)', color: 'var(--gray-500)' }}
+                                        onClick={() => updateIssue(group.representative.id, issue.id, { status: 'ai' })}>
+                                        恢复
+                                      </button>
+                                    )}
+                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, color: 'var(--blue)' }}
+                                      onClick={() => setExpandedId(isExpanded ? null : issue.id)}>
+                                      {isExpanded ? '收起' : '编辑'}
                                     </button>
-                                  ) : (
-                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, background: 'var(--gray-100)', color: 'var(--gray-500)' }}
-                                      onClick={() => updateIssue(group.representative.id, issue.id, { status: 'ai' })}>
-                                      恢复
-                                    </button>
-                                  )}
-                                  <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, color: 'var(--blue)' }}
-                                    onClick={() => setExpandedId(isExpanded ? null : issue.id)}>
-                                    {isExpanded ? '收起' : '编辑'}
-                                  </button>
+                                  </div>
                                 </div>
+                                {/* Description — editable when expanded, read-only otherwise */}
+                                {isExpanded ? (
+                                  <textarea
+                                    className="textarea"
+                                    value={issue.description}
+                                    onChange={e => updateIssue(group.representative.id, issue.id, { description: e.target.value })}
+                                    style={{ minHeight: 56, fontSize: 12, marginTop: 2, marginBottom: 4 }}
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <div style={{ fontSize: 12, color: isRejected ? 'var(--gray-400)' : 'var(--gray-800)', lineHeight: 1.7,
+                                    textDecoration: isRejected ? 'line-through' : 'none' }}>
+                                    {issue.description}
+                                  </div>
+                                )}
+                                {/* Examples */}
+                                {!isExpanded && issue.examples && issue.examples.length > 0 && (
+                                  <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                    {issue.examples.map((ex, ei) => (
+                                      <div key={ei} style={{
+                                        fontSize: 12, color: 'var(--gray-600)', lineHeight: 1.6,
+                                        background: 'var(--gray-50)', borderRadius: 3, padding: '3px 7px',
+                                        borderLeft: `2px solid ${isRejected ? 'var(--gray-300)' : sevColor}`,
+                                      }}>
+                                        {ex}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                              {/* Description — editable when expanded, read-only otherwise */}
-                              {isExpanded ? (
-                                <textarea
-                                  className="textarea"
-                                  value={issue.description}
-                                  onChange={e => updateIssue(group.representative.id, issue.id, { description: e.target.value })}
-                                  style={{ minHeight: 56, fontSize: 12, marginTop: 2, marginBottom: 4 }}
-                                  autoFocus
-                                />
-                              ) : (
-                                <div style={{ fontSize: 12, color: isRejected ? 'var(--gray-400)' : 'var(--gray-800)', lineHeight: 1.7,
-                                  textDecoration: isRejected ? 'line-through' : 'none' }}>
-                                  {issue.description}
-                                </div>
-                              )}
-                              {/* Examples */}
-                              {!isExpanded && issue.examples && issue.examples.length > 0 && (
-                                <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                  {issue.examples.map((ex, ei) => (
-                                    <div key={ei} style={{
-                                      fontSize: 12, color: 'var(--gray-600)', lineHeight: 1.6,
-                                      background: 'var(--gray-50)', borderRadius: 3, padding: '3px 7px',
-                                      borderLeft: `2px solid ${isRejected ? 'var(--gray-300)' : sevColor}`,
-                                    }}>
-                                      {ex}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
+                            )
+                          })}
+                        </div>
+                      )}
 
-                    {!isAnalysing && analysis?.verification_summary && (
-                      <div style={{
-                        margin: '0 10px 8px',
-                        padding: '6px 10px',
-                        background: 'var(--blue-light)',
-                        borderRadius: 4,
-                        fontSize: 12,
-                        color: 'var(--gray-600)',
-                        lineHeight: 1.7,
-                        borderLeft: '3px solid var(--dui-primary)',
-                      }}>
-                        <span style={{ fontWeight: 500, color: 'var(--blue)' }}>二次核验：</span>
-                        {analysis.verification_summary}
-                      </div>
-                    )}
+                      {!isAnalysing && analysis?.verification_summary && (
+                        <div style={{
+                          margin: '0 10px 8px',
+                          padding: '6px 10px',
+                          background: 'var(--blue-light)',
+                          borderRadius: 4,
+                          fontSize: 12,
+                          color: 'var(--gray-600)',
+                          lineHeight: 1.7,
+                          borderLeft: '3px solid var(--dui-primary)',
+                        }}>
+                          <span style={{ fontWeight: 500, color: 'var(--blue)' }}>二次核验：</span>
+                          {analysis.verification_summary}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
