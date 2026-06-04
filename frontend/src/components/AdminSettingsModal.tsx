@@ -125,8 +125,8 @@ export default function AdminSettingsModal({ onClose }: Props) {
 
   return (
     <div className="modal-overlay">
-      <div className="modal-card" style={{ maxWidth: 720 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div className="modal-card" style={{ maxWidth: 720, maxHeight: 'calc(100vh - 32px)', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px', borderBottom: '1px solid var(--m3-outline-variant)', flexShrink: 0 }}>
           <div>
             <h3 style={{ fontSize: 16, fontWeight: 500, color: 'var(--m3-on-surface)', margin: 0 }}>管理员模型设置</h3>
             <div style={{ marginTop: 6, fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
@@ -139,12 +139,13 @@ export default function AdminSettingsModal({ onClose }: Props) {
         </div>
 
         {loading ? (
-          <div style={{ padding: '32px 0', textAlign: 'center' }}>
+          <div style={{ padding: '32px 0', textAlign: 'center', overflowY: 'auto' }}>
             <div className="spinner" style={{ margin: '0 auto' }} />
           </div>
         ) : (
-          <form onSubmit={handleSave}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{ padding: '18px 24px 20px', overflowY: 'auto', minHeight: 0 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 14 }}>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>作用域</label>
                 <select className="m3-input" value={config.scope} onChange={e => setField('scope', e.target.value as Scope)}>
@@ -205,16 +206,6 @@ export default function AdminSettingsModal({ onClose }: Props) {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button type="button" className="btn-m3-outline" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>
-                关闭
-              </button>
-              <button type="submit" className="btn-gradient" style={{ flex: 1, justifyContent: 'center' }} disabled={saving}>
-                {saving && <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />}
-                保存设置
-              </button>
-            </div>
-
             <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--m3-outline-variant)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <h4 style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--m3-on-surface)' }}>AI 调用统计</h4>
@@ -223,7 +214,7 @@ export default function AdminSettingsModal({ onClose }: Props) {
                 </button>
               </div>
               {aiSummary && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginBottom: 12 }}>
                   <div style={{ padding: 10, borderRadius: 8, background: 'var(--m3-surface-container-low)' }}>
                     <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>调用次数</div>
                     <div style={{ fontSize: 16, fontWeight: 600 }}>{aiSummary.calls ?? 0}</div>
@@ -243,7 +234,7 @@ export default function AdminSettingsModal({ onClose }: Props) {
                 </div>
               )}
               <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid var(--m3-outline-variant)', borderRadius: 10 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <table style={{ minWidth: 680, width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
                     <tr style={{ background: 'var(--m3-surface-container-low)' }}>
                       <th style={{ textAlign: 'left', padding: 8 }}>时间</th>
@@ -274,6 +265,16 @@ export default function AdminSettingsModal({ onClose }: Props) {
                   </tbody>
                 </table>
               </div>
+            </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, padding: '14px 24px 18px', borderTop: '1px solid var(--m3-outline-variant)', background: 'var(--m3-surface)', flexShrink: 0 }}>
+              <button type="button" className="btn-m3-outline" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>
+                关闭
+              </button>
+              <button type="submit" className="btn-gradient" style={{ flex: 1, justifyContent: 'center' }} disabled={saving}>
+                {saving && <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />}
+                保存设置
+              </button>
             </div>
           </form>
         )}
