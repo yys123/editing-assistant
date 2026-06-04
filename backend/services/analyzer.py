@@ -15,6 +15,7 @@ SYSTEM_PROMPT = "你是一位资深临床医学编辑，专注于面向临床医
 CHUNK_SIZE = 12000       # 每块上限（字符），留足 prompt 固定开销
 CHUNK_OVERLAP = 300      # 相邻块重叠字符数，避免跨块问题漏报
 CHUNK_THRESHOLD = 15000  # 触发分块的章节长度阈值
+REFERENCE_BATCH_MAX_CHARS = 80000  # 参考资料优先全文提供；超长时按批次完整覆盖
 
 
 def _parse_issues(items: list) -> List[IssueItem]:
@@ -402,45 +403,122 @@ def _extract_relevant_reference_chunks(
 
 
 def _build_reference_block(reference_texts: List[str], section_heading: str, section_content: str) -> str:
-    if not reference_texts:
-        return ""
-    blocks = [
-        f"### 参考数据源 {ref_idx}\n{text.strip()}"
-        for ref_idx, text in _extract_relevant_reference_chunks(reference_texts, section_heading, section_content)
+    return "\n".join(_build_reference_blocks(reference_texts))
+
+
+def _split_reference_for_batches(text: str, max_chars: int) -> List[str]:
+    text = text.strip()
+    if not text:
+        return []
+    if len(text) <= max_chars:
+        return [text]
+
+    chunks: List[str] = []
+    buf = ""
+    for paragraph in re.split(r"\n{2,}", text):
+        paragraph = paragraph.strip()
+        if not paragraph:
+            continue
+        if len(paragraph) > max_chars:
+            if buf:
+                chunks.append(buf)
+                buf = ""
+            for start in range(0, len(paragraph), max_chars):
+                chunks.append(paragraph[start:start + max_chars])
+            continue
+        if buf and len(buf) + len(paragraph) + 2 > max_chars:
+            chunks.append(buf)
+            buf = paragraph
+        else:
+            buf = f"{buf}\n\n{paragraph}".strip() if buf else paragraph
+    if buf:
+        chunks.append(buf)
+    return chunks
+
+
+def _build_reference_blocks(
+    reference_texts: List[str],
+    max_total_chars: int = REFERENCE_BATCH_MAX_CHARS,
+) -> List[str]:
+    """Build full-reference prompt blocks, batching only when context is too large.
+
+    Unlike the previous keyword selector, this preserves every non-empty reference
+    source. Large sources are split in source order so each character is offered to
+    the model in one of the batches.
+    """
+    labeled_blocks: List[str] = []
+    for ref_idx, text in enumerate(reference_texts, 1):
+        clean = text.strip()
+        if not clean:
+            continue
+        max_chunk_chars = max(1000, max_total_chars - 1200)
+        chunks = _split_reference_for_batches(clean, max_chunk_chars)
+        for chunk_idx, chunk in enumerate(chunks, 1):
+            suffix = f"（第 {chunk_idx}/{len(chunks)} 段）" if len(chunks) > 1 else ""
+            labeled_blocks.append(f"### 参考数据源 {ref_idx}{suffix}\n{chunk}")
+
+    if not labeled_blocks:
+        return []
+
+    batches: List[List[str]] = []
+    current: List[str] = []
+    current_len = 0
+    separator_len = len("\n---\n")
+    for block in labeled_blocks:
+        next_len = len(block) + (separator_len if current else 0)
+        if current and current_len + next_len > max_total_chars:
+            batches.append(current)
+            current = [block]
+            current_len = len(block)
+        else:
+            current.append(block)
+            current_len += next_len
+    if current:
+        batches.append(current)
+
+    total_batches = len(batches)
+    return [
+        f"\n\n## 参考数据源全文（第 {idx}/{total_batches} 批）\n" + "\n---\n".join(batch)
+        for idx, batch in enumerate(batches, 1)
     ]
-    if not blocks:
+
+
+def _reference_batch_note(batch_idx: int, total_batches: int) -> str:
+    if total_batches <= 1:
         return ""
-    return "\n\n## 参考数据源相关片段\n" + "\n---\n".join(blocks)
+    return (
+        f"（注：以下参考数据源为第{batch_idx}/{total_batches}批。"
+        "请基于当前批次能直接支持的证据报告问题；不要因为其他批次未出现在本次 prompt 中，"
+        "就判定内容缺失、内容陈旧或数据源缺失。系统会汇总所有批次结果。）"
+    )
 
 
-async def _analyze_section_chunk(
+async def _analyze_section_with_reference_block(
     disease: str,
-    chunk_section: ArticleSection,
-    chunk_idx: int,
-    total_chunks: int,
+    section: ArticleSection,
     quality_standard: str,
     content_spec: str,
-    reference_texts: List[str],
+    ref_block: str,
     article_outline: Optional[List[str]],
+    context: str,
+    chunk_note: str = "",
+    batch_note: str = "",
 ) -> List[SectionIssue]:
-    """Analyze one chunk of a section. Returns raw issues without verification."""
-    ref_block = _build_reference_block(reference_texts, chunk_section.heading, chunk_section.content)
-
     outline_block = ""
     if article_outline:
         outline_block = "\n\n## ⚠️ 完整词条章节大纲（重要）\n" + "\n".join(
             f"- {h}" for h in article_outline
         ) + "\n\n**关键规则：评估「内容缺失」时，必须先核查以上章节大纲。若某内容在其他章节中已有对应标题（如「定义」「鉴别诊断」「诊断」「治疗」等），则不得在本章节标记为缺失——该内容属于其他章节的职责范围，本章节无需重复。只报告本章节自身范围内真实存在的问题。**"
 
-    chunk_note = f"（注：以下为该章节第{chunk_idx}/{total_chunks}段内容，请仅分析此段中实际存在的问题）"
+    notes = "".join(note for note in (chunk_note, batch_note) if note)
 
-    prompt = f"""请对【{disease}】知识库词条的以下章节进行质量分析。{chunk_note}章节内容已包含其下级子章节的内容，请综合考虑整体。
+    prompt = f"""请对【{disease}】知识库词条的以下章节进行质量分析。{notes}章节内容已包含其下级子章节的内容，请综合考虑整体。
 
 ## 章节标题
-{chunk_section.heading}
+{section.heading}
 
 ## 章节内容（含子章节）
-{chunk_section.content}
+{section.content[:15000]}
 {outline_block}
 ## 内容质量审评标准
 {quality_standard[:3000]}
@@ -487,7 +565,7 @@ is_key_content说明（仅missing_content类型有效）：
 
 若无问题，输出 {{"issues": []}}"""
 
-    text = await generate_text(prompt, SYSTEM_PROMPT, context="section_chunk_analysis")
+    text = await generate_text(prompt, SYSTEM_PROMPT, context=context)
     data = extract_json(text)
 
     issues = []
@@ -503,6 +581,35 @@ is_key_content说明（仅missing_content类型有效）：
             is_key_content=bool(item.get("is_key_content", False)),
         ))
     return issues
+
+
+async def _analyze_section_chunk(
+    disease: str,
+    chunk_section: ArticleSection,
+    chunk_idx: int,
+    total_chunks: int,
+    quality_standard: str,
+    content_spec: str,
+    reference_texts: List[str],
+    article_outline: Optional[List[str]],
+) -> List[SectionIssue]:
+    """Analyze one chunk of a section. Returns raw issues without verification."""
+    chunk_note = f"（注：以下为该章节第{chunk_idx}/{total_chunks}段内容，请仅分析此段中实际存在的问题）"
+    reference_blocks = _build_reference_blocks(reference_texts) or [""]
+    all_issues: List[SectionIssue] = []
+    for batch_idx, ref_block in enumerate(reference_blocks, 1):
+        all_issues.extend(await _analyze_section_with_reference_block(
+            disease, chunk_section, quality_standard, content_spec, ref_block,
+            article_outline, context="section_chunk_analysis", chunk_note=chunk_note,
+            batch_note=_reference_batch_note(batch_idx, len(reference_blocks)),
+        ))
+
+    if len(reference_blocks) > 1:
+        merged_issues, _summary = await _merge_chunk_issues(
+            disease, f"{chunk_section.heading} 第{chunk_idx}段", all_issues,
+        )
+        return merged_issues
+    return all_issues
 
 
 async def _merge_chunk_issues(
@@ -621,82 +728,19 @@ async def analyze_section(
             verification_summary=summary,
         )
 
-    ref_block = _build_reference_block(reference_texts, section.heading, section.content)
-
-    outline_block = ""
-    if article_outline:
-        outline_block = "\n\n## ⚠️ 完整词条章节大纲（重要）\n" + "\n".join(
-            f"- {h}" for h in article_outline
-        ) + "\n\n**关键规则：评估「内容缺失」时，必须先核查以上章节大纲。若某内容在其他章节中已有对应标题（如「定义」「鉴别诊断」「诊断」「治疗」等），则不得在本章节标记为缺失——该内容属于其他章节的职责范围，本章节无需重复。只报告本章节自身范围内真实存在的问题。**"
-
-    prompt = f"""请对【{disease}】知识库词条的以下章节进行质量分析。章节内容已包含其下级子章节的内容，请综合考虑整体。
-
-## 章节标题
-{section.heading}
-
-## 章节内容（含子章节）
-{section.content[:15000]}
-{outline_block}
-## 内容质量审评标准
-{quality_standard[:3000]}
-
-## 内容要求规范
-{content_spec[:2000]}
-{ref_block}
-
-请从以下五类问题角度分析该章节存在的质量问题，以JSON格式输出：
-{{
-  "issues": [
-    {{
-      "issue_type": "missing_content",
-      "description": "具体缺失的内容描述",
-      "severity": "high",
-      "examples": ["具体体现或原文片段"],
-      "deduction_score": 5.0,
-      "is_key_content": true
-    }}
-  ]
-}}
-
-issue_type取值（对应审评维度）：
-- missing_content: 【维度一·内容全面】内容缺失（重点/非重点内容缺失、数据源缺失）
-- accuracy: 【维度二·内容准确】内容不准确或有误（内容错误、内容不合理）
-- outdated: 【维度二·内容准确】内容陈旧（未更新至最新指南）
-- structure: 【维度三·结构合理】结构/逻辑问题（临床思维顺序、整合逻辑）
-- style: 【维度四·内容精炼流畅】语言/格式/重复问题
-
-severity取值：high/medium/low
-
-deduction_score扣分参考（浮点数，实际扣分值，不做万字换算）：
-- missing_content重点内容：1-5分（重大缺失如完全没有诊断/治疗内容5分；影响临床使用3分；一般缺失1分）；is_key_content=true；合格线重点<8/万字，优秀<4/万字
-- missing_content非重点内容：1分；is_key_content=false；数据源缺失每缺1篇扣1分；合格线累积<15/万字，优秀<8/万字
-- accuracy内容错误（文本性错误影响句意如药物剂量误写）：1分；内容合理性问题（判定标准：是否影响用户理解、是否符合临床思维，文献不一致时保留内容应自洽清楚）——多源融合混乱：3分；分型未说明特点/优缺点：1分；剂量差异/特殊用法未列举：1分；表格文字冗余重叠：2分；severity=high对应重点内容准确性问题；合格线重点<8/万字，累积<15/万字
-- outdated内容陈旧：1分；severity=high对应重点内容陈旧；合格线同accuracy
-- structure临床思维大问题（章节严重错位/分类字段放错）：3分；小结构调整：1分；合格线累积<15/万字，优秀<5/万字（结构标准严格）
-  ⚠️ 结构评估重要原则：内容要求规范中列出的子级目录是「参考框架」，并非每个子级都强制要求。判断某子级目录是否应存在，须以内容的实际需要为准——若该章节的参考资料本身不含相关内容，或内容量极少不足以独立成节，则缺少该子级目录不属于结构问题，不得扣分。只有当内容已存在但放错了位置（如临床思维顺序颠倒、分类字段放错），或目录层级逻辑明显混乱时，才应标记为structure问题。例如：「预后」章节中「长期/短期监测」「随访」并非必须，若原始内容本身无此类内容，则无需标记缺失。
-- style同类问题每处0.5分（英文缩写格式/标题问题/专有名词不统一/重复文本/机翻/"本指南"等）；合格线累积<20/万字，优秀<10/万字
-
-is_key_content说明（仅missing_content类型有效）：
-- 重点内容包括：定义/概述、典型临床表现、主要辅助检查、诊断标准/诊断、治疗
-- 属于重点内容缺失则设为true，否则false（非重点内容、数据源缺失均设false）
-
-若无问题，输出 {{"issues": []}}"""
-
-    text = await generate_text(prompt, SYSTEM_PROMPT, context="section_analysis")
-    data = extract_json(text)
-
-    issues = []
-    for item in data.get("issues", []):
-        if not isinstance(item, dict):
-            continue
-        issues.append(SectionIssue(
-            issue_type=item.get("issue_type", "missing_content"),
-            description=item.get("description", ""),
-            severity=item.get("severity", "medium"),
-            examples=item.get("examples", []),
-            deduction_score=float(item.get("deduction_score", 1.0)),
-            is_key_content=bool(item.get("is_key_content", False)),
+    reference_blocks = _build_reference_blocks(reference_texts) or [""]
+    issues: List[SectionIssue] = []
+    for batch_idx, ref_block in enumerate(reference_blocks, 1):
+        issues.extend(await _analyze_section_with_reference_block(
+            disease, section, quality_standard, content_spec, ref_block, article_outline,
+            context="section_analysis",
+            batch_note=_reference_batch_note(batch_idx, len(reference_blocks)),
         ))
+
+    if len(reference_blocks) > 1:
+        issues, _merge_summary = await _merge_chunk_issues(
+            disease, section.heading, issues,
+        )
 
     # Second pass: verify and refine the first-pass issues
     verified_issues, verification_summary = await _verify_section_issues(
