@@ -12,10 +12,13 @@ from services.utils import extract_json
 
 SYSTEM_PROMPT = "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
 
-CHUNK_SIZE = 12000       # 每块上限（字符），留足 prompt 固定开销
-CHUNK_OVERLAP = 300      # 相邻块重叠字符数，避免跨块问题漏报
-CHUNK_THRESHOLD = 15000  # 触发分块的章节长度阈值
-REFERENCE_BATCH_MAX_CHARS = 80000  # 参考资料优先全文提供；超长时按批次完整覆盖
+CHUNK_SIZE = 100000       # 每块上限（字符），DeepSeek 长上下文下尽量保持章节完整
+CHUNK_OVERLAP = 1000      # 相邻块重叠字符数，避免跨块问题漏报
+CHUNK_THRESHOLD = 120000  # 触发分块的章节长度阈值
+REFERENCE_BATCH_MAX_CHARS = 300000  # 参考资料优先全文提供；超长时按批次完整覆盖
+SECTION_PROMPT_MAX_CHARS = 120000
+QUALITY_STANDARD_MAX_CHARS = 10000
+CONTENT_SPEC_MAX_CHARS = 8000
 
 
 def _parse_issues(items: list) -> List[IssueItem]:
@@ -243,16 +246,16 @@ async def _verify_section_issues(
     prompt = f"""请对【{disease}】知识库词条「{section.heading}」章节的质量分析结果进行二次校验与优化。
 
 ## 章节原文内容
-{section.content[:15000]}
+{section.content[:SECTION_PROMPT_MAX_CHARS]}
 
 ## 第一次分析识别到的问题（共{len(first_pass_issues)}项）
 {issues_text}
 
 ## 内容质量审评标准
-{quality_standard[:2000]}
+{quality_standard[:QUALITY_STANDARD_MAX_CHARS]}
 
 ## 内容要求规范
-{content_spec[:1500]}
+{content_spec[:CONTENT_SPEC_MAX_CHARS]}
 
 请对上述每个问题逐一核查：
 1. **核实**：对照章节原文，确认该问题是否真实存在，有无被原文实际内容覆盖
@@ -518,13 +521,13 @@ async def _analyze_section_with_reference_block(
 {section.heading}
 
 ## 章节内容（含子章节）
-{section.content[:15000]}
+{section.content[:SECTION_PROMPT_MAX_CHARS]}
 {outline_block}
 ## 内容质量审评标准
-{quality_standard[:3000]}
+{quality_standard[:QUALITY_STANDARD_MAX_CHARS]}
 
 ## 内容要求规范
-{content_spec[:2000]}
+{content_spec[:CONTENT_SPEC_MAX_CHARS]}
 {ref_block}
 
 请从以下五类问题角度分析该章节存在的质量问题，以JSON格式输出：
@@ -964,7 +967,7 @@ async def _analyze_needs_gap_single(
     prompt = f"""请分析【{disease}】词条「{section.heading}」章节对以下用户需求的覆盖情况。
 
 ## 章节内容
-{chunk_note}{section.content[:15000]}
+{chunk_note}{section.content[:SECTION_PROMPT_MAX_CHARS]}
 
 ## 需要评估的用户需求（共{len(mapped_clusters)}类）
 {clusters_text}
