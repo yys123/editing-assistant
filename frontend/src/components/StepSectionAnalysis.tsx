@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { ArticleSection, ParsedArticle, SectionAnalysis, SectionIssue, ReferenceDoc, StandardsOverride } from '../types'
 import { apiFetch } from '../api'
 
@@ -163,6 +163,7 @@ export default function StepSectionAnalysis({
   const [errors, setErrors] = useState<Record<string, string>>({})
   // Accumulates results as parallel analyses complete
   const resultsRef = React.useRef<SectionAnalysis[]>([])
+  resultsRef.current = sectionAnalyses
 
   // Manual review state
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -248,14 +249,15 @@ export default function StepSectionAnalysis({
     }
   }
 
-  const retryGroup = async (groupId: string) => {
+  const analyzeSingleGroup = async (groupId: string) => {
     const group = groups.find(g => g.representative.id === groupId)
     if (!group) return
     setErrors(prev => { const n = { ...prev }; delete n[groupId]; return n })
     setAnalysing(prev => ({ ...prev, [groupId]: true }))
     try {
       const result = await analyzeGroup(group)
-      setSectionAnalyses(sectionAnalyses.map(a => a.section_id === groupId ? result : a))
+      resultsRef.current = [...resultsRef.current.filter(a => a.section_id !== groupId), result]
+      setSectionAnalyses([...resultsRef.current])
     } catch (e: any) {
       setErrors(prev => ({ ...prev, [groupId]: e.message }))
     } finally {
@@ -263,14 +265,11 @@ export default function StepSectionAnalysis({
     }
   }
 
-  useEffect(() => {
-    if (sectionAnalyses.length === 0) runAll()
-  }, [])
-
   const anyAnalysing = Object.keys(analysing).length > 0
-  const doneCount = groups.length - Object.keys(analysing).length
+  const analysedCount = groups.filter(g => sectionAnalyses.some(a => a.section_id === g.representative.id)).length
   const totalIssues = sectionAnalyses.reduce((acc, a) => acc + a.issues.filter(i => i.status !== 'rejected').length, 0)
   const failedCount = Object.keys(errors).length
+  const isComplete = analysedCount >= groups.length && groups.length > 0 && !anyAnalysing && failedCount === 0
 
   const dimStats = computeDimStats(sectionAnalyses)
 
@@ -292,6 +291,9 @@ export default function StepSectionAnalysis({
         <p style={{ fontSize: 14, color: 'var(--m3-on-surface-variant)' }}>
           AI 逐章节审核内容质量，识别问题并给出改进建议
         </p>
+        <p style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)', marginTop: 6 }}>
+          进入本页不会自动调用 AI。请选择需要审评的章节，点击“开始分析”后才会运行。
+        </p>
       </div>
 
       {/* Control bar */}
@@ -300,25 +302,37 @@ export default function StepSectionAnalysis({
           {anyAnalysing ? (
             <>
               <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-              <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)' }}>正在并行分析…</span>
+              <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)' }}>正在分析已选择章节…</span>
               <span style={{ color: 'var(--m3-on-surface-variant)', fontSize: 13 }}>
-                {doneCount} / {groups.length} 个章节组完成
+                已完成 {analysedCount} / {groups.length} 个章节组
               </span>
             </>
-          ) : (
+          ) : isComplete ? (
             <>
               <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)' }}>内容质量审评完成</span>
               <span style={{ color: 'var(--m3-tertiary)' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 4 }}>check_circle</span>
-                {groups.length} 个章节组已分析
+                {analysedCount} / {groups.length} 个章节组已分析
+              </span>
+            </>
+          ) : (
+            <>
+              <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)' }}>请选择章节开始内容质量审评</span>
+              <span style={{ color: 'var(--m3-tertiary)' }}>
+                已分析 {analysedCount} / {groups.length} 个章节组
               </span>
             </>
           )}
           {totalIssues > 0 && <span style={{ color: 'var(--dui-warning)' }}>共发现 {totalIssues} 个问题</span>}
           {failedCount > 0 && <span style={{ color: 'var(--m3-error)' }}>{failedCount} 个章节失败</span>}
-          <button className="btn-m3-outline" style={{ marginLeft: 'auto', fontSize: 12, padding: '5px 14px' }} onClick={runAll}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>refresh</span>
-            重新分析全部
+          <button
+            className="btn-m3-outline"
+            style={{ marginLeft: 'auto', fontSize: 12, padding: '5px 14px' }}
+            onClick={runAll}
+            disabled={anyAnalysing}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>play_arrow</span>
+            {analysedCount > 0 ? '重新分析全部' : '分析全部'}
           </button>
         </div>
       </div>
@@ -331,6 +345,7 @@ export default function StepSectionAnalysis({
         {groups.map((group, i) => {
           const analysis = sectionAnalyses.find(a => a.section_id === group.representative.id)
           const hasError = !!errors[group.representative.id]
+          const hasAnalysis = !!analysis
           const allIssues = analysis?.issues ?? []
           const issues = allIssues.filter(issue => issue.status !== 'rejected')
           const totalChars = group.combinedContent.length
@@ -342,7 +357,7 @@ export default function StepSectionAnalysis({
 
           // Always show split view (original content always visible);
           // right panel shows spinner while analysing, issues when done
-          const showSplit = isAnalysing || allIssues.length > 0 || hasError
+          const showSplit = isAnalysing || hasAnalysis || hasError
 
           return (
             <div key={group.representative.id} style={{
@@ -375,7 +390,7 @@ export default function StepSectionAnalysis({
                     <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>分析中…</span>
                   </div>
                 )}
-                {!isAnalysing && !hasError && (
+                {!isAnalysing && !hasError && hasAnalysis && (
                   <span style={{
                     fontSize: 12, fontWeight: 500,
                     color: issues.length > 0 ? 'var(--orange)' : 'var(--green)',
@@ -383,13 +398,28 @@ export default function StepSectionAnalysis({
                     {issues.length > 0 ? `${issues.length} 个问题` : '✓ 无问题'}
                   </span>
                 )}
+                {!isAnalysing && !hasError && !hasAnalysis && (
+                  <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>未分析</span>
+                )}
+                {!isAnalysing && !hasError && (
+                  <button
+                    className="btn-m3-outline"
+                    style={{ padding: '4px 10px', fontSize: 12 }}
+                    onClick={() => analyzeSingleGroup(group.representative.id)}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
+                      {hasAnalysis ? 'refresh' : 'play_arrow'}
+                    </span>
+                    {hasAnalysis ? '重新分析' : '开始分析'}
+                  </button>
+                )}
                 {hasError && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 12, color: 'var(--red)' }}>分析失败</span>
                     <button
                       className="btn btn-sm"
                       style={{ padding: '2px 8px', color: 'var(--blue)' }}
-                      onClick={() => retryGroup(group.representative.id)}
+                      onClick={() => analyzeSingleGroup(group.representative.id)}
                     >重试</button>
                   </div>
                 )}
@@ -609,7 +639,7 @@ export default function StepSectionAnalysis({
       </div>
 
       {/* Quality Verdict Panel */}
-      {(() => {
+      {sectionAnalyses.length > 0 && (() => {
         const p10k = (v: number) =>
           parsedArticle.total_words > 0 ? v / parsedArticle.total_words * 10000 : v
 
@@ -676,7 +706,7 @@ export default function StepSectionAnalysis({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 18, verticalAlign: -4, marginRight: 6 }}>analytics</span>
-                审评结论
+                审评结论（基于已分析章节）
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>
