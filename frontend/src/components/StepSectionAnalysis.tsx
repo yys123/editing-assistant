@@ -7,6 +7,8 @@ interface Props {
   parsedArticle: ParsedArticle
   sectionAnalyses: SectionAnalysis[]
   setSectionAnalyses: (analyses: SectionAnalysis[]) => void
+  sectionReferenceSelections: Record<string, string[]>
+  setSectionReferenceSelections: React.Dispatch<React.SetStateAction<Record<string, string[]>>>
   referenceDocs: ReferenceDoc[]
   standardsOverride: StandardsOverride
 }
@@ -156,6 +158,7 @@ const RATING_CONFIG: Record<Rating, { label: string; color: string; bg: string }
 
 export default function StepSectionAnalysis({
   disease, parsedArticle, sectionAnalyses, setSectionAnalyses,
+  sectionReferenceSelections, setSectionReferenceSelections,
   referenceDocs, standardsOverride
 }: Props) {
   // Per-section loading/error state; analysing=true means in-flight
@@ -177,8 +180,30 @@ export default function StepSectionAnalysis({
     ))
   }
 
-  const referenceTexts = referenceDocs.map(d => d.text)
   const groups = useMemo(() => buildAnalysisGroups(parsedArticle.sections), [parsedArticle.sections])
+
+  const getSelectedReferenceNames = (groupId: string) => sectionReferenceSelections[groupId] ?? []
+  const getSelectedReferenceDocs = (groupId: string) => {
+    const selected = new Set(getSelectedReferenceNames(groupId))
+    return referenceDocs.filter(d => selected.has(d.filename))
+  }
+  const setGroupReferenceNames = (groupId: string, names: string[]) => {
+    setSectionReferenceSelections(prev => {
+      const next = { ...prev }
+      if (names.length === 0) {
+        delete next[groupId]
+      } else {
+        next[groupId] = names
+      }
+      return next
+    })
+  }
+  const toggleGroupReference = (groupId: string, filename: string) => {
+    const selected = new Set(getSelectedReferenceNames(groupId))
+    if (selected.has(filename)) selected.delete(filename)
+    else selected.add(filename)
+    setGroupReferenceNames(groupId, Array.from(selected))
+  }
 
   const analyzeGroup = async (group: AnalysisGroup): Promise<SectionAnalysis> => {
     const mergedSection: ArticleSection = {
@@ -186,6 +211,7 @@ export default function StepSectionAnalysis({
       content: group.combinedContent,
       word_count: group.combinedContent.length,
     }
+    const referenceTexts = getSelectedReferenceDocs(group.representative.id).map(d => d.text)
     const res = await apiFetch('/api/analyze/section', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -350,6 +376,8 @@ export default function StepSectionAnalysis({
           const issues = allIssues.filter(issue => issue.status !== 'rejected')
           const totalChars = group.combinedContent.length
           const childCount = group.childSections.length
+          const selectedRefNames = getSelectedReferenceNames(group.representative.id)
+          const selectedRefCount = getSelectedReferenceDocs(group.representative.id).length
 
           const isAnalysing = !!analysing[group.representative.id]
           const headerBg = isAnalysing ? 'var(--gray-50)' : issues.length > 0 ? 'var(--orange-light)' : 'var(--gray-50)'
@@ -390,6 +418,15 @@ export default function StepSectionAnalysis({
                     <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>分析中…</span>
                   </div>
                 )}
+                <span style={{
+                  fontSize: 12,
+                  color: selectedRefCount > 0 ? 'var(--m3-primary)' : 'var(--gray-500)',
+                  background: 'var(--m3-surface-container-low)',
+                  borderRadius: 999,
+                  padding: '2px 8px',
+                }}>
+                  参考文献 {selectedRefCount}/{referenceDocs.length}
+                </span>
                 {!isAnalysing && !hasError && hasAnalysis && (
                   <span style={{
                     fontSize: 12, fontWeight: 500,
@@ -421,6 +458,100 @@ export default function StepSectionAnalysis({
                       style={{ padding: '2px 8px', color: 'var(--blue)' }}
                       onClick={() => analyzeSingleGroup(group.representative.id)}
                     >重试</button>
+                  </div>
+                )}
+              </div>
+
+              <div style={{
+                padding: '10px 14px 12px',
+                borderBottom: showSplit ? '1px solid var(--gray-200)' : 'none',
+                background: 'var(--m3-surface-container-lowest)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: referenceDocs.length > 0 ? 8 : 0, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--m3-on-surface)' }}>
+                    本章节参考文献
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
+                    已选 {selectedRefCount} / {referenceDocs.length}
+                  </span>
+                  {referenceDocs.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+                      <button
+                        className="btn btn-sm"
+                        style={{ padding: '3px 10px', fontSize: 12, color: 'var(--m3-primary)' }}
+                        onClick={() => setGroupReferenceNames(group.representative.id, referenceDocs.map(d => d.filename))}
+                      >
+                        全选
+                      </button>
+                      <button
+                        className="btn btn-sm"
+                        style={{ padding: '3px 10px', fontSize: 12, color: 'var(--gray-500)' }}
+                        onClick={() => setGroupReferenceNames(group.representative.id, [])}
+                      >
+                        清空
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {referenceDocs.length === 0 ? (
+                  <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>未上传参考文献，将不带参考文献分析</span>
+                ) : (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                    gap: 8,
+                    maxHeight: 170,
+                    overflowY: 'auto',
+                    paddingRight: 4,
+                  }}>
+                    {referenceDocs.map((doc, refIndex) => {
+                      const checked = selectedRefNames.includes(doc.filename)
+                      return (
+                        <label
+                          key={`${doc.filename}-${refIndex}`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 8,
+                            minWidth: 0,
+                            padding: '7px 10px',
+                            borderRadius: 10,
+                            border: `0.5px solid ${checked ? 'var(--m3-primary)' : 'var(--dui-divider)'}`,
+                            background: checked ? 'var(--dui-primary-container)' : 'var(--m3-surface-container-low)',
+                            color: checked ? 'var(--m3-primary)' : 'var(--m3-on-surface-variant)',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                          }}
+                          title={`${doc.filename} · ${doc.char_count} 字符`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleGroupReference(group.representative.id, doc.filename)}
+                            style={{ margin: '2px 0 0', flexShrink: 0 }}
+                          />
+                          <span style={{ minWidth: 0, flex: 1 }}>
+                            <span style={{
+                              display: 'block',
+                              lineHeight: 1.45,
+                              whiteSpace: 'normal',
+                              wordBreak: 'break-word',
+                              overflowWrap: 'anywhere',
+                            }}>
+                              {refIndex + 1}. {doc.filename}
+                            </span>
+                            <span style={{
+                              display: 'block',
+                              marginTop: 2,
+                              fontSize: 11,
+                              color: checked ? 'var(--m3-primary)' : 'var(--gray-400)',
+                            }}>
+                              {doc.char_count.toLocaleString()} 字符
+                            </span>
+                          </span>
+                        </label>
+                      )
+                    })}
                   </div>
                 )}
               </div>

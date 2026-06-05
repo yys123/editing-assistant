@@ -149,6 +149,7 @@ function AppContent() {
 
   // Step 4
   const [sectionAnalyses, setSectionAnalyses] = useState<SectionAnalysis[]>([])
+  const [sectionReferenceSelections, setSectionReferenceSelections] = useState<Record<string, string[]>>({})
 
   // Step 5
   const [gapAnalysis, setGapAnalysis] = useState<GapAnalysis | null>(null)
@@ -239,6 +240,7 @@ function AppContent() {
       parsedArticleSourceHash,
       parsedArticleParserVersion,
       sectionAnalyses,
+      sectionReferenceSelections,
       gapAnalysis,
       gapItems,
       referenceDocs,
@@ -260,7 +262,7 @@ function AppContent() {
         body: JSON.stringify(record),
       }).catch(() => {})
     }, 1500)
-  }, [refEvalResult, parsedArticle, parsedArticleSourceHash, parsedArticleParserVersion, sectionAnalyses, gapAnalysis, gapItems, draftHistory, qaItems, step, articleContent, articleParseContent, articleRichHtml, disease, qaCount, referenceDocs])
+  }, [refEvalResult, parsedArticle, parsedArticleSourceHash, parsedArticleParserVersion, sectionAnalyses, sectionReferenceSelections, gapAnalysis, gapItems, draftHistory, qaItems, step, articleContent, articleParseContent, articleRichHtml, disease, qaCount, referenceDocs])
 
   const handleSetParsedArticle = (article: ParsedArticle, sourceHash: string, parserVersion: number) => {
     setParsedArticle(article)
@@ -303,6 +305,7 @@ function AppContent() {
       setParsedArticleSourceHash('')
       setParsedArticleParserVersion(undefined)
       setSectionAnalyses([])
+      setSectionReferenceSelections({})
       setGapAnalysis(null)
       setGapItems([])
     }
@@ -315,6 +318,7 @@ function AppContent() {
       setParsedArticleSourceHash('')
       setParsedArticleParserVersion(undefined)
       setSectionAnalyses([])
+      setSectionReferenceSelections({})
       setGapAnalysis(null)
       setGapItems([])
     }
@@ -328,6 +332,12 @@ function AppContent() {
   // ── Reference docs change handler ──────────────────────────────────────────
   const handleSetReferenceDocs = (docs: ReferenceDoc[]) => {
     setReferenceDocs(docs)
+    const filenames = new Set(docs.map(d => d.filename))
+    setSectionReferenceSelections(prev => Object.fromEntries(
+      Object.entries(prev)
+        .map(([sectionId, selected]) => [sectionId, selected.filter(filename => filenames.has(filename))])
+        .filter(([, selected]) => selected.length > 0)
+    ))
     // Invalidate ref eval when docs change
     setRefEvalResult(null)
   }
@@ -375,6 +385,7 @@ function AppContent() {
     setParsedArticleSourceHash('')
     setParsedArticleParserVersion(undefined)
     setSectionAnalyses([])
+    setSectionReferenceSelections({})
     setGapAnalysis(null)
     setGapItems([])
     setSelectedGap(null)
@@ -421,6 +432,7 @@ function AppContent() {
     setParsedArticleSourceHash(hasValidParsedArticle ? session.parsedArticleSourceHash ?? '' : '')
     setParsedArticleParserVersion(hasValidParsedArticle ? session.parsedArticleParserVersion : undefined)
     setSectionAnalyses(hasValidParsedArticle ? session.sectionAnalyses ?? [] : [])
+    setSectionReferenceSelections(hasValidParsedArticle ? session.sectionReferenceSelections ?? {} : {})
     setGapAnalysis(hasValidParsedArticle ? session.gapAnalysis ?? null : null)
     setGapItems(hasValidParsedArticle ? session.gapItems ?? [] : [])
     setSelectedGap(null)
@@ -856,6 +868,8 @@ function AppContent() {
               parsedArticle={parsedArticle}
               sectionAnalyses={sectionAnalyses}
               setSectionAnalyses={setSectionAnalyses}
+              sectionReferenceSelections={sectionReferenceSelections}
+              setSectionReferenceSelections={setSectionReferenceSelections}
               referenceDocs={referenceDocs}
               standardsOverride={standardsOverride}
             />
