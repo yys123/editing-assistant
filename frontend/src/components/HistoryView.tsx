@@ -20,6 +20,7 @@ interface Props {
   loading?: boolean
   onClose: () => void
   onDelete: (id: string) => void
+  onClone: (id: string) => void
   onResume: (session: SessionRecord) => void
 }
 
@@ -40,7 +41,7 @@ function getSessionUrl(id: string) {
   return `${window.location.origin}${window.location.pathname}?session=${encodeURIComponent(id)}`
 }
 
-export default function HistoryView({ sessions, currentUserId, isAdmin, loading, onClose, onDelete, onResume }: Props) {
+export default function HistoryView({ sessions, currentUserId, isAdmin, loading, onClose, onDelete, onClone, onResume }: Props) {
   const sorted = [...sessions].sort((a, b) => b.id.localeCompare(a.id))
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [tab, setTab] = useState<'analysis' | 'drafts'>('analysis')
@@ -82,6 +83,12 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
       onDelete(id)
       const next = sorted.find(s => s.id !== id)
       setSelectedId(next?.id ?? null)
+    }
+  }
+
+  const handleClone = (id: string, disease: string) => {
+    if (confirm(`确认复制「${disease || '该任务'}」为新的任务副本？`)) {
+      onClone(id)
     }
   }
 
@@ -134,7 +141,7 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
               <span style={{ flex: 1 }}>状态</span>
               <span style={{ flex: 1 }}>进度</span>
               <span style={{ flex: 1 }}>更新时间</span>
-              <span style={{ width: 120, textAlign: 'right' }}>操作</span>
+              <span style={{ width: isAdmin ? 156 : 120, textAlign: 'right' }}>操作</span>
             </div>
 
             {loading ? (
@@ -190,7 +197,7 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
                     <div style={{ flex: 1, fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
                       {formatDateTime(s.updatedAt || s.id)}
                     </div>
-                    <div style={{ width: 120, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                    <div style={{ width: isAdmin ? 156 : 120, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
                       <button
                         className="btn-m3-icon"
                         onClick={e => copyLink(s.id, e)}
@@ -211,6 +218,16 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
                           {canEdit ? 'edit' : 'visibility'}
                         </span>
                       </button>
+                      {isAdmin && (
+                        <button
+                          className="btn-m3-icon"
+                          onClick={e => { e.stopPropagation(); handleClone(s.id, s.disease) }}
+                          title="复制为新任务"
+                          style={{ width: 28, height: 28 }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>content_copy</span>
+                        </button>
+                      )}
                       {canEdit && (
                         <button
                           className="btn-m3-icon"

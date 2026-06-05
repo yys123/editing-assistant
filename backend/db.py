@@ -87,7 +87,7 @@ def init_db():
 def create_user(user_id: str, email: str, password_hash: str, display_name: str) -> dict:
     with _conn() as conn:
         from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         conn.execute(
             "INSERT INTO users (id, email, password, display_name, created_at, verified) VALUES (?, ?, ?, ?, ?, 1)",
             (user_id, email, password_hash, display_name, now),
@@ -155,6 +155,43 @@ def upsert_session(session_id: str, user_id: str, updated_at: str, disease: str,
             (session_id, user_id, updated_at, disease, json.dumps(data, ensure_ascii=False)),
         )
         conn.commit()
+
+
+def clone_session_admin(session_id: str, target_user_id: str):
+    from datetime import datetime, timezone
+
+    with _conn() as conn:
+        source = conn.execute(
+            "SELECT data, disease FROM sessions WHERE id = ?",
+            (session_id,),
+        ).fetchone()
+        if not source:
+            return None
+
+        owner = conn.execute(
+            "SELECT email FROM users WHERE id = ?",
+            (target_user_id,),
+        ).fetchone()
+
+        now = datetime.now(timezone.utc).isoformat()
+        original = json.loads(source["data"])
+        cloned = json.loads(json.dumps(original, ensure_ascii=False))
+        original_disease = cloned.get("disease") or source["disease"] or ""
+        cloned_disease = f"{original_disease}（副本）" if original_disease else "未命名任务（副本）"
+        cloned["id"] = now
+        cloned["updatedAt"] = now
+        cloned["disease"] = cloned_disease
+        cloned["owner_id"] = target_user_id
+        if owner:
+            cloned["owner_email"] = owner["email"]
+
+        conn.execute(
+            "INSERT INTO sessions (id, user_id, updated_at, disease, data) VALUES (?, ?, ?, ?, ?)",
+            (now, target_user_id, now, cloned_disease, json.dumps(cloned, ensure_ascii=False)),
+        )
+        conn.commit()
+
+    return cloned
 
 
 # ── Registration codes ─────────────────────────────────────────────────────────

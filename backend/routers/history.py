@@ -32,6 +32,21 @@ def save_session(session_id: str, record: Dict[str, Any] = Body(...), user: dict
         raise HTTPException(500, f"保存历史记录失败: {str(e)}")
 
 
+@router.post("/{session_id}/clone")
+def clone_session(session_id: str, user: dict = Depends(get_current_user)):
+    if not user.get("is_admin"):
+        raise HTTPException(403, "仅管理员可以复制历史任务")
+    try:
+        cloned = db.clone_session_admin(session_id, user["id"])
+        if not cloned:
+            raise HTTPException(404, "会话不存在")
+        return cloned
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"复制历史记录失败: {str(e)}")
+
+
 @router.delete("/{session_id}")
 def remove_session(session_id: str, user: dict = Depends(get_current_user)):
     try:

@@ -388,6 +388,18 @@ function AppContent() {
     apiFetch(`/api/history/${id}`, { method: 'DELETE' }).catch(() => {})
   }
 
+  const cloneSession = async (id: string) => {
+    try {
+      const res = await apiFetch(`/api/history/${id}/clone`, { method: 'POST' })
+      const cloned = await res.json()
+      if (!res.ok) throw new Error(cloned.detail || '复制任务失败')
+      setAllSessions(prev => [cloned, ...prev.filter(s => s.id !== cloned.id)])
+      resumeSession(cloned)
+    } catch (e: any) {
+      alert(e.message || '复制任务失败')
+    }
+  }
+
   const resumeSession = (session: SessionRecord) => {
     setSessionId(session.id)
     pendingSessionIdRef.current = session.id
@@ -767,6 +779,7 @@ function AppContent() {
             loading={!sessionsLoaded}
             onClose={() => setAppView('main')}
             onDelete={deleteSession}
+            onClone={cloneSession}
             onResume={resumeSession}
           />
         </div>
