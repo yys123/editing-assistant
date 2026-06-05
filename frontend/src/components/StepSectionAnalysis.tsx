@@ -72,19 +72,19 @@ function buildAnalysisGroups(sections: ArticleSection[]): AnalysisGroup[] {
 
 // === 4-dimension scoring system ===
 
-// D1=内容全面 D2=内容准确 D3=结构合理 D4=内容精炼流畅
+// D1=内容全面 D2=结构合理 D3=内容准确 D4=内容精炼流畅
 const DIM_CONFIG: Record<number, { label: string; hasKeyContent: boolean }> = {
   1: { label: '内容全面', hasKeyContent: true },
-  2: { label: '内容准确', hasKeyContent: true },
-  3: { label: '结构合理', hasKeyContent: false },
+  2: { label: '结构合理', hasKeyContent: false },
+  3: { label: '内容准确', hasKeyContent: true },
   4: { label: '内容精炼流畅', hasKeyContent: false },
 }
 
 const TYPE_TO_DIM: Record<string, number> = {
   missing_content: 1,
-  accuracy: 2,
-  outdated: 2,
-  structure: 3,
+  structure: 2,
+  accuracy: 3,
+  outdated: 3,
   style: 4,
 }
 
@@ -117,7 +117,7 @@ function computeDimStats(sectionAnalyses: SectionAnalysis[]): Record<number, Dim
       stats[dim].issues++
       stats[dim].totalDeduction += deduction
       if (dim === 1 && issue.is_key_content) stats[dim].keyDeduction += deduction
-      if (dim === 2 && issue.severity === 'high') stats[dim].keyDeduction += deduction
+      if (dim === 3 && issue.severity === 'high') stats[dim].keyDeduction += deduction
     }
   }
   return stats
@@ -130,16 +130,16 @@ function getDimRating(dim: number, stat: DimStat, totalWords: number): Rating {
   const keyPer = per10k(stat.keyDeduction)
   const totalPer = per10k(stat.totalDeduction)
 
-  // D1 内容全面 & D2 内容准确: both have key-content sub-scoring
-  if (dim === 1 || dim === 2) {
-    if (keyPer < 4 || totalPer < 8) return 'excellent'
-    if (keyPer < 8 || totalPer < 15) return 'pass'
+  // D1 内容全面 & D3 内容准确: both have key-content sub-scoring
+  if (dim === 1 || dim === 3) {
+    if (keyPer < 5 || totalPer < 10) return 'excellent'
+    if (keyPer < 10 || totalPer < 20) return 'pass'
     return 'fail'
   }
-  // D3 结构合理: total only, stricter excellent threshold
-  if (dim === 3) {
-    if (totalPer < 5) return 'excellent'
-    if (totalPer < 15) return 'pass'
+  // D2 结构合理 & D4 精炼流畅: total only
+  if (dim === 2) {
+    if (totalPer < 10) return 'excellent'
+    if (totalPer < 20) return 'pass'
     return 'fail'
   }
   // D4 精炼流畅
@@ -621,35 +621,35 @@ export default function StepSectionAnalysis({
           ? <span style={{ fontFamily: 'monospace', color: v > 0 ? 'var(--orange)' : 'var(--gray-400)' }}>{fmtN(v)}</span>
           : <span style={{ color: 'var(--gray-200)' }}>—</span>
 
-        const d1Excel = keyPer(1) < 4 || totPer(1) < 8
-        const d1Pass  = keyPer(1) < 8 || totPer(1) < 15
-        const d2Excel = keyPer(2) < 4 || totPer(2) < 8
-        const d2Pass  = keyPer(2) < 8 || totPer(2) < 15
+        const d1Excel = keyPer(1) < 5 || totPer(1) < 10
+        const d1Pass  = keyPer(1) < 10 || totPer(1) < 20
+        const d3Excel = keyPer(3) < 5 || totPer(3) < 10
+        const d3Pass  = keyPer(3) < 10 || totPer(3) < 20
 
         // Per-dimension data.
-        // D1 内容全面 & D2 内容准确: twoRow (key + total)
-        // D3 结构合理 & D4 精炼流畅: single row (total only)
+        // D1 内容全面 & D3 内容准确: twoRow (key + total)
+        // D2 结构合理 & D4 精炼流畅: single row (total only)
         const dimGroups = [
           {
             dim: 1, twoRow: true,
-            criterion1: ['重点扣分 < 4分/万字（优秀）', '重点扣分 < 8分/万字（合格）'],
-            criterion2: ['累积扣分 < 8分/万字（优秀）', '累积扣分 < 15分/万字（合格）'],
+            criterion1: ['重点扣分 < 5分/万字（优秀）', '重点扣分 < 10分/万字（合格）'],
+            criterion2: ['累积扣分 < 10分/万字（优秀）', '累积扣分 < 20分/万字（合格）'],
             keyPerVal: keyPer(1), totPerVal: totPer(1),
             excellentPass: d1Excel, passingPass: d1Pass,
           },
           {
-            dim: 2, twoRow: true,
-            criterion1: ['重点扣分 < 4分/万字（优秀）', '重点扣分 < 8分/万字（合格）'],
-            criterion2: ['累积扣分 < 8分/万字（优秀）', '累积扣分 < 15分/万字（合格）'],
-            keyPerVal: keyPer(2), totPerVal: totPer(2),
-            excellentPass: d2Excel, passingPass: d2Pass,
+            dim: 2, twoRow: false,
+            criterion1: ['累积扣分 < 10分/万字（优秀）', '累积扣分 < 20分/万字（合格）'],
+            criterion2: undefined,
+            keyPerVal: null, totPerVal: totPer(2),
+            excellentPass: totPer(2) < 10, passingPass: totPer(2) < 20,
           },
           {
-            dim: 3, twoRow: false,
-            criterion1: ['累积扣分 < 5分/万字（优秀）', '累积扣分 < 15分/万字（合格）'],
-            criterion2: undefined,
-            keyPerVal: null, totPerVal: totPer(3),
-            excellentPass: totPer(3) < 5, passingPass: totPer(3) < 15,
+            dim: 3, twoRow: true,
+            criterion1: ['重点扣分 < 5分/万字（优秀）', '重点扣分 < 10分/万字（合格）'],
+            criterion2: ['累积扣分 < 10分/万字（优秀）', '累积扣分 < 20分/万字（合格）'],
+            keyPerVal: keyPer(3), totPerVal: totPer(3),
+            excellentPass: d3Excel, passingPass: d3Pass,
           },
           {
             dim: 4, twoRow: false,
