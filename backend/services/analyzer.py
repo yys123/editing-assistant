@@ -35,7 +35,7 @@ def _parse_issues(items: list) -> List[IssueItem]:
 
 
 async def evaluate_article_quality(disease: str, article_text: str) -> QualityReport:
-    prompt = f"""请对以下【{disease}】疾病知识库词条内容进行专业质量评估，严格按照以下四个维度标准逐项分析。
+    prompt = f"""请对以下【{disease}】疾病知识库词条内容进行专业质量评估，请尽可能基于上传的指南、综述来分析，并严格按照以下四个维度标准逐项分析。
 
 词条内容：
 {article_text[:8000]}
