@@ -1,6 +1,21 @@
 import unittest
 
+from services import standards
 from services import analyzer
+
+
+class QualityStandardSelectionTests(unittest.TestCase):
+    def test_tumor_entry_uses_tumor_quality_standard(self):
+        text = standards.get_quality_standard(entry_type="tumor")
+        self.assertIn("肿瘤词条内容质量审评标准", text)
+        self.assertIn("分期", text)
+        self.assertIn("RESIST", text)
+
+    def test_quality_standard_override_has_priority(self):
+        self.assertEqual(
+            standards.get_quality_standard("自定义标准", entry_type="tumor"),
+            "自定义标准",
+        )
 
 
 class ReferenceBlockTests(unittest.TestCase):

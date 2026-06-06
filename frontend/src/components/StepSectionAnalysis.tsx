@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react'
-import { ArticleSection, ParsedArticle, SectionAnalysis, SectionIssue, ReferenceDoc, StandardsOverride } from '../types'
+import { ArticleEntryType, ArticleSection, ParsedArticle, SectionAnalysis, SectionIssue, ReferenceDoc, StandardsOverride } from '../types'
 import { apiFetch } from '../api'
 
 interface Props {
   disease: string
+  articleEntryType: ArticleEntryType
   parsedArticle: ParsedArticle
   sectionAnalyses: SectionAnalysis[]
   setSectionAnalyses: (analyses: SectionAnalysis[]) => void
@@ -157,7 +158,7 @@ const RATING_CONFIG: Record<Rating, { label: string; color: string; bg: string }
 }
 
 export default function StepSectionAnalysis({
-  disease, parsedArticle, sectionAnalyses, setSectionAnalyses,
+  disease, articleEntryType, parsedArticle, sectionAnalyses, setSectionAnalyses,
   sectionReferenceSelections, setSectionReferenceSelections,
   referenceDocs, standardsOverride
 }: Props) {
@@ -217,6 +218,7 @@ export default function StepSectionAnalysis({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         disease,
+        article_entry_type: articleEntryType,
         section: mergedSection,
         article_outline: parsedArticle.sections
           .filter(s => s.level === 1 && !isSummarySection(s.heading))

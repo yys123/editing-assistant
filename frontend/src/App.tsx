@@ -12,7 +12,7 @@ import AuthPage from './components/AuthPage'
 import { AuthProvider, useAuth } from './AuthContext'
 import { apiFetch } from './api'
 import {
-  QAItem, DraftRecord, SessionRecord, GeneratedDraft,
+  ArticleEntryType, QAItem, DraftRecord, SessionRecord, GeneratedDraft,
   ParsedArticle, SectionAnalysis, GapAnalysis, GapItem, ReferenceDoc, RefEvalResult, StandardsOverride, Step,
 } from './types'
 import { ARTICLE_PARSE_CACHE_VERSION, getArticleParseCacheKey } from './utils/parseCache'
@@ -131,6 +131,7 @@ function AppContent() {
 
   // Step 1
   const [disease, setDisease] = useState('')
+  const [articleEntryType, setArticleEntryType] = useState<ArticleEntryType>('disease')
   const [articleContent, setArticleContent] = useState('')
   const [articleParseContent, setArticleParseContent] = useState('')
   const [articleRichHtml, setArticleRichHtml] = useState('')
@@ -229,6 +230,7 @@ function AppContent() {
       id: sessionId,
       updatedAt: new Date().toISOString(),
       disease,
+      articleEntryType,
       articleSnippet: articleContent.slice(0, 150),
       articleContent,
       articleParseContent,
@@ -262,7 +264,7 @@ function AppContent() {
         body: JSON.stringify(record),
       }).catch(() => {})
     }, 1500)
-  }, [refEvalResult, parsedArticle, parsedArticleSourceHash, parsedArticleParserVersion, sectionAnalyses, sectionReferenceSelections, gapAnalysis, gapItems, draftHistory, qaItems, step, articleContent, articleParseContent, articleRichHtml, disease, qaCount, referenceDocs])
+  }, [refEvalResult, parsedArticle, parsedArticleSourceHash, parsedArticleParserVersion, sectionAnalyses, sectionReferenceSelections, gapAnalysis, gapItems, draftHistory, qaItems, step, articleContent, articleParseContent, articleRichHtml, disease, articleEntryType, qaCount, referenceDocs])
 
   const handleSetParsedArticle = (article: ParsedArticle, sourceHash: string, parserVersion: number) => {
     setParsedArticle(article)
@@ -373,6 +375,7 @@ function AppContent() {
     pendingSessionIdRef.current = null
     setSessionOwnerId(null)
     setDisease('')
+    setArticleEntryType('disease')
     setArticleContent('')
     setArticleParseContent('')
     setArticleRichHtml('')
@@ -416,6 +419,7 @@ function AppContent() {
     pendingSessionIdRef.current = session.id
     setSessionOwnerId(session.owner_id ?? null)
     setDisease(session.disease)
+    setArticleEntryType(session.articleEntryType ?? 'disease')
     setArticleContent(session.articleContent ?? '')
     setArticleParseContent(session.articleParseContent ?? '')
     setArticleRichHtml(session.articleRichHtml ?? '')
@@ -824,6 +828,8 @@ function AppContent() {
             <StepUpload
               disease={disease}
               setDisease={setDisease}
+              articleEntryType={articleEntryType}
+              setArticleEntryType={setArticleEntryType}
               articleContent={articleContent}
               setArticleContent={handleSetArticleContent}
               setArticleParseContent={handleSetArticleParseContent}
@@ -865,6 +871,7 @@ function AppContent() {
           {step === 4 && parsedArticle && (
             <StepSectionAnalysis
               disease={disease}
+              articleEntryType={articleEntryType}
               parsedArticle={parsedArticle}
               sectionAnalyses={sectionAnalyses}
               setSectionAnalyses={setSectionAnalyses}

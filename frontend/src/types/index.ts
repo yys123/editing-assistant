@@ -220,6 +220,7 @@ export interface StandardsOverride {
 }
 
 export type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7
+export type ArticleEntryType = 'disease' | 'non_disease' | 'tumor'
 
 export interface User {
   id: string
@@ -232,6 +233,7 @@ export interface SessionRecord {
   id: string
   updatedAt: string
   disease: string
+  articleEntryType?: ArticleEntryType
   articleSnippet: string
   articleContent?: string
   articleParseContent?: string

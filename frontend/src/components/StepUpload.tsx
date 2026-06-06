@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { QAItem, ReferenceDoc, StandardsOverride } from '../types'
+import { ArticleEntryType, QAItem, ReferenceDoc, StandardsOverride } from '../types'
 import { apiFetch, safeJson, chunkedUpload } from '../api'
 import { articleContentToStructuredMarkers } from '../utils/articleStructure'
 
 interface Props {
   disease: string
   setDisease: (v: string) => void
+  articleEntryType: ArticleEntryType
+  setArticleEntryType: (v: ArticleEntryType) => void
   articleContent: string
   setArticleContent: (v: string) => void
   setArticleParseContent: (v: string) => void
@@ -21,6 +23,12 @@ interface Props {
 }
 
 type ArticleTab = 'file' | 'text'
+
+const ARTICLE_ENTRY_TYPE_OPTIONS: Array<{ value: ArticleEntryType; label: string; icon: string }> = [
+  { value: 'disease', label: '疾病词条', icon: 'local_hospital' },
+  { value: 'non_disease', label: '非疾病词条', icon: 'article' },
+  { value: 'tumor', label: '肿瘤词条', icon: 'biotech' },
+]
 
 const BLOCK_TAGS = new Set(['ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'OL', 'P', 'SECTION', 'TABLE', 'TBODY', 'TD', 'TH', 'THEAD', 'TR', 'UL'])
 const INLINE_TAGS = new Set(['B', 'BR', 'EM', 'I', 'STRONG'])
@@ -332,61 +340,81 @@ function isKeyPointBlockBoundary(line: string) {
   return isStructuredContentHeading(line)
 }
 
-function removeDiagnosisTreatmentKeyPointsFromText(text: string) {
-  const lines = text.replace(/\r\n?/g, '\n').split('\n')
-  const kept: string[] = []
-  let removedCount = 0
-
-  for (let i = 0; i < lines.length;) {
-    if (keyPointHeadingFromLine(lines[i])) {
-      removedCount += 1
-      i += 1
-      while (i < lines.length && !isKeyPointBlockBoundary(lines[i])) {
-        i += 1
-      }
-      continue
-    }
-
-    const moduleName = normalizeModuleHeading(lines[i])
-    if (moduleName !== '诊断' && moduleName !== '治疗') {
-      kept.push(lines[i])
-      i += 1
-      continue
-    }
-
-    kept.push(lines[i])
-    i += 1
-
-    const whitespaceAfterModule: string[] = []
-    while (i < lines.length && !lines[i].trim()) {
-      whitespaceAfterModule.push(lines[i])
-      i += 1
-    }
-
-    if (i >= lines.length || !isModuleKeyPointHeading(lines[i], moduleName)) {
-      kept.push(...whitespaceAfterModule)
-      continue
-    }
-
-    removedCount += 1
-    i += 1
-    while (i < lines.length && !isKeyPointBlockBoundary(lines[i])) {
-      i += 1
-    }
-  }
-
-  return {
-    text: normalizeEditorText(kept.join('\n')),
-    removedCount,
-  }
-}
-
 function removeKeyPointCardsFromEditor(editor: HTMLElement) {
   let removedCount = 0
   editor.querySelectorAll('[data-keypoint-card]').forEach(card => {
     card.remove()
     removedCount += 1
   })
+  return removedCount
+}
+
+function directNodeText(node: Node) {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
+  if (!(node instanceof HTMLElement)) return ''
+  return cleanElementText(node)
+}
+
+function isBlankEditorNode(node: Node) {
+  return !directNodeText(node).trim()
+}
+
+function isKeyPointDomBoundary(node: Node) {
+  if (isModuleElement(node)) return true
+  const text = directNodeText(node)
+  return isKeyPointBlockBoundary(text)
+}
+
+function removeDiagnosisTreatmentKeyPointsFromEditor(editor: HTMLElement) {
+  const nodes = Array.from(editor.childNodes)
+  const removals = new Set<Node>()
+  let removedCount = 0
+
+  const markKeyPointBodyForRemoval = (startIndex: number) => {
+    let cursor = startIndex
+    while (cursor < nodes.length && !isKeyPointDomBoundary(nodes[cursor])) {
+      removals.add(nodes[cursor])
+      cursor += 1
+    }
+    return cursor
+  }
+
+  for (let i = 0; i < nodes.length;) {
+    const node = nodes[i]
+    const text = directNodeText(node)
+
+    if (keyPointHeadingFromLine(text)) {
+      removals.add(node)
+      removedCount += 1
+      i = markKeyPointBodyForRemoval(i + 1)
+      continue
+    }
+
+    const moduleName = normalizeModuleHeading(text)
+    if (moduleName !== '诊断' && moduleName !== '治疗') {
+      i += 1
+      continue
+    }
+
+    let cursor = i + 1
+    const whitespaceAfterModule: Node[] = []
+    while (cursor < nodes.length && isBlankEditorNode(nodes[cursor])) {
+      whitespaceAfterModule.push(nodes[cursor])
+      cursor += 1
+    }
+
+    if (cursor >= nodes.length || !isModuleKeyPointHeading(directNodeText(nodes[cursor]), moduleName)) {
+      i += 1
+      continue
+    }
+
+    whitespaceAfterModule.forEach(n => removals.add(n))
+    removals.add(nodes[cursor])
+    removedCount += 1
+    i = markKeyPointBodyForRemoval(cursor + 1)
+  }
+
+  removals.forEach(node => node.parentNode?.removeChild(node))
   return removedCount
 }
 
@@ -763,12 +791,8 @@ function RichPasteEditor({
     const editor = editorRef.current
     if (!editor) return
     const removedCards = removeKeyPointCardsFromEditor(editor)
-    let text = editorToPlainText(editor)
-    if (!removedCards) {
-      text = removeDiagnosisTreatmentKeyPointsFromText(text).text
-      editor.innerHTML = textToEditorHtml(text)
-    }
-    onChange(text)
+    if (!removedCards) removeDiagnosisTreatmentKeyPointsFromEditor(editor)
+    onChange(editorToPlainText(editor))
     onStructuredChange(editorToStructuredText(editor))
     onRichHtmlChange(editor.innerHTML)
   }
@@ -864,7 +888,8 @@ function RichPasteEditor({
 }
 
 export default function StepUpload({
-  disease, setDisease, articleContent, setArticleContent, setArticleParseContent,
+  disease, setDisease, articleEntryType, setArticleEntryType,
+  articleContent, setArticleContent, setArticleParseContent,
   articleRichHtml, setArticleRichHtml,
   qaItems, setQaItems, referenceDocs, setReferenceDocs,
   standardsOverride, setStandardsOverride, onNext
@@ -996,6 +1021,40 @@ export default function StepUpload({
               value={disease}
               onChange={e => setDisease(e.target.value)}
             />
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 8 }}>
+                词条类型
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+                {ARTICLE_ENTRY_TYPE_OPTIONS.map(option => {
+                  const active = articleEntryType === option.value
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setArticleEntryType(option.value)}
+                      style={{
+                        border: `1px solid ${active ? 'var(--m3-primary)' : 'var(--dui-divider)'}`,
+                        background: active ? 'var(--dui-primary-container)' : 'var(--m3-surface-container-lowest)',
+                        color: active ? 'var(--m3-primary)' : 'var(--m3-on-surface-variant)',
+                        borderRadius: 12,
+                        padding: '10px 8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 5,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: active ? 600 : 500,
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 19 }}>{option.icon}</span>
+                      {option.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Standards override */}

@@ -47,6 +47,7 @@ async def run_ref_evaluation(req: RefEvalRequest):
 
 class SectionAnalyzeRequest(BaseModel):
     disease: str
+    article_entry_type: Optional[str] = None
     section: ArticleSection
     article_outline: List[str] = []   # all top-level section headings in the full article
     quality_standard_text: Optional[str] = None
@@ -59,7 +60,7 @@ async def analyze_single_section(req: SectionAnalyzeRequest):
     """Step 3: Analyze a single article section."""
     from services.standards import get_quality_standard, get_content_spec
     try:
-        quality_std = get_quality_standard(req.quality_standard_text)
+        quality_std = get_quality_standard(req.quality_standard_text, entry_type=req.article_entry_type)
         content_spec = get_content_spec(req.content_spec_text)
         result = await analyze_section(
             req.disease, req.section, quality_std, content_spec, req.reference_texts,
