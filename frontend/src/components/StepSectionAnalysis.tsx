@@ -375,7 +375,6 @@ export default function StepSectionAnalysis({
           const allIssues = analysis?.issues ?? []
           const issues = allIssues.filter(issue => issue.status !== 'rejected')
           const totalChars = group.combinedContent.length
-          const childCount = group.childSections.length
           const selectedRefNames = getSelectedReferenceNames(group.representative.id)
           const selectedRefCount = getSelectedReferenceDocs(group.representative.id).length
 
@@ -404,12 +403,6 @@ export default function StepSectionAnalysis({
                 <span style={{ fontSize: 12, color: 'var(--gray-400)', minWidth: 20 }}>{i + 1}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontWeight: 500, fontSize: 13 }}>{group.representative.heading}</span>
-                  {childCount > 0 && (
-                    <span style={{ fontSize: 12, color: 'var(--gray-500)', marginLeft: 8 }}>
-                      含 {group.childSections.map(s => s.heading).slice(0, 3).join('、')}
-                      {childCount > 3 ? ` 等 ${childCount} 个子章节` : ` 共 ${childCount} 个子章节`}
-                    </span>
-                  )}
                 </div>
                 <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>{totalChars} 字</span>
                 {isAnalysing && (
