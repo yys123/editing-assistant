@@ -247,6 +247,7 @@ export interface SessionRecord {
   parsedArticleParserVersion?: number
   sectionAnalyses?: SectionAnalysis[]
   sectionReferenceSelections?: Record<string, string[]>
+  sectionPriorityReferenceSelections?: Record<string, string[]>
   gapAnalysis?: GapAnalysis | null
   gapItems?: GapItem[]
   referenceDocs?: ReferenceDoc[]

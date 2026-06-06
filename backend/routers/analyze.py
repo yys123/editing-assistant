@@ -53,6 +53,7 @@ class SectionAnalyzeRequest(BaseModel):
     quality_standard_text: Optional[str] = None
     content_spec_text: Optional[str] = None
     reference_texts: List[str] = []
+    priority_reference_texts: List[str] = []
 
 
 @router.post("/section")
@@ -64,6 +65,7 @@ async def analyze_single_section(req: SectionAnalyzeRequest):
         content_spec = get_content_spec(req.content_spec_text)
         result = await analyze_section(
             req.disease, req.section, quality_std, content_spec, req.reference_texts,
+            priority_reference_texts=req.priority_reference_texts,
             article_outline=req.article_outline,
         )
         return result.model_dump()

@@ -151,6 +151,7 @@ function AppContent() {
   // Step 4
   const [sectionAnalyses, setSectionAnalyses] = useState<SectionAnalysis[]>([])
   const [sectionReferenceSelections, setSectionReferenceSelections] = useState<Record<string, string[]>>({})
+  const [sectionPriorityReferenceSelections, setSectionPriorityReferenceSelections] = useState<Record<string, string[]>>({})
 
   // Step 5
   const [gapAnalysis, setGapAnalysis] = useState<GapAnalysis | null>(null)
@@ -243,6 +244,7 @@ function AppContent() {
       parsedArticleParserVersion,
       sectionAnalyses,
       sectionReferenceSelections,
+      sectionPriorityReferenceSelections,
       gapAnalysis,
       gapItems,
       referenceDocs,
@@ -264,7 +266,7 @@ function AppContent() {
         body: JSON.stringify(record),
       }).catch(() => {})
     }, 1500)
-  }, [refEvalResult, parsedArticle, parsedArticleSourceHash, parsedArticleParserVersion, sectionAnalyses, sectionReferenceSelections, gapAnalysis, gapItems, draftHistory, qaItems, step, articleContent, articleParseContent, articleRichHtml, disease, articleEntryType, qaCount, referenceDocs])
+  }, [refEvalResult, parsedArticle, parsedArticleSourceHash, parsedArticleParserVersion, sectionAnalyses, sectionReferenceSelections, sectionPriorityReferenceSelections, gapAnalysis, gapItems, draftHistory, qaItems, step, articleContent, articleParseContent, articleRichHtml, disease, articleEntryType, qaCount, referenceDocs])
 
   const handleSetParsedArticle = (article: ParsedArticle, sourceHash: string, parserVersion: number) => {
     setParsedArticle(article)
@@ -308,6 +310,7 @@ function AppContent() {
       setParsedArticleParserVersion(undefined)
       setSectionAnalyses([])
       setSectionReferenceSelections({})
+      setSectionPriorityReferenceSelections({})
       setGapAnalysis(null)
       setGapItems([])
     }
@@ -321,6 +324,7 @@ function AppContent() {
       setParsedArticleParserVersion(undefined)
       setSectionAnalyses([])
       setSectionReferenceSelections({})
+      setSectionPriorityReferenceSelections({})
       setGapAnalysis(null)
       setGapItems([])
     }
@@ -336,6 +340,14 @@ function AppContent() {
     setReferenceDocs(docs)
     const filenames = new Set(docs.map(d => d.filename))
     setSectionReferenceSelections(prev => Object.fromEntries(
+      Object.entries(prev)
+        .map(([sectionId, selected]) => [
+          sectionId,
+          selected.includes('__none__') ? selected : selected.filter(filename => filenames.has(filename)),
+        ])
+        .filter(([, selected]) => selected.length > 0)
+    ))
+    setSectionPriorityReferenceSelections(prev => Object.fromEntries(
       Object.entries(prev)
         .map(([sectionId, selected]) => [sectionId, selected.filter(filename => filenames.has(filename))])
         .filter(([, selected]) => selected.length > 0)
@@ -389,6 +401,7 @@ function AppContent() {
     setParsedArticleParserVersion(undefined)
     setSectionAnalyses([])
     setSectionReferenceSelections({})
+    setSectionPriorityReferenceSelections({})
     setGapAnalysis(null)
     setGapItems([])
     setSelectedGap(null)
@@ -437,6 +450,7 @@ function AppContent() {
     setParsedArticleParserVersion(hasValidParsedArticle ? session.parsedArticleParserVersion : undefined)
     setSectionAnalyses(hasValidParsedArticle ? session.sectionAnalyses ?? [] : [])
     setSectionReferenceSelections(hasValidParsedArticle ? session.sectionReferenceSelections ?? {} : {})
+    setSectionPriorityReferenceSelections(hasValidParsedArticle ? session.sectionPriorityReferenceSelections ?? {} : {})
     setGapAnalysis(hasValidParsedArticle ? session.gapAnalysis ?? null : null)
     setGapItems(hasValidParsedArticle ? session.gapItems ?? [] : [])
     setSelectedGap(null)
@@ -877,6 +891,8 @@ function AppContent() {
               setSectionAnalyses={setSectionAnalyses}
               sectionReferenceSelections={sectionReferenceSelections}
               setSectionReferenceSelections={setSectionReferenceSelections}
+              sectionPriorityReferenceSelections={sectionPriorityReferenceSelections}
+              setSectionPriorityReferenceSelections={setSectionPriorityReferenceSelections}
               referenceDocs={referenceDocs}
               standardsOverride={standardsOverride}
             />

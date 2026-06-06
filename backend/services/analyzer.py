@@ -409,6 +409,21 @@ def _build_reference_block(reference_texts: List[str], section_heading: str, sec
     return "\n".join(_build_reference_blocks(reference_texts))
 
 
+def _build_priority_reference_block(priority_reference_texts: List[str]) -> str:
+    clean_refs = [text.strip() for text in priority_reference_texts if text.strip()]
+    if not clean_refs:
+        return ""
+    blocks = []
+    for ref_idx, text in enumerate(clean_refs, 1):
+        blocks.append(f"### 重点指南 {ref_idx}\n{text}")
+    return (
+        "\n\n## ⚠️ 本章节重点指南（冲突处理规则）\n"
+        "以下资料由用户标记为本章节重点指南。若其他参考数据源与重点指南观点不一致，或推荐、分期、剂量、疗程、适应证、禁忌证等不一致，"
+        "请以重点指南为准；只有当重点指南未覆盖相关问题时，才参考其他资料。报告问题时应优先引用重点指南作为判断依据。\n"
+        + "\n---\n".join(blocks)
+    )
+
+
 def _split_reference_for_batches(text: str, max_chars: int) -> List[str]:
     text = text.strip()
     if not text:
@@ -502,6 +517,7 @@ async def _analyze_section_with_reference_block(
     quality_standard: str,
     content_spec: str,
     ref_block: str,
+    priority_ref_block: str,
     article_outline: Optional[List[str]],
     context: str,
     chunk_note: str = "",
@@ -528,6 +544,7 @@ async def _analyze_section_with_reference_block(
 
 ## 内容要求规范
 {content_spec[:CONTENT_SPEC_MAX_CHARS]}
+{priority_ref_block}
 {ref_block}
 
 请从以下五类问题角度分析该章节存在的质量问题，以JSON格式输出：
@@ -594,16 +611,18 @@ async def _analyze_section_chunk(
     quality_standard: str,
     content_spec: str,
     reference_texts: List[str],
+    priority_reference_texts: List[str],
     article_outline: Optional[List[str]],
 ) -> List[SectionIssue]:
     """Analyze one chunk of a section. Returns raw issues without verification."""
     chunk_note = f"（注：以下为该章节第{chunk_idx}/{total_chunks}段内容，请仅分析此段中实际存在的问题）"
     reference_blocks = _build_reference_blocks(reference_texts) or [""]
+    priority_ref_block = _build_priority_reference_block(priority_reference_texts)
     all_issues: List[SectionIssue] = []
     for batch_idx, ref_block in enumerate(reference_blocks, 1):
         all_issues.extend(await _analyze_section_with_reference_block(
             disease, chunk_section, quality_standard, content_spec, ref_block,
-            article_outline, context="section_chunk_analysis", chunk_note=chunk_note,
+            priority_ref_block, article_outline, context="section_chunk_analysis", chunk_note=chunk_note,
             batch_note=_reference_batch_note(batch_idx, len(reference_blocks)),
         ))
 
@@ -698,6 +717,7 @@ async def analyze_section(
     quality_standard: str,
     content_spec: str,
     reference_texts: List[str],
+    priority_reference_texts: Optional[List[str]] = None,
     article_outline: Optional[List[str]] = None,
 ) -> SectionAnalysis:
     """Analyze a single article section against quality standards."""
@@ -717,7 +737,7 @@ async def analyze_section(
             )
             chunk_issues = await _analyze_section_chunk(
                 disease, chunk_section, i + 1, len(chunks),
-                quality_standard, content_spec, reference_texts, article_outline,
+                quality_standard, content_spec, reference_texts, priority_reference_texts or [], article_outline,
             )
             print(f"[analyze_section] 第 {i+1}/{len(chunks)} 块分析完毕，发现 {len(chunk_issues)} 个问题")
             all_issues.extend(chunk_issues)
@@ -732,10 +752,11 @@ async def analyze_section(
         )
 
     reference_blocks = _build_reference_blocks(reference_texts) or [""]
+    priority_ref_block = _build_priority_reference_block(priority_reference_texts or [])
     issues: List[SectionIssue] = []
     for batch_idx, ref_block in enumerate(reference_blocks, 1):
         issues.extend(await _analyze_section_with_reference_block(
-            disease, section, quality_standard, content_spec, ref_block, article_outline,
+            disease, section, quality_standard, content_spec, ref_block, priority_ref_block, article_outline,
             context="section_analysis",
             batch_note=_reference_batch_note(batch_idx, len(reference_blocks)),
         ))

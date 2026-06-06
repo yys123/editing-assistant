@@ -19,6 +19,13 @@ class QualityStandardSelectionTests(unittest.TestCase):
 
 
 class ReferenceBlockTests(unittest.TestCase):
+    def test_priority_reference_block_sets_conflict_rule(self):
+        block = analyzer._build_priority_reference_block(["重点指南内容"])
+        self.assertIn("重点指南", block)
+        self.assertIn("观点不一致", block)
+        self.assertIn("以重点指南为准", block)
+        self.assertIn("重点指南内容", block)
+
     def test_reference_block_includes_all_sources_without_keyword_filtering(self):
         block = analyzer._build_reference_block(
             [

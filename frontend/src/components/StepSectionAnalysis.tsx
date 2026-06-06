@@ -10,6 +10,8 @@ interface Props {
   setSectionAnalyses: (analyses: SectionAnalysis[]) => void
   sectionReferenceSelections: Record<string, string[]>
   setSectionReferenceSelections: React.Dispatch<React.SetStateAction<Record<string, string[]>>>
+  sectionPriorityReferenceSelections: Record<string, string[]>
+  setSectionPriorityReferenceSelections: React.Dispatch<React.SetStateAction<Record<string, string[]>>>
   referenceDocs: ReferenceDoc[]
   standardsOverride: StandardsOverride
 }
@@ -18,6 +20,7 @@ interface Props {
 // Their content is merged as contextual background into the adjacent real section.
 const SUMMARY_HEADINGS = ['更新要点', '诊断要点', '治疗要点']
 const MAX_SECTION_ANALYSIS_CONCURRENCY = 3
+const NO_REFERENCES_SELECTED = '__none__'
 export function isSummarySection(heading: string): boolean {
   return SUMMARY_HEADINGS.some(p => heading.includes(p))
 }
@@ -160,6 +163,7 @@ const RATING_CONFIG: Record<Rating, { label: string; color: string; bg: string }
 export default function StepSectionAnalysis({
   disease, articleEntryType, parsedArticle, sectionAnalyses, setSectionAnalyses,
   sectionReferenceSelections, setSectionReferenceSelections,
+  sectionPriorityReferenceSelections, setSectionPriorityReferenceSelections,
   referenceDocs, standardsOverride
 }: Props) {
   // Per-section loading/error state; analysing=true means in-flight
@@ -183,7 +187,12 @@ export default function StepSectionAnalysis({
 
   const groups = useMemo(() => buildAnalysisGroups(parsedArticle.sections), [parsedArticle.sections])
 
-  const getSelectedReferenceNames = (groupId: string) => sectionReferenceSelections[groupId] ?? []
+  const getSelectedReferenceNames = (groupId: string) => {
+    const saved = sectionReferenceSelections[groupId]
+    if (!saved) return referenceDocs.map(d => d.filename)
+    if (saved.includes(NO_REFERENCES_SELECTED)) return []
+    return saved
+  }
   const getSelectedReferenceDocs = (groupId: string) => {
     const selected = new Set(getSelectedReferenceNames(groupId))
     return referenceDocs.filter(d => selected.has(d.filename))
@@ -192,10 +201,20 @@ export default function StepSectionAnalysis({
     setSectionReferenceSelections(prev => {
       const next = { ...prev }
       if (names.length === 0) {
-        delete next[groupId]
+        next[groupId] = [NO_REFERENCES_SELECTED]
       } else {
         next[groupId] = names
       }
+      return next
+    })
+    setSectionPriorityReferenceSelections(prev => {
+      const allowed = new Set(names)
+      const current = prev[groupId] ?? []
+      const kept = current.filter(filename => allowed.has(filename))
+      if (kept.length === current.length) return prev
+      const next = { ...prev }
+      if (kept.length === 0) delete next[groupId]
+      else next[groupId] = kept
       return next
     })
   }
@@ -205,6 +224,28 @@ export default function StepSectionAnalysis({
     else selected.add(filename)
     setGroupReferenceNames(groupId, Array.from(selected))
   }
+  const getPriorityReferenceNames = (groupId: string) => {
+    const selected = new Set(getSelectedReferenceNames(groupId))
+    return (sectionPriorityReferenceSelections[groupId] ?? []).filter(filename => selected.has(filename))
+  }
+  const getPriorityReferenceDocs = (groupId: string) => {
+    const priority = new Set(getPriorityReferenceNames(groupId))
+    return referenceDocs.filter(d => priority.has(d.filename))
+  }
+  const togglePriorityReference = (groupId: string, filename: string) => {
+    const selected = new Set(getSelectedReferenceNames(groupId))
+    if (!selected.has(filename)) return
+    setSectionPriorityReferenceSelections(prev => {
+      const current = new Set(prev[groupId] ?? [])
+      if (current.has(filename)) current.delete(filename)
+      else current.add(filename)
+      const next = { ...prev }
+      const names = Array.from(current)
+      if (names.length === 0) delete next[groupId]
+      else next[groupId] = names
+      return next
+    })
+  }
 
   const analyzeGroup = async (group: AnalysisGroup): Promise<SectionAnalysis> => {
     const mergedSection: ArticleSection = {
@@ -213,6 +254,7 @@ export default function StepSectionAnalysis({
       word_count: group.combinedContent.length,
     }
     const referenceTexts = getSelectedReferenceDocs(group.representative.id).map(d => d.text)
+    const priorityReferenceTexts = getPriorityReferenceDocs(group.representative.id).map(d => d.text)
     const res = await apiFetch('/api/analyze/section', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -226,6 +268,7 @@ export default function StepSectionAnalysis({
         quality_standard_text: standardsOverride.qualityText ?? null,
         content_spec_text: standardsOverride.specText ?? null,
         reference_texts: referenceTexts,
+        priority_reference_texts: priorityReferenceTexts,
       }),
     })
     const data = await res.json()
@@ -379,6 +422,8 @@ export default function StepSectionAnalysis({
           const totalChars = group.combinedContent.length
           const selectedRefNames = getSelectedReferenceNames(group.representative.id)
           const selectedRefCount = getSelectedReferenceDocs(group.representative.id).length
+          const priorityRefNames = getPriorityReferenceNames(group.representative.id)
+          const priorityRefCount = priorityRefNames.length
 
           const isAnalysing = !!analysing[group.representative.id]
           const headerBg = isAnalysing ? 'var(--gray-50)' : issues.length > 0 ? 'var(--orange-light)' : 'var(--gray-50)'
@@ -422,6 +467,17 @@ export default function StepSectionAnalysis({
                 }}>
                   参考文献 {selectedRefCount}/{referenceDocs.length}
                 </span>
+                {priorityRefCount > 0 && (
+                  <span style={{
+                    fontSize: 12,
+                    color: 'var(--dui-warning)',
+                    background: 'var(--dui-warning-container)',
+                    borderRadius: 999,
+                    padding: '2px 8px',
+                  }}>
+                    重点指南 {priorityRefCount}
+                  </span>
+                )}
                 {!isAnalysing && !hasError && hasAnalysis && (
                   <span style={{
                     fontSize: 12, fontWeight: 500,
@@ -467,7 +523,7 @@ export default function StepSectionAnalysis({
                     本章节参考文献
                   </span>
                   <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
-                    已选 {selectedRefCount} / {referenceDocs.length}
+                    已选 {selectedRefCount} / {referenceDocs.length}，重点指南 {priorityRefCount}
                   </span>
                   {referenceDocs.length > 0 && (
                     <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
@@ -501,6 +557,7 @@ export default function StepSectionAnalysis({
                   }}>
                     {referenceDocs.map((doc, refIndex) => {
                       const checked = selectedRefNames.includes(doc.filename)
+                      const isPriority = priorityRefNames.includes(doc.filename)
                       return (
                         <label
                           key={`${doc.filename}-${refIndex}`}
@@ -512,7 +569,7 @@ export default function StepSectionAnalysis({
                             padding: '7px 10px',
                             borderRadius: 10,
                             border: `0.5px solid ${checked ? 'var(--m3-primary)' : 'var(--dui-divider)'}`,
-                            background: checked ? 'var(--dui-primary-container)' : 'var(--m3-surface-container-low)',
+                            background: isPriority ? 'var(--dui-warning-container)' : checked ? 'var(--dui-primary-container)' : 'var(--m3-surface-container-low)',
                             color: checked ? 'var(--m3-primary)' : 'var(--m3-on-surface-variant)',
                             fontSize: 12,
                             cursor: 'pointer',
@@ -539,11 +596,34 @@ export default function StepSectionAnalysis({
                               display: 'block',
                               marginTop: 2,
                               fontSize: 11,
-                              color: checked ? 'var(--m3-primary)' : 'var(--gray-400)',
+                              color: isPriority ? 'var(--dui-warning)' : checked ? 'var(--m3-primary)' : 'var(--gray-400)',
                             }}>
                               {doc.char_count.toLocaleString()} 字符
                             </span>
                           </span>
+                          <button
+                            type="button"
+                            disabled={!checked}
+                            onClick={e => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              togglePriorityReference(group.representative.id, doc.filename)
+                            }}
+                            style={{
+                              border: 'none',
+                              borderRadius: 999,
+                              padding: '3px 8px',
+                              fontSize: 11,
+                              cursor: checked ? 'pointer' : 'not-allowed',
+                              flexShrink: 0,
+                              background: isPriority ? 'var(--dui-warning)' : 'var(--m3-surface-container-highest)',
+                              color: isPriority ? '#fff' : checked ? 'var(--dui-warning)' : 'var(--gray-400)',
+                              opacity: checked ? 1 : 0.55,
+                            }}
+                            title={checked ? '设为本章节重点指南；冲突时以重点指南为准' : '请先选中该参考文献'}
+                          >
+                            {isPriority ? '重点' : '设重点'}
+                          </button>
                         </label>
                       )
                     })}
