@@ -18,6 +18,12 @@ class RuntimeConfigRequest(BaseModel):
     deepseek_temperature: Optional[float] = None
     deepseek_top_p: Optional[float] = None
     deepseek_max_tokens: Optional[int] = None
+    deepseek_presence_penalty: Optional[float] = None
+    deepseek_frequency_penalty: Optional[float] = None
+    deepseek_response_format: Literal["text", "json_object"] = "text"
+    deepseek_thinking_type: Literal["disabled", "enabled"] = "disabled"
+    deepseek_reasoning_effort: Literal["high", "max"] = "high"
+    deepseek_timeout_seconds: Optional[int] = None
     deepseek_context_window_tokens: Optional[int] = None
     gemini_context_window_tokens: Optional[int] = None
 

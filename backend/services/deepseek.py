@@ -38,6 +38,12 @@ async def generate_text_with_deepseek(
     temperature = _get_param(runtime_config, "deepseek_temperature", settings.deepseek_temperature)
     top_p = _get_param(runtime_config, "deepseek_top_p", settings.deepseek_top_p)
     max_tokens = _get_param(runtime_config, "deepseek_max_tokens", settings.deepseek_max_tokens)
+    presence_penalty = _get_param(runtime_config, "deepseek_presence_penalty", getattr(settings, "deepseek_presence_penalty", 0))
+    frequency_penalty = _get_param(runtime_config, "deepseek_frequency_penalty", getattr(settings, "deepseek_frequency_penalty", 0))
+    response_format = _get_param(runtime_config, "deepseek_response_format", getattr(settings, "deepseek_response_format", "text"))
+    thinking_type = _get_param(runtime_config, "deepseek_thinking_type", getattr(settings, "deepseek_thinking_type", "disabled"))
+    reasoning_effort = _get_param(runtime_config, "deepseek_reasoning_effort", getattr(settings, "deepseek_reasoning_effort", "high"))
+    timeout_seconds = _get_param(runtime_config, "deepseek_timeout_seconds", getattr(settings, "deepseek_timeout_seconds", 60))
     context_window = _get_param(
         runtime_config,
         "deepseek_context_window_tokens",
@@ -52,11 +58,23 @@ async def generate_text_with_deepseek(
     payload = {
         "model": model,
         "messages": _build_messages(prompt, system_instruction),
-        "temperature": temperature,
-        "top_p": top_p,
     }
+    if thinking_type in {"enabled", "disabled"}:
+        payload["thinking"] = {"type": thinking_type}
+    if thinking_type == "enabled":
+        if reasoning_effort in {"high", "max"}:
+            payload["reasoning_effort"] = reasoning_effort
+    else:
+        payload["temperature"] = temperature
+        payload["top_p"] = top_p
+        if presence_penalty not in (None, ""):
+            payload["presence_penalty"] = presence_penalty
+        if frequency_penalty not in (None, ""):
+            payload["frequency_penalty"] = frequency_penalty
     if max_tokens:
         payload["max_tokens"] = max_tokens
+    if response_format == "json_object":
+        payload["response_format"] = {"type": "json_object"}
     headers = {
         "Authorization": f"Bearer {settings.deepseek_api_key}",
         "Content-Type": "application/json",
@@ -64,7 +82,7 @@ async def generate_text_with_deepseek(
 
     started_at = time.perf_counter()
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=float(timeout_seconds or 60)) as client:
             response = await client.post(url, headers=headers, json=payload)
             response.raise_for_status()
         elapsed_ms = int((time.perf_counter() - started_at) * 1000)

@@ -4,6 +4,9 @@ import { apiFetch, safeJson } from '../api'
 
 type Scope = 'admin_only' | 'global'
 type Provider = 'gemini' | 'deepseek'
+type ResponseFormat = 'text' | 'json_object'
+type ThinkingType = 'disabled' | 'enabled'
+type ReasoningEffort = 'high' | 'max'
 
 interface RuntimeConfig {
   scope: Scope
@@ -13,6 +16,12 @@ interface RuntimeConfig {
   deepseek_temperature: number | null
   deepseek_top_p: number | null
   deepseek_max_tokens: number | null
+  deepseek_presence_penalty: number | null
+  deepseek_frequency_penalty: number | null
+  deepseek_response_format: ResponseFormat
+  deepseek_thinking_type: ThinkingType
+  deepseek_reasoning_effort: ReasoningEffort
+  deepseek_timeout_seconds: number | null
   deepseek_context_window_tokens: number | null
   gemini_context_window_tokens: number | null
 }
@@ -58,6 +67,12 @@ const EMPTY_CONFIG: RuntimeConfig = {
   deepseek_temperature: 0.7,
   deepseek_top_p: 1.0,
   deepseek_max_tokens: null,
+  deepseek_presence_penalty: 0,
+  deepseek_frequency_penalty: 0,
+  deepseek_response_format: 'text',
+  deepseek_thinking_type: 'disabled',
+  deepseek_reasoning_effort: 'high',
+  deepseek_timeout_seconds: 60,
   deepseek_context_window_tokens: 64000,
   gemini_context_window_tokens: 1000000,
 }
@@ -99,6 +114,8 @@ export default function AdminSettingsModal({ onClose }: Props) {
   const setField = <K extends keyof RuntimeConfig>(key: K, value: RuntimeConfig[K]) => {
     setConfig(prev => ({ ...prev, [key]: value }))
   }
+
+  const thinkingEnabled = config.deepseek_thinking_type === 'enabled'
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -169,16 +186,54 @@ export default function AdminSettingsModal({ onClose }: Props) {
                 <input className="m3-input" value={config.deepseek_base_url} onChange={e => setField('deepseek_base_url', e.target.value)} />
               </div>
               <div>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>思考模式</label>
+                <select className="m3-input" value={config.deepseek_thinking_type} onChange={e => setField('deepseek_thinking_type', e.target.value as ThinkingType)}>
+                  <option value="disabled">关闭思考模式</option>
+                  <option value="enabled">开启思考模式</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>思考强度</label>
+                <select className="m3-input" value={config.deepseek_reasoning_effort} onChange={e => setField('deepseek_reasoning_effort', e.target.value as ReasoningEffort)} disabled={!thinkingEnabled}>
+                  <option value="high">High</option>
+                  <option value="max">Max</option>
+                </select>
+              </div>
+              {thinkingEnabled && (
+                <div style={{ gridColumn: '1 / -1', padding: '10px 12px', borderRadius: 10, background: 'var(--dui-warning-container)', color: 'var(--dui-warning)', fontSize: 12, lineHeight: 1.6 }}>
+                  思考模式开启时，DeepSeek 的 temperature、top_p、presence_penalty、frequency_penalty 不生效，后端会自动不发送这些参数。
+                </div>
+              )}
+              <div>
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>Temperature</label>
-                <input className="m3-input" type="number" step="0.1" value={config.deepseek_temperature ?? ''} onChange={e => setField('deepseek_temperature', e.target.value ? Number(e.target.value) : null)} />
+                <input className="m3-input" type="number" step="0.1" value={config.deepseek_temperature ?? ''} onChange={e => setField('deepseek_temperature', e.target.value ? Number(e.target.value) : null)} disabled={thinkingEnabled} />
               </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>Top P</label>
-                <input className="m3-input" type="number" step="0.1" value={config.deepseek_top_p ?? ''} onChange={e => setField('deepseek_top_p', e.target.value ? Number(e.target.value) : null)} />
+                <input className="m3-input" type="number" step="0.1" value={config.deepseek_top_p ?? ''} onChange={e => setField('deepseek_top_p', e.target.value ? Number(e.target.value) : null)} disabled={thinkingEnabled} />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>Presence Penalty</label>
+                <input className="m3-input" type="number" step="0.1" value={config.deepseek_presence_penalty ?? ''} onChange={e => setField('deepseek_presence_penalty', e.target.value ? Number(e.target.value) : null)} disabled={thinkingEnabled} />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>Frequency Penalty</label>
+                <input className="m3-input" type="number" step="0.1" value={config.deepseek_frequency_penalty ?? ''} onChange={e => setField('deepseek_frequency_penalty', e.target.value ? Number(e.target.value) : null)} disabled={thinkingEnabled} />
               </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>Max Tokens</label>
                 <input className="m3-input" type="number" step="1" value={config.deepseek_max_tokens ?? ''} onChange={e => setField('deepseek_max_tokens', e.target.value ? Number(e.target.value) : null)} />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>输出格式</label>
+                <select className="m3-input" value={config.deepseek_response_format} onChange={e => setField('deepseek_response_format', e.target.value as ResponseFormat)}>
+                  <option value="text">普通文本</option>
+                  <option value="json_object">JSON Object</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>请求超时（秒）</label>
+                <input className="m3-input" type="number" step="1" value={config.deepseek_timeout_seconds ?? ''} onChange={e => setField('deepseek_timeout_seconds', e.target.value ? Number(e.target.value) : null)} />
               </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>DeepSeek 上下文窗口</label>

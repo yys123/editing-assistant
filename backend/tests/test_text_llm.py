@@ -112,6 +112,12 @@ class DeepSeekClientTests(unittest.IsolatedAsyncioTestCase):
             deepseek_temperature=0.7,
             deepseek_top_p=1.0,
             deepseek_max_tokens=0,
+            deepseek_presence_penalty=0,
+            deepseek_frequency_penalty=0,
+            deepseek_response_format="text",
+            deepseek_thinking_type="disabled",
+            deepseek_reasoning_effort="high",
+            deepseek_timeout_seconds=60,
         )
         fake_httpx = SimpleNamespace(AsyncClient=lambda **kwargs: fake_client)
 
@@ -132,6 +138,53 @@ class DeepSeekClientTests(unittest.IsolatedAsyncioTestCase):
                 {"role": "user", "content": "user prompt"},
             ],
         )
+        self.assertEqual(fake_client.calls[0]["json"]["thinking"], {"type": "disabled"})
+        self.assertEqual(fake_client.calls[0]["json"]["presence_penalty"], 0)
+        self.assertEqual(fake_client.calls[0]["json"]["frequency_penalty"], 0)
+
+    async def test_deepseek_thinking_mode_skips_sampling_params(self):
+        fake_client = _FakeAsyncClient(
+            {
+                "choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            }
+        )
+        fake_settings = SimpleNamespace(
+            deepseek_api_key="secret",
+            deepseek_model="deepseek-chat",
+            deepseek_base_url="https://api.deepseek.com",
+            deepseek_temperature=0.7,
+            deepseek_top_p=1.0,
+            deepseek_max_tokens=0,
+            deepseek_presence_penalty=0,
+            deepseek_frequency_penalty=0,
+            deepseek_response_format="text",
+            deepseek_thinking_type="disabled",
+            deepseek_reasoning_effort="high",
+            deepseek_timeout_seconds=60,
+        )
+        fake_httpx = SimpleNamespace(AsyncClient=lambda **kwargs: fake_client)
+        runtime_config = {
+            "deepseek_thinking_type": "enabled",
+            "deepseek_reasoning_effort": "max",
+            "deepseek_temperature": 0.2,
+            "deepseek_top_p": 0.4,
+            "deepseek_presence_penalty": 1.0,
+            "deepseek_frequency_penalty": 1.0,
+        }
+
+        with patch.object(deepseek, "settings", fake_settings, create=True), patch.object(
+            deepseek, "httpx", fake_httpx, create=True
+        ):
+            await deepseek.generate_text_with_deepseek("user prompt", runtime_config=runtime_config)
+
+        payload = fake_client.calls[0]["json"]
+        self.assertEqual(payload["thinking"], {"type": "enabled"})
+        self.assertEqual(payload["reasoning_effort"], "max")
+        self.assertNotIn("temperature", payload)
+        self.assertNotIn("top_p", payload)
+        self.assertNotIn("presence_penalty", payload)
+        self.assertNotIn("frequency_penalty", payload)
 
     async def test_deepseek_raises_on_empty_text(self):
         fake_client = _FakeAsyncClient(
