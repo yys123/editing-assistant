@@ -70,6 +70,33 @@ def _fix_cjk_en_replacements(text: str) -> str:
 _fix_cjk_and_replacement = _fix_cjk_en_replacements
 
 
+_ARABIC_NUMBERED_HEADING_RE = re.compile(r"^\d+[、.．]\s*\S+")
+_MEDIA_MARKER_RE = re.compile(r"^\[(?:图片|图片内容)\]")
+
+
+def _promote_numbered_headings_after_media(text: str) -> str:
+    lines = text.split("\n")
+    promoted: List[str] = []
+    prev_nonempty = ""
+
+    for line in lines:
+        stripped = line.strip()
+        if (
+            stripped
+            and not stripped.startswith("[H")
+            and _MEDIA_MARKER_RE.match(prev_nonempty)
+            and _ARABIC_NUMBERED_HEADING_RE.match(stripped)
+        ):
+            line = f"[H3] {stripped}"
+            stripped = line
+
+        promoted.append(line)
+        if stripped:
+            prev_nonempty = stripped
+
+    return "\n".join(promoted)
+
+
 def _normalize_structured_markers(text: str) -> str:
     """Ensure [H1]/[H2]/[H3] markers always start on their own line.
 
@@ -77,7 +104,8 @@ def _normalize_structured_markers(text: str) -> str:
     "...正文。 [H2] 二、 标题"
     which would otherwise be treated as body content instead of a new section.
     """
-    return re.sub(r'(?<!\n)\s*(\[H[123]\]\s*)', r'\n\1', text)
+    normalized = re.sub(r'(?<!\n)\s*(\[H[123]\]\s*)', r'\n\1', text)
+    return _promote_numbered_headings_after_media(normalized)
 
 
 def _fix_section_levels(sections: List[ArticleSection]) -> List[ArticleSection]:
