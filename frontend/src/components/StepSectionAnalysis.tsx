@@ -6,6 +6,8 @@ interface Props {
   disease: string
   articleEntryType: ArticleEntryType
   parsedArticle: ParsedArticle
+  parsedArticleSourceHash: string
+  parsedArticleParserVersion?: number
   sectionAnalyses: SectionAnalysis[]
   setSectionAnalyses: (analyses: SectionAnalysis[]) => void
   sectionReferenceSelections: Record<string, string[]>
@@ -161,7 +163,7 @@ const RATING_CONFIG: Record<Rating, { label: string; color: string; bg: string }
 }
 
 export default function StepSectionAnalysis({
-  disease, articleEntryType, parsedArticle, sectionAnalyses, setSectionAnalyses,
+  disease, articleEntryType, parsedArticle, parsedArticleSourceHash, parsedArticleParserVersion, sectionAnalyses, setSectionAnalyses,
   sectionReferenceSelections, setSectionReferenceSelections,
   sectionPriorityReferenceSelections, setSectionPriorityReferenceSelections,
   referenceDocs, standardsOverride
@@ -186,6 +188,25 @@ export default function StepSectionAnalysis({
   }
 
   const groups = useMemo(() => buildAnalysisGroups(parsedArticle.sections), [parsedArticle.sections])
+  const currentGroupIds = useMemo(() => new Set(groups.map(g => g.representative.id)), [groups])
+  const visibleAnalyses = useMemo(
+    () => sectionAnalyses.filter(a => currentGroupIds.has(a.section_id)),
+    [currentGroupIds, sectionAnalyses],
+  )
+  const staleAnalysisIds = useMemo(() => new Set(
+    visibleAnalyses
+      .filter(a =>
+        a.analysis_source_hash !== parsedArticleSourceHash
+        || a.analysis_parser_version !== parsedArticleParserVersion,
+      )
+      .map(a => a.section_id),
+  ), [visibleAnalyses, parsedArticleSourceHash, parsedArticleParserVersion])
+
+  const stampAnalysis = (analysis: SectionAnalysis): SectionAnalysis => ({
+    ...analysis,
+    analysis_source_hash: parsedArticleSourceHash,
+    analysis_parser_version: parsedArticleParserVersion,
+  })
 
   const getSelectedReferenceNames = (groupId: string) => {
     const saved = sectionReferenceSelections[groupId]
@@ -292,7 +313,7 @@ export default function StepSectionAnalysis({
     const runGroup = async (group: AnalysisGroup) => {
       const id = group.representative.id
       try {
-        const result = await analyzeGroup(group)
+        const result = stampAnalysis(await analyzeGroup(group))
         resultsRef.current = [...resultsRef.current.filter(a => a.section_id !== id), result]
         setSectionAnalyses([...resultsRef.current])
       } catch (e: any) {
@@ -326,7 +347,7 @@ export default function StepSectionAnalysis({
     setErrors(prev => { const n = { ...prev }; delete n[groupId]; return n })
     setAnalysing(prev => ({ ...prev, [groupId]: true }))
     try {
-      const result = await analyzeGroup(group)
+      const result = stampAnalysis(await analyzeGroup(group))
       resultsRef.current = [...resultsRef.current.filter(a => a.section_id !== groupId), result]
       setSectionAnalyses([...resultsRef.current])
     } catch (e: any) {
@@ -337,20 +358,21 @@ export default function StepSectionAnalysis({
   }
 
   const anyAnalysing = Object.keys(analysing).length > 0
-  const analysedCount = groups.filter(g => sectionAnalyses.some(a => a.section_id === g.representative.id)).length
-  const totalIssues = sectionAnalyses.reduce((acc, a) => acc + a.issues.filter(i => i.status !== 'rejected').length, 0)
+  const analysedCount = groups.filter(g => visibleAnalyses.some(a => a.section_id === g.representative.id)).length
+  const totalIssues = visibleAnalyses.reduce((acc, a) => acc + a.issues.filter(i => i.status !== 'rejected').length, 0)
   const failedCount = Object.keys(errors).length
-  const isComplete = analysedCount >= groups.length && groups.length > 0 && !anyAnalysing && failedCount === 0
+  const hasStaleAnalyses = staleAnalysisIds.size > 0
+  const isComplete = analysedCount >= groups.length && groups.length > 0 && !anyAnalysing && failedCount === 0 && !hasStaleAnalyses
 
-  const dimStats = computeDimStats(sectionAnalyses)
+  const dimStats = computeDimStats(visibleAnalyses)
 
   const overallRating: Rating | null = useMemo(() => {
-    if (sectionAnalyses.length === 0) return null
+    if (visibleAnalyses.length === 0) return null
     const ratings = [1, 2, 3, 4].map(d => getDimRating(d, dimStats[d], parsedArticle.total_words))
     if (ratings.every(r => r === 'excellent')) return 'excellent'
     if (ratings.every(r => r !== 'fail')) return 'pass'
     return 'fail'
-  }, [dimStats, sectionAnalyses, parsedArticle.total_words])
+  }, [dimStats, visibleAnalyses, parsedArticle.total_words])
 
   return (
     <div>
@@ -408,6 +430,18 @@ export default function StepSectionAnalysis({
         </div>
       </div>
 
+      {hasStaleAnalyses && (
+        <div className="section-card" style={{ marginBottom: 16, borderColor: 'var(--dui-warning)', background: 'var(--dui-warning-container)' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, color: 'var(--dui-warning)' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, marginTop: 1 }}>warning</span>
+            <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+              内容已经重新解析，当前有 {staleAnalysisIds.size} 个章节的审评结果基于旧解析，暂时仅供参考。
+              请重新分析这些章节后再进入下一步。
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Section detail */}
       <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)' }}>
         章节详情
@@ -424,10 +458,11 @@ export default function StepSectionAnalysis({
           const selectedRefCount = getSelectedReferenceDocs(group.representative.id).length
           const priorityRefNames = getPriorityReferenceNames(group.representative.id)
           const priorityRefCount = priorityRefNames.length
+          const isStale = staleAnalysisIds.has(group.representative.id)
 
           const isAnalysing = !!analysing[group.representative.id]
-          const headerBg = isAnalysing ? 'var(--gray-50)' : issues.length > 0 ? 'var(--orange-light)' : 'var(--gray-50)'
-          const borderColor = hasError ? 'var(--dui-danger)' : issues.length > 0 ? 'var(--dui-warning)' : 'var(--dui-divider)'
+          const headerBg = isAnalysing ? 'var(--gray-50)' : isStale ? 'var(--dui-warning-container)' : issues.length > 0 ? 'var(--orange-light)' : 'var(--gray-50)'
+          const borderColor = hasError ? 'var(--dui-danger)' : isStale ? 'var(--dui-warning)' : issues.length > 0 ? 'var(--dui-warning)' : 'var(--dui-divider)'
 
           // Always show split view (original content always visible);
           // right panel shows spinner while analysing, issues when done
@@ -478,12 +513,23 @@ export default function StepSectionAnalysis({
                     重点指南 {priorityRefCount}
                   </span>
                 )}
+                {isStale && !isAnalysing && (
+                  <span style={{
+                    fontSize: 12,
+                    color: 'var(--dui-warning)',
+                    background: 'var(--dui-warning-container)',
+                    borderRadius: 999,
+                    padding: '2px 8px',
+                  }}>
+                    旧结果
+                  </span>
+                )}
                 {!isAnalysing && !hasError && hasAnalysis && (
                   <span style={{
                     fontSize: 12, fontWeight: 500,
-                    color: issues.length > 0 ? 'var(--orange)' : 'var(--green)',
+                    color: isStale ? 'var(--dui-warning)' : issues.length > 0 ? 'var(--orange)' : 'var(--green)',
                   }}>
-                    {issues.length > 0 ? `${issues.length} 个问题` : '✓ 无问题'}
+                    {isStale ? '需重新分析' : issues.length > 0 ? `${issues.length} 个问题` : '✓ 无问题'}
                   </span>
                 )}
                 {!isAnalysing && !hasError && !hasAnalysis && (
@@ -678,11 +724,11 @@ export default function StepSectionAnalysis({
                   <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
                     <div style={{
                       padding: '6px 12px', fontSize: 12, fontWeight: 500,
-                      color: isAnalysing ? 'var(--gray-400)' : hasError ? 'var(--red)' : issues.length > 0 ? 'var(--orange)' : 'var(--green)',
+                      color: isAnalysing ? 'var(--gray-400)' : hasError ? 'var(--red)' : isStale ? 'var(--dui-warning)' : issues.length > 0 ? 'var(--orange)' : 'var(--green)',
                       background: 'var(--gray-50)',
                       borderBottom: '0.5px solid var(--dui-divider)',
                     }}>
-                      {isAnalysing ? '分析中…' : hasError ? '分析失败' : issues.length > 0 ? `发现问题（${issues.length} 项）` : '✓ 无问题'}
+                      {isAnalysing ? '分析中…' : hasError ? '分析失败' : isStale ? '旧审评结果（请重新分析）' : issues.length > 0 ? `发现问题（${issues.length} 项）` : '✓ 无问题'}
                     </div>
 
                     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
@@ -845,7 +891,7 @@ export default function StepSectionAnalysis({
       </div>
 
       {/* Quality Verdict Panel */}
-      {sectionAnalyses.length > 0 && (() => {
+      {visibleAnalyses.length > 0 && (() => {
         const p10k = (v: number) =>
           parsedArticle.total_words > 0 ? v / parsedArticle.total_words * 10000 : v
 

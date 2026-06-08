@@ -1,6 +1,6 @@
 import { articleContentToStructuredMarkers } from './articleStructure'
 
-export const ARTICLE_PARSE_CACHE_VERSION = 4
+export const ARTICLE_PARSE_CACHE_VERSION = 5
 
 export function buildArticleParseSource(articleContent: string, articleParseContent?: string) {
   const sourceContent = articleParseContent?.trim() || articleContent

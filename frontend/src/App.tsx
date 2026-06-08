@@ -284,7 +284,6 @@ function AppContent() {
     setParsedArticle(null)
     setParsedArticleSourceHash('')
     setParsedArticleParserVersion(undefined)
-    setSectionAnalyses([])
     setGapAnalysis(null)
     setGapItems([])
     if (step > 3) setStep(3)
@@ -308,9 +307,6 @@ function AppContent() {
       setParsedArticle(null)
       setParsedArticleSourceHash('')
       setParsedArticleParserVersion(undefined)
-      setSectionAnalyses([])
-      setSectionReferenceSelections({})
-      setSectionPriorityReferenceSelections({})
       setGapAnalysis(null)
       setGapItems([])
     }
@@ -322,9 +318,6 @@ function AppContent() {
       setParsedArticle(null)
       setParsedArticleSourceHash('')
       setParsedArticleParserVersion(undefined)
-      setSectionAnalyses([])
-      setSectionReferenceSelections({})
-      setSectionPriorityReferenceSelections({})
       setGapAnalysis(null)
       setGapItems([])
     }
@@ -445,12 +438,22 @@ function AppContent() {
     const hasValidParsedArticle = !!session.parsedArticle
       && session.parsedArticleSourceHash === expectedParsedHash
       && session.parsedArticleParserVersion === ARTICLE_PARSE_CACHE_VERSION
+    const sessionCurrentSectionIds = new Set((session.parsedArticle?.sections ?? []).map(section => section.id))
+    const sessionHasFreshSectionAnalyses = hasValidParsedArticle
+      && (session.sectionAnalyses ?? []).some(analysis => sessionCurrentSectionIds.has(analysis.section_id))
+      && !(session.sectionAnalyses ?? []).some(analysis =>
+        sessionCurrentSectionIds.has(analysis.section_id)
+        && (
+          analysis.analysis_source_hash !== session.parsedArticleSourceHash
+          || analysis.analysis_parser_version !== session.parsedArticleParserVersion
+        )
+      )
     setParsedArticle(hasValidParsedArticle ? session.parsedArticle ?? null : null)
     setParsedArticleSourceHash(hasValidParsedArticle ? session.parsedArticleSourceHash ?? '' : '')
     setParsedArticleParserVersion(hasValidParsedArticle ? session.parsedArticleParserVersion : undefined)
-    setSectionAnalyses(hasValidParsedArticle ? session.sectionAnalyses ?? [] : [])
-    setSectionReferenceSelections(hasValidParsedArticle ? session.sectionReferenceSelections ?? {} : {})
-    setSectionPriorityReferenceSelections(hasValidParsedArticle ? session.sectionPriorityReferenceSelections ?? {} : {})
+    setSectionAnalyses(session.sectionAnalyses ?? [])
+    setSectionReferenceSelections(session.sectionReferenceSelections ?? {})
+    setSectionPriorityReferenceSelections(session.sectionPriorityReferenceSelections ?? {})
     setGapAnalysis(hasValidParsedArticle ? session.gapAnalysis ?? null : null)
     setGapItems(hasValidParsedArticle ? session.gapItems ?? [] : [])
     setSelectedGap(null)
@@ -468,9 +471,9 @@ function AppContent() {
     if (session.articleContent) maxSafeStep = 2
     if (session.refEvalResult || (session.referenceDocs && session.referenceDocs.length === 0)) maxSafeStep = 3
     if (hasValidParsedArticle) maxSafeStep = 4
-    if (hasValidParsedArticle && session.sectionAnalyses?.length) maxSafeStep = 5
-    if (hasValidParsedArticle && session.gapAnalysis) maxSafeStep = 6
-    if (hasValidParsedArticle && session.draftHistory?.length) maxSafeStep = 7
+    if (sessionHasFreshSectionAnalyses) maxSafeStep = 5
+    if (sessionHasFreshSectionAnalyses && session.gapAnalysis) maxSafeStep = 6
+    if (sessionHasFreshSectionAnalyses && session.draftHistory?.length) maxSafeStep = 7
     const rawTarget = session.currentStep ?? (session.plan ? 7 : 1)
     // If session was saved with old 6-step numbering (max 6 and no refEvalResult field),
     // remap; otherwise use as-is
@@ -574,9 +577,20 @@ function AppContent() {
   }
 
   const goStep4 = () => {
-    setSectionAnalyses([])
     setStep(4)
   }
+
+  const currentParsedSectionIds = new Set(parsedArticle?.sections.map(s => s.id) ?? [])
+  const hasCurrentSectionAnalyses = !!parsedArticle
+    && sectionAnalyses.some(analysis => currentParsedSectionIds.has(analysis.section_id))
+  const hasStaleSectionAnalyses = !!parsedArticle
+    && sectionAnalyses.some(analysis =>
+      currentParsedSectionIds.has(analysis.section_id)
+      && (
+        analysis.analysis_source_hash !== parsedArticleSourceHash
+        || analysis.analysis_parser_version !== parsedArticleParserVersion
+      )
+    )
 
   // ── Step nav canClick logic ──────────────────────────────────────────────────
   const canClick = (s: Step): boolean => {
@@ -584,7 +598,7 @@ function AppContent() {
     if (s === 2) return !!(disease && articleContent)
     if (s === 3) return !!(disease && articleContent)
     if (s === 4) return !!parsedArticle
-    if (s === 5) return sectionAnalyses.length > 0
+    if (s === 5) return hasCurrentSectionAnalyses && !hasStaleSectionAnalyses
     if (s === 6) return !!gapAnalysis
     if (s === 7) return draftHistory.length > 0 || gapItems.length > 0
     return false
@@ -625,6 +639,11 @@ function AppContent() {
           backLabel: '返回内容解析', backAction: () => setStep(3),
           nextLabel: canClick(5) ? '下一步：用户需求分析' : null,
           nextAction: canClick(5) ? () => setStep(5) : null,
+          extraRight: hasStaleSectionAnalyses ? (
+            <span style={{ fontSize: 13, color: 'var(--dui-warning)' }}>
+              当前审评结果基于旧解析，请先重新分析相关章节
+            </span>
+          ) : undefined,
         }
       case 5:
         return {
@@ -887,6 +906,8 @@ function AppContent() {
               disease={disease}
               articleEntryType={articleEntryType}
               parsedArticle={parsedArticle}
+              parsedArticleSourceHash={parsedArticleSourceHash}
+              parsedArticleParserVersion={parsedArticleParserVersion}
               sectionAnalyses={sectionAnalyses}
               setSectionAnalyses={setSectionAnalyses}
               sectionReferenceSelections={sectionReferenceSelections}

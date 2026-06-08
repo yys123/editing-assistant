@@ -1,5 +1,6 @@
 import os
 import re
+import hashlib
 from typing import List, Optional
 from models import ArticleSection, ParsedArticle
 from services.text_llm import generate_text
@@ -72,6 +73,28 @@ _fix_cjk_and_replacement = _fix_cjk_en_replacements
 
 _ARABIC_NUMBERED_HEADING_RE = re.compile(r"^\d+[、.．]\s*\S+")
 _MEDIA_MARKER_RE = re.compile(r"^\[(?:图片|图片内容)\]")
+_FIGURE_TABLE_CAPTION_RE = re.compile(r"^(?:图|表)\s*\d+\s*\S*")
+
+
+def _is_media_or_caption_line(text: str) -> bool:
+    stripped = text.strip()
+    return bool(_MEDIA_MARKER_RE.match(stripped) or _FIGURE_TABLE_CAPTION_RE.match(stripped))
+
+
+def _split_caption_trailing_numbered_heading(text: str) -> str:
+    lines = text.split("\n")
+    normalized: List[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        match = re.match(r"^((?:图|表)\s*\d+[^\n]*?\]?)\s*(\d+[、.．]\s*\S.*)$", stripped)
+        if match:
+            normalized.append(match.group(1).strip())
+            normalized.append(f"[H3] {match.group(2).strip()}")
+            continue
+        normalized.append(line)
+
+    return "\n".join(normalized)
 
 
 def _promote_numbered_headings_after_media(text: str) -> str:
@@ -84,7 +107,7 @@ def _promote_numbered_headings_after_media(text: str) -> str:
         if (
             stripped
             and not stripped.startswith("[H")
-            and _MEDIA_MARKER_RE.match(prev_nonempty)
+            and _is_media_or_caption_line(prev_nonempty)
             and _ARABIC_NUMBERED_HEADING_RE.match(stripped)
         ):
             line = f"[H3] {stripped}"
@@ -105,6 +128,7 @@ def _normalize_structured_markers(text: str) -> str:
     which would otherwise be treated as body content instead of a new section.
     """
     normalized = re.sub(r'(?<!\n)\s*(\[H[123]\]\s*)', r'\n\1', text)
+    normalized = _split_caption_trailing_numbered_heading(normalized)
     return _promote_numbered_headings_after_media(normalized)
 
 
@@ -128,6 +152,34 @@ def _fix_section_levels(sections: List[ArticleSection]) -> List[ArticleSection]:
                 last_level1_heading = s.heading
         elif _is_summary_section(s.heading):
             s.level = 2
+    return sections
+
+
+def _assign_stable_section_ids(sections: List[ArticleSection]) -> List[ArticleSection]:
+    """Assign deterministic IDs so re-parsing can preserve downstream state."""
+    counters = [0, 0, 0]
+
+    for section in sections:
+        level = max(1, min(3, section.level))
+        if level == 1:
+            counters[0] += 1
+            counters[1] = 0
+            counters[2] = 0
+        elif level == 2:
+            if counters[0] == 0:
+                counters[0] = 1
+            counters[1] += 1
+            counters[2] = 0
+        else:
+            if counters[0] == 0:
+                counters[0] = 1
+            counters[2] += 1
+
+        path = ".".join(str(n) for n in counters[:level] if n > 0)
+        normalized_heading = re.sub(r"\s+", "", section.heading).strip()
+        raw = f"{level}|{path}|{normalized_heading}"
+        section.id = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:8]
+
     return sections
 
 
@@ -370,6 +422,7 @@ async def _parse_with_ai(text: str) -> ParsedArticle:
 
     _fix_section_levels(sections)
     _validate_and_repair(sections, text)
+    _assign_stable_section_ids(sections)
     total_words = sum(s.word_count for s in sections if not _is_summary_section(s.heading))
     return ParsedArticle(sections=sections, total_words=total_words)
 
@@ -615,11 +668,13 @@ def _parse_with_fallback(text: str) -> ParsedArticle:
     except Exception:
         pass
 
-    return ParsedArticle(
-        sections=[ArticleSection(
+    sections = [ArticleSection(
             heading="正文", content=text,
             word_count=count_chinese_words(text), level=1,
-        )],
+        )]
+    _assign_stable_section_ids(sections)
+    return ParsedArticle(
+        sections=sections,
         total_words=count_chinese_words(text),
     )
 
@@ -661,6 +716,7 @@ def _parse_structured_markers(text: str) -> ParsedArticle:
 
     flush()
     _fix_section_levels(sections)
+    _assign_stable_section_ids(sections)
     total_words = sum(s.word_count for s in sections if not _is_summary_section(s.heading))
     return ParsedArticle(sections=sections, total_words=total_words)
 
@@ -693,6 +749,7 @@ def _parse_markdown(text: str) -> ParsedArticle:
 
     flush()
     _fix_section_levels(sections)
+    _assign_stable_section_ids(sections)
     return ParsedArticle(sections=sections, total_words=sum(s.word_count for s in sections))
 
 
@@ -720,4 +777,5 @@ def _parse_html_fallback(text: str) -> ParsedArticle:
         ))
 
     _fix_section_levels(sections)
+    _assign_stable_section_ids(sections)
     return ParsedArticle(sections=sections, total_words=sum(s.word_count for s in sections))

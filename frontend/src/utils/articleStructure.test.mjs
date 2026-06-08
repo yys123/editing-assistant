@@ -17,4 +17,17 @@ assert.match(
 )
 assert.match(structured, /^\[H3\] \(1\) EPO 减少：/m)
 
+const captionFollowedByHeading = [
+  '[H1] 诊断',
+  '[H3] 2、铁受限性红细胞生成',
+  '在 CKD 患者中，由于较高的炎症状态，表现为低转铁蛋白饱和度以及伴有正常细胞血红蛋白的贫血[892]。',
+  '图 16 不同铁状态下的机制[892]',
+  '3、 营养不良',
+  'CKD 患者由于饮食控制、食欲减退引起营养不良。',
+].join('\n')
+
+const captionStructured = articleContentToStructuredMarkers(captionFollowedByHeading)
+
+assert.match(captionStructured, /图 16 不同铁状态下的机制\[892\]\n\[H3\] 3、 营养不良/)
+
 console.log('articleStructure tests passed')

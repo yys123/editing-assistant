@@ -150,6 +150,8 @@ export interface SectionAnalysis {
   section_heading: string
   issues: SectionIssue[]
   verification_summary?: string
+  analysis_source_hash?: string
+  analysis_parser_version?: number
 }
 
 export interface NeedSectionMapping {

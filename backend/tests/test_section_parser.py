@@ -64,6 +64,45 @@ class SectionParserLongContentTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("[图片] 图 16 不同铁状态下的机制", iron.content)
         self.assertIn("[图片内容] 图中说明文字", iron.content)
 
+    async def test_parse_article_sections_promotes_numbered_heading_after_figure_caption(self):
+        text = (
+            "[H1] 诊断\n"
+            "[H3] 2、铁受限性红细胞生成\n"
+            "前一节正文\n"
+            "图 16 不同铁状态下的机制[892]\n"
+            "3、 营养不良\n"
+            "营养不良正文\n"
+            "[H3] 4、甲状旁腺功能亢进\n"
+            "下一节正文"
+        )
+
+        result = await section_parser.parse_article_sections(text)
+        headings = [s.heading for s in result.sections]
+
+        self.assertIn("3、 营养不良", headings)
+        nutrition = next(s for s in result.sections if s.heading == "3、 营养不良")
+        self.assertEqual(nutrition.level, 3)
+        self.assertIn("营养不良正文", nutrition.content)
+        iron = next(s for s in result.sections if s.heading == "2、铁受限性红细胞生成")
+        self.assertIn("图 16 不同铁状态下的机制[892]", iron.content)
+
+    async def test_parse_article_sections_keeps_stable_ids_across_reparse(self):
+        text = (
+            "[H1] 诊断\n"
+            "[H2] 一、临床表现\n"
+            "临床表现正文\n"
+            "[H3] 1、贫血\n"
+            "贫血正文"
+        )
+
+        first = await section_parser.parse_article_sections(text)
+        second = await section_parser.parse_article_sections(text)
+
+        self.assertEqual(
+            [(s.heading, s.id) for s in first.sections],
+            [(s.heading, s.id) for s in second.sections],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
