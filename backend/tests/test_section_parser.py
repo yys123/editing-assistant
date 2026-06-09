@@ -86,6 +86,21 @@ class SectionParserLongContentTests(unittest.IsolatedAsyncioTestCase):
         iron = next(s for s in result.sections if s.heading == "2、铁受限性红细胞生成")
         self.assertIn("图 16 不同铁状态下的机制[892]", iron.content)
 
+    async def test_parse_article_sections_promotes_numbered_heading_after_figure_note(self):
+        text = (
+            "[H1] 治疗\n"
+            "[图注] xiii. EMA 建议患者年龄在 65 岁以上且没有可供选择的治疗药物时，该药物可作为保留方案。\n"
+            "2、 手术治疗策略\n"
+            "严重的 CD 并发症、内科治疗无效、CD 相关癌变的患者需要外科手术。"
+        )
+
+        result = await section_parser.parse_article_sections(text)
+        headings = [s.heading for s in result.sections]
+
+        self.assertIn("2、 手术治疗策略", headings)
+        treatment = next(s for s in result.sections if s.heading == "治疗")
+        self.assertIn("[图注] xiii.", treatment.content)
+
     async def test_parse_article_sections_keeps_stable_ids_across_reparse(self):
         text = (
             "[H1] 诊断\n"
@@ -102,6 +117,51 @@ class SectionParserLongContentTests(unittest.IsolatedAsyncioTestCase):
             [(s.heading, s.id) for s in first.sections],
             [(s.heading, s.id) for s in second.sections],
         )
+
+    async def test_parse_article_sections_uses_fast_plain_parser_for_obvious_fields(self):
+        text = (
+            "基础知识\n"
+            "一、 定义\n"
+            "定义正文\n"
+            "诊断\n"
+            "一、 临床表现\n"
+            "临床表现正文\n"
+            "治疗\n"
+            "一、 药物治疗\n"
+            "药物治疗正文\n"
+            "2、 手术治疗策略\n"
+            "手术治疗正文"
+        )
+
+        async def fail_generate_text(*args, **kwargs):
+            raise AssertionError("plain structured content should not call AI parser")
+
+        with patch("services.section_parser.generate_text", side_effect=fail_generate_text):
+            result = await section_parser.parse_article_sections(text)
+
+        headings = [s.heading for s in result.sections]
+        self.assertIn("基础知识", headings)
+        self.assertIn("诊断", headings)
+        self.assertIn("治疗", headings)
+        self.assertIn("2、 手术治疗策略", headings)
+
+    async def test_plain_fast_parser_does_not_trigger_for_single_field(self):
+        text = (
+            "治疗\n"
+            "一、 药物治疗\n"
+            "药物治疗正文"
+        )
+
+        async def fake_generate_text(*args, **kwargs):
+            return (
+                '{"sections":[{"heading":"治疗","content":"一、 药物治疗\\n药物治疗正文",'
+                '"level":1,"image_count":0,"table_count":0}]}'
+            )
+
+        with patch("services.section_parser.generate_text", side_effect=fake_generate_text):
+            result = await section_parser.parse_article_sections(text)
+
+        self.assertEqual([s.heading for s in result.sections], ["治疗"])
 
 
 if __name__ == "__main__":

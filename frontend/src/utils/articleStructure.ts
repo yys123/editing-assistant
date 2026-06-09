@@ -11,14 +11,15 @@ function isLevel3Heading(text: string) {
 }
 
 function isFigureOrTableCaptionLine(text: string) {
-  return /^(?:图|表)\s*\d+\s*\S*/.test(text.trim())
+  return /^(?:\[图注\]|\[图片\]|(?:图|表)\s*\d+\s*\S*)/.test(text.trim())
 }
 
 function splitInlineLevel3Heading(text: string) {
   const trimmed = text.trim()
-  const match = trimmed.match(/^(.+[。；;：:])\s+((?:[（(][一二三四五六七八九十百\d]+[）)]|\d+[、.)])\s*\S.*)$/)
+  const match = trimmed.match(/^((?:\[图注\]\s*)?.+[。；;：:])\s+((?:[（(][一二三四五六七八九十百\d]+[）)]|\d+[、.)])\s*\S.*)$/)
   if (!match) return null
   const [, body, heading] = match
+  if (/^\d+[、.)]/.test(heading.trim()) && heading.trim().length > 36) return null
   return { body, heading }
 }
 
@@ -65,18 +66,16 @@ export function articleContentToStructuredMarkers(text: string) {
       return `[H3] ${trimmed}`
     }
 
-    if (hasLevel2InModule) {
-      const captionLevel3 = splitCaptionTrailingLevel3Heading(trimmed)
-      if (captionLevel3) {
-        prevNonEmptyLine = `[H3] ${captionLevel3.heading}`
-        return `${captionLevel3.body}\n[H3] ${captionLevel3.heading}`
-      }
+    const captionLevel3InModule = splitCaptionTrailingLevel3Heading(trimmed)
+    if (captionLevel3InModule) {
+      prevNonEmptyLine = `[H3] ${captionLevel3InModule.heading}`
+      return `${captionLevel3InModule.body}\n[H3] ${captionLevel3InModule.heading}`
+    }
 
-      const inlineLevel3 = splitInlineLevel3Heading(trimmed)
-      if (inlineLevel3) {
-        prevNonEmptyLine = `[H3] ${inlineLevel3.heading}`
-        return `${inlineLevel3.body}\n[H3] ${inlineLevel3.heading}`
-      }
+    const inlineLevel3 = splitInlineLevel3Heading(trimmed)
+    if (inlineLevel3) {
+      prevNonEmptyLine = `[H3] ${inlineLevel3.heading}`
+      return `${inlineLevel3.body}\n[H3] ${inlineLevel3.heading}`
     }
 
     if (isFigureOrTableCaptionLine(prevNonEmptyLine) && isLevel3Heading(trimmed)) {

@@ -30,4 +30,31 @@ const captionStructured = articleContentToStructuredMarkers(captionFollowedByHea
 
 assert.match(captionStructured, /图 16 不同铁状态下的机制\[892\]\n\[H3\] 3、 营养不良/)
 
+const inlineCaptionRemarkHeading = [
+  '[H1] 治疗',
+  'xiii. EMA 建议患者年龄在 65 岁以上且没有可供选择的治疗药物时，该药物可作为保留方案。 2、 手术治疗策略',
+  '严重的 CD 并发症、内科治疗无效、CD 相关癌变的患者需要外科手术。',
+].join('\n')
+
+const inlineCaptionRemarkStructured = articleContentToStructuredMarkers(inlineCaptionRemarkHeading)
+
+assert.match(
+  inlineCaptionRemarkStructured,
+  /保留方案。\n\[H3\] 2、 手术治疗策略/,
+)
+
+const separatedFigureNoteHeading = [
+  '[H1] 治疗',
+  '[图注] xiii. EMA 建议患者年龄在 65 岁以上且没有可供选择的治疗药物时，该药物可作为保留方案。',
+  '2、 手术治疗策略',
+  '严重的 CD 并发症、内科治疗无效、CD 相关癌变的患者需要外科手术。',
+].join('\n')
+
+const separatedFigureNoteStructured = articleContentToStructuredMarkers(separatedFigureNoteHeading)
+
+assert.match(
+  separatedFigureNoteStructured,
+  /\[图注\] xiii[\s\S]*保留方案。\n\[H3\] 2、 手术治疗策略/,
+)
+
 console.log('articleStructure tests passed')

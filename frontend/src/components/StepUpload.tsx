@@ -32,6 +32,7 @@ const ARTICLE_ENTRY_TYPE_OPTIONS: Array<{ value: ArticleEntryType; label: string
 
 const BLOCK_TAGS = new Set(['ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'OL', 'P', 'SECTION', 'TABLE', 'TBODY', 'TD', 'TH', 'THEAD', 'TR', 'UL'])
 const INLINE_TAGS = new Set(['B', 'BR', 'EM', 'I', 'STRONG'])
+const FIGURE_NOTE_CLASS = 'rich-editor-figure-note'
 interface NumberingState {
   sectionCounters: Record<number, number>
   orderedCounters: Record<string, number>
@@ -99,6 +100,22 @@ function isSourceExpertModuleHeading(node: HTMLElement) {
   return hasClassPrefix(node, 'titleName___')
 }
 
+function splitTrailingNumberedHeading(text: string) {
+  const match = text.trim().match(/^(.+[。；;：:])\s+(\d+[、.．]\s*\S.*)$/)
+  if (!match) return null
+  const heading = match[2].trim()
+  if (heading.length > 36) return null
+  return { body: match[1].trim(), heading }
+}
+
+function figureNoteToPlainText(text: string) {
+  const clean = normalizeEditorText(text)
+  if (!clean) return ''
+  const split = splitTrailingNumberedHeading(clean)
+  if (split) return `[图注] ${split.body}\n${split.heading}\n`
+  return `[图注] ${clean}\n`
+}
+
 function htmlToSafeEditorHtml(html: string) {
   const doc = new DOMParser().parseFromString(html, 'text/html')
   const walk = (node: Node): string => {
@@ -108,6 +125,10 @@ function htmlToSafeEditorHtml(html: string) {
     if (!(node instanceof HTMLElement)) return ''
     const tag = node.tagName
     const children = Array.from(node.childNodes).map(walk).join('')
+    if (tag === 'IMG') {
+      const alt = node.getAttribute('alt') || node.getAttribute('title') || ''
+      return `<p class="${FIGURE_NOTE_CLASS}">[图片]${alt ? ` ${escapeHtml(alt)}` : ''}</p>`
+    }
     if (!children && tag !== 'BR') return ''
     if (tag === 'BR') return '<br>'
     const attrs = safeNumberingAttrs(node)
@@ -134,6 +155,8 @@ function htmlToSafeEditorHtml(html: string) {
     if (isSourceFieldModuleHeading(node)) {
       return `<p class="rich-editor-module-heading">${children}</p>`
     }
+    if (tag === 'FIGCAPTION') return `<p class="${FIGURE_NOTE_CLASS}">${children}</p>`
+    if (tag === 'FIGURE') return `<div>${children}</div>`
     if (tag === 'DIV') return `<p${attrs}>${children}</p>`
     if (tag === 'H4' || tag === 'H5' || tag === 'H6') return `<h3${attrs}>${children}</h3>`
     if (BLOCK_TAGS.has(tag) || INLINE_TAGS.has(tag)) {
@@ -506,6 +529,9 @@ function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): stri
   if (tag === 'BR') return '\n'
 
   const elementText = cleanElementText(node)
+  if (node.classList.contains(FIGURE_NOTE_CLASS)) {
+    return figureNoteToPlainText(elementText)
+  }
 
   const sectionIndex = node.getAttribute('data-section-index')
   if (sectionIndex) {

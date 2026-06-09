@@ -72,7 +72,7 @@ _fix_cjk_and_replacement = _fix_cjk_en_replacements
 
 
 _ARABIC_NUMBERED_HEADING_RE = re.compile(r"^\d+[、.．]\s*\S+")
-_MEDIA_MARKER_RE = re.compile(r"^\[(?:图片|图片内容)\]")
+_MEDIA_MARKER_RE = re.compile(r"^\[(?:图片|图片内容|图注)\]")
 _FIGURE_TABLE_CAPTION_RE = re.compile(r"^(?:图|表)\s*\d+\s*\S*")
 
 
@@ -90,6 +90,23 @@ def _split_caption_trailing_numbered_heading(text: str) -> str:
         match = re.match(r"^((?:图|表)\s*\d+[^\n]*?\]?)\s*(\d+[、.．]\s*\S.*)$", stripped)
         if match:
             normalized.append(match.group(1).strip())
+            normalized.append(f"[H3] {match.group(2).strip()}")
+            continue
+        normalized.append(line)
+
+    return "\n".join(normalized)
+
+
+def _split_inline_trailing_numbered_heading(text: str) -> str:
+    lines = text.split("\n")
+    normalized: List[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        match = re.match(r"^(.+[。；;：:])\s+(\d+[、.．]\s*\S.*)$", stripped)
+        if match and len(match.group(2).strip()) <= 36:
+            prefix = line[: len(line) - len(line.lstrip())]
+            normalized.append(f"{prefix}{match.group(1).strip()}")
             normalized.append(f"[H3] {match.group(2).strip()}")
             continue
         normalized.append(line)
@@ -129,6 +146,7 @@ def _normalize_structured_markers(text: str) -> str:
     """
     normalized = re.sub(r'(?<!\n)\s*(\[H[123]\]\s*)', r'\n\1', text)
     normalized = _split_caption_trailing_numbered_heading(normalized)
+    normalized = _split_inline_trailing_numbered_heading(normalized)
     return _promote_numbered_headings_after_media(normalized)
 
 
@@ -375,6 +393,10 @@ async def parse_article_sections(text: str) -> ParsedArticle:
     normalized = _normalize_structured_markers(text)
     if re.search(r"^\[H[123]\]", normalized, re.MULTILINE):
         return _parse_structured_markers(normalized)
+
+    plain_structured = _parse_plain_numbered_sections(normalized)
+    if plain_structured:
+        return plain_structured
 
     try:
         return await _parse_with_ai(normalized)
@@ -660,6 +682,10 @@ def _parse_with_fallback(text: str) -> ParsedArticle:
     if len(md_headings) >= 2:
         return _parse_markdown(text)
 
+    plain_structured = _parse_plain_numbered_sections(text)
+    if plain_structured:
+        return plain_structured
+
     try:
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(text, "lxml")
@@ -677,6 +703,85 @@ def _parse_with_fallback(text: str) -> ParsedArticle:
         sections=sections,
         total_words=count_chinese_words(text),
     )
+
+
+_CJK_NUMBERED_HEADING_RE = re.compile(r"^[一二三四五六七八九十百]+[、.．]\s*\S+")
+_PAREN_NUMBERED_HEADING_RE = re.compile(r"^[（(][一二三四五六七八九十百\d]+[）)]\s*\S+")
+
+
+def _normalize_plain_heading(text: str) -> str:
+    return re.sub(r"[\s：:]+", "", text.strip())
+
+
+def _plain_heading_level(line: str, seen_level1: bool, seen_level2: bool) -> int:
+    stripped = line.strip()
+    if not stripped:
+        return 0
+    if _normalize_plain_heading(stripped) in _LEVEL1_HEADINGS:
+        return 1
+    if not seen_level1:
+        return 0
+    if _CJK_NUMBERED_HEADING_RE.match(stripped):
+        return 2
+    if seen_level2 and (_PAREN_NUMBERED_HEADING_RE.match(stripped) or _ARABIC_NUMBERED_HEADING_RE.match(stripped)):
+        if len(stripped) <= 80:
+            return 3
+    return 0
+
+
+def _parse_plain_numbered_sections(text: str) -> Optional[ParsedArticle]:
+    """Fast parse pasted plain text when obvious field headings are present."""
+    lines = text.split("\n")
+    sections: List[ArticleSection] = []
+    current_heading: Optional[str] = None
+    current_level = 1
+    current_lines: List[str] = []
+    seen_level1 = False
+    seen_level2 = False
+    level1_count = 0
+
+    def flush() -> None:
+        if current_heading is None:
+            return
+        content = "\n".join(current_lines).strip()
+        sections.append(ArticleSection(
+            heading=current_heading,
+            content=content,
+            word_count=count_chinese_words(content),
+            level=current_level,
+            image_count=len(re.findall(r"\[图片\]", content)),
+            table_count=len(re.findall(r"\[表格\]|\[表格标题\]", content)),
+        ))
+
+    for line in lines:
+        stripped = line.strip()
+        if _normalize_plain_heading(stripped) == "参考文献":
+            break
+
+        level = _plain_heading_level(stripped, seen_level1, seen_level2)
+        if level:
+            flush()
+            current_heading = stripped
+            current_level = level
+            current_lines = []
+            if level == 1:
+                seen_level1 = True
+                seen_level2 = False
+                level1_count += 1
+            elif level == 2:
+                seen_level2 = True
+            continue
+
+        current_lines.append(line)
+
+    flush()
+    if level1_count < 2 or len(sections) < 4:
+        return None
+
+    _fix_section_levels(sections)
+    _assign_stable_section_ids(sections)
+    total_words = sum(s.word_count for s in sections if not _is_summary_section(s.heading))
+    return ParsedArticle(sections=sections, total_words=total_words)
 
 
 def _parse_structured_markers(text: str) -> ParsedArticle:
