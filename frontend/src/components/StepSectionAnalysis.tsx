@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { ArticleEntryType, ArticleSection, ParsedArticle, SectionAnalysis, SectionIssue, ReferenceDoc, StandardsOverride } from '../types'
 import { apiFetch } from '../api'
 
@@ -183,7 +183,17 @@ export default function StepSectionAnalysis({
   // Manual review state
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [activeAnchor, setActiveAnchor] = useState<{ groupId: string; issueId: string; lineStart: number; lineEnd: number } | null>(null)
+  const [fullscreenGroupId, setFullscreenGroupId] = useState<string | null>(null)
   const sourceLineRefs = React.useRef<Record<string, HTMLDivElement | null>>({})
+
+  useEffect(() => {
+    if (!fullscreenGroupId) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFullscreenGroupId(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [fullscreenGroupId])
 
   const updateIssue = (sectionId: string, issueId: string, changes: Partial<SectionIssue>) => {
     setSectionAnalyses(sectionAnalyses.map((sa: SectionAnalysis) =>
@@ -221,7 +231,8 @@ export default function StepSectionAnalysis({
     const lineEnd = typeof anchor.line_end === 'number' ? anchor.line_end : anchor.line_start
     setActiveAnchor({ groupId, issueId: issue.id, lineStart: anchor.line_start, lineEnd })
     requestAnimationFrame(() => {
-      sourceLineRefs.current[`${groupId}:${anchor.line_start}`]?.scrollIntoView({
+      const scope = fullscreenGroupId === groupId ? 'fullscreen' : 'main'
+      sourceLineRefs.current[`${scope}:${groupId}:${anchor.line_start}`]?.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
       })
@@ -398,6 +409,8 @@ export default function StepSectionAnalysis({
     return 'fail'
   }, [dimStats, visibleAnalyses, parsedArticle.total_words])
 
+  const fullscreenGroup = fullscreenGroupId ? groups.find(g => g.representative.id === fullscreenGroupId) ?? null : null
+
   return (
     <div>
       {/* Page header */}
@@ -558,6 +571,17 @@ export default function StepSectionAnalysis({
                 )}
                 {!isAnalysing && !hasError && !hasAnalysis && (
                   <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>未分析</span>
+                )}
+                {showSplit && (
+                  <button
+                    className="btn-m3-outline"
+                    style={{ padding: '4px 10px', fontSize: 12 }}
+                    onClick={() => setFullscreenGroupId(group.representative.id)}
+                    title="全屏查看该字段原文与问题"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 15 }}>fullscreen</span>
+                    全屏
+                  </button>
                 )}
                 {!isAnalysing && !hasError && (
                   <button
@@ -739,7 +763,7 @@ export default function StepSectionAnalysis({
                           transition: 'background 0.2s ease',
                         }
                         const lineRef = (node: HTMLDivElement | null) => {
-                          sourceLineRefs.current[`${group.representative.id}:${li}`] = node
+                          sourceLineRefs.current[`main:${group.representative.id}:${li}`] = node
                         }
                         if (line.startsWith('### ')) return (
                           <div ref={lineRef} key={li} style={{ ...lineBaseStyle, fontWeight: 500, color: 'var(--gray-800)', marginTop: 8, marginBottom: 2, fontSize: 12 }}>
@@ -982,6 +1006,293 @@ export default function StepSectionAnalysis({
           )
         })}
       </div>
+
+      {fullscreenGroup && (() => {
+        const group = fullscreenGroup
+        const analysis = sectionAnalyses.find(a => a.section_id === group.representative.id)
+        const allIssues = analysis?.issues ?? []
+        const issues = allIssues.filter(issue => issue.status !== 'rejected')
+        const hasError = !!errors[group.representative.id]
+        const isAnalysing = !!analysing[group.representative.id]
+        const isStale = staleAnalysisIds.has(group.representative.id)
+
+        return (
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 2000,
+            background: 'rgba(15, 23, 42, 0.55)',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: 18,
+          }}>
+            <div style={{
+              background: 'var(--dui-surface)',
+              borderRadius: 8,
+              boxShadow: '0 24px 80px rgba(0,0,0,0.28)',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+              flex: 1,
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '12px 16px',
+                borderBottom: '0.5px solid var(--dui-divider)',
+                background: 'var(--m3-surface-container-lowest)',
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--m3-primary)' }}>fullscreen</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--m3-on-surface)' }}>{group.representative.heading}</div>
+                  <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>
+                    {group.combinedContent.length} 字 · {isAnalysing ? '分析中' : hasError ? '分析失败' : isStale ? '旧审评结果' : `${issues.length} 个有效问题`}
+                  </div>
+                </div>
+                <button
+                  className="btn-m3-outline"
+                  style={{ padding: '5px 12px', fontSize: 12 }}
+                  onClick={() => setFullscreenGroupId(null)}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close_fullscreen</span>
+                  退出全屏
+                </button>
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+                minHeight: 0,
+                flex: 1,
+              }}>
+                <div style={{ borderRight: '0.5px solid var(--dui-divider)', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
+                  <div style={{
+                    padding: '8px 14px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'var(--gray-600)',
+                    background: 'var(--gray-50)',
+                    borderBottom: '0.5px solid var(--dui-divider)',
+                  }}>
+                    原文内容
+                  </div>
+                  <div style={{
+                    padding: '12px 16px',
+                    flex: 1,
+                    minHeight: 0,
+                    overflowY: 'auto',
+                    fontSize: 13,
+                    lineHeight: 1.9,
+                    color: 'var(--gray-700)',
+                  }}>
+                    {group.combinedContent.split('\n').map((line, li) => {
+                      const isActiveLine = activeAnchor?.groupId === group.representative.id
+                        && li >= activeAnchor.lineStart
+                        && li <= activeAnchor.lineEnd
+                      const lineBaseStyle: React.CSSProperties = {
+                        background: isActiveLine ? 'var(--dui-warning-container)' : 'transparent',
+                        borderRadius: 4,
+                        padding: isActiveLine ? '1px 4px' : '0 4px',
+                        marginLeft: -4,
+                        transition: 'background 0.2s ease',
+                      }
+                      const lineRef = (node: HTMLDivElement | null) => {
+                        sourceLineRefs.current[`fullscreen:${group.representative.id}:${li}`] = node
+                      }
+                      if (line.startsWith('### ')) return (
+                        <div ref={lineRef} key={li} style={{ ...lineBaseStyle, fontWeight: 600, color: 'var(--gray-800)', marginTop: 10, marginBottom: 3, fontSize: 13 }}>
+                          {line.slice(4)}
+                        </div>
+                      )
+                      if (line.startsWith('## ')) return (
+                        <div ref={lineRef} key={li} style={{ ...lineBaseStyle, fontWeight: 600, color: 'var(--gray-900)', marginTop: 12, marginBottom: 4, fontSize: 14, borderBottom: '0.5px solid var(--dui-divider)', paddingBottom: 3 }}>
+                          {line.slice(3)}
+                        </div>
+                      )
+                      if (!line.trim()) return <div ref={lineRef} key={li} style={{ height: 7 }} />
+                      return <div ref={lineRef} key={li} style={{ ...lineBaseStyle, marginBottom: 2 }}>{line}</div>
+                    })}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
+                  <div style={{
+                    padding: '8px 14px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: isAnalysing ? 'var(--gray-500)' : hasError ? 'var(--red)' : isStale ? 'var(--dui-warning)' : issues.length > 0 ? 'var(--orange)' : 'var(--green)',
+                    background: 'var(--gray-50)',
+                    borderBottom: '0.5px solid var(--dui-divider)',
+                  }}>
+                    {isAnalysing ? '分析中…' : hasError ? '分析失败' : isStale ? '旧审评结果（请重新分析）' : issues.length > 0 ? `发现问题（${issues.length} 项）` : '无问题'}
+                  </div>
+                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 12px' }}>
+                    {isAnalysing && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '36px 16px', gap: 10, color: 'var(--gray-400)', fontSize: 13 }}>
+                        <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
+                        AI 正在审核此章节…
+                      </div>
+                    )}
+                    {hasError && <div style={{ fontSize: 12, color: 'var(--red)', padding: '8px 2px' }}>{errors[group.representative.id]}</div>}
+                    {!isAnalysing && !hasError && allIssues.length === 0 && (
+                      <div style={{ fontSize: 13, color: 'var(--gray-400)', padding: '16px 4px' }}>本章节未发现问题</div>
+                    )}
+                    {!isAnalysing && !hasError && allIssues.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {allIssues.map((issue, j) => {
+                          const dim = TYPE_TO_DIM[issue.issue_type] ?? 1
+                          const sevColor = issue.severity === 'high' ? 'var(--red)' : issue.severity === 'medium' ? 'var(--orange)' : 'var(--blue)'
+                          const sevBg = issue.severity === 'high' ? 'var(--red-light)' : issue.severity === 'medium' ? 'var(--orange-light)' : 'var(--blue-light)'
+                          const isRejected = issue.status === 'rejected'
+                          const isConfirmed = issue.status === 'confirmed'
+                          const hasAnchor = (issue.anchors ?? []).some(a => typeof a.line_start === 'number')
+                          const guidelineEvidence = issue.guideline_evidence ?? []
+                          const shouldShowGuidelineEvidence = ['missing_content', 'accuracy', 'outdated'].includes(issue.issue_type)
+                          return (
+                            <div key={j} style={{
+                              background: isRejected ? 'var(--gray-50)' : 'white',
+                              border: isRejected
+                                ? '1px solid var(--gray-200)'
+                                : isConfirmed
+                                  ? '1px solid var(--green)'
+                                  : `0.5px solid ${issue.severity === 'high' ? 'var(--dui-danger)' : issue.severity === 'medium' ? 'var(--dui-warning)' : 'var(--dui-primary)'}`,
+                              borderRadius: 6,
+                              padding: '9px 11px',
+                              opacity: isRejected ? 0.55 : 1,
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
+                                <span style={{ fontSize: 12, fontWeight: 500, padding: '1px 6px', borderRadius: 3, background: isRejected ? 'var(--gray-100)' : sevBg, color: isRejected ? 'var(--gray-400)' : sevColor }}>
+                                  {issue.severity === 'high' ? '高优先' : issue.severity === 'medium' ? '中优先' : '低优先'}
+                                </span>
+                                <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: 'var(--gray-200)', color: 'var(--gray-600)' }}>
+                                  {ISSUE_TYPE_LABELS[issue.issue_type] ?? issue.issue_type}
+                                </span>
+                                <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, background: 'var(--gray-100)', color: 'var(--gray-500)' }}>
+                                  D{dim} {DIM_CONFIG[dim].label}
+                                </span>
+                                {(issue.deduction_score ?? 0) > 0 && (
+                                  <span style={{ fontSize: 12, fontWeight: 500, color: isRejected ? 'var(--gray-400)' : 'var(--red)', marginLeft: 'auto' }}>
+                                    -{issue.deduction_score}分
+                                  </span>
+                                )}
+                                <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                                  {hasAnchor && (
+                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, color: 'var(--dui-warning)' }}
+                                      onClick={() => locateIssue(group.representative.id, issue)}>
+                                      定位
+                                    </button>
+                                  )}
+                                  {!isRejected && !isConfirmed && (
+                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, background: 'var(--green-light)', color: 'var(--green)' }}
+                                      onClick={() => updateIssue(group.representative.id, issue.id, { status: 'confirmed' })}>
+                                      确认
+                                    </button>
+                                  )}
+                                  {isConfirmed && (
+                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12 }}
+                                      onClick={() => updateIssue(group.representative.id, issue.id, { status: 'ai' })}>
+                                      撤销
+                                    </button>
+                                  )}
+                                  {!isRejected ? (
+                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, background: 'var(--red-light)', color: 'var(--red)' }}
+                                      onClick={() => updateIssue(group.representative.id, issue.id, { status: 'rejected' })}>
+                                      排除
+                                    </button>
+                                  ) : (
+                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, background: 'var(--gray-100)', color: 'var(--gray-500)' }}
+                                      onClick={() => updateIssue(group.representative.id, issue.id, { status: 'ai' })}>
+                                      恢复
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <div style={{ fontSize: 13, color: isRejected ? 'var(--gray-400)' : 'var(--gray-800)', lineHeight: 1.75, textDecoration: isRejected ? 'line-through' : 'none' }}>
+                                {issue.description}
+                              </div>
+                              {issue.examples && issue.examples.length > 0 && (
+                                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                  {issue.examples.map((ex, ei) => (
+                                    <div key={ei} style={{
+                                      fontSize: 12,
+                                      color: 'var(--gray-600)',
+                                      lineHeight: 1.65,
+                                      background: 'var(--gray-50)',
+                                      borderRadius: 4,
+                                      padding: '4px 8px',
+                                      borderLeft: `2px solid ${isRejected ? 'var(--gray-300)' : sevColor}`,
+                                    }}>
+                                      {ex}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {shouldShowGuidelineEvidence && (
+                                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                  {guidelineEvidence.length === 0 && (
+                                    <div style={{
+                                      fontSize: 12,
+                                      color: isRejected ? 'var(--gray-400)' : 'var(--dui-warning)',
+                                      lineHeight: 1.65,
+                                      background: isRejected ? 'var(--gray-50)' : 'var(--dui-warning-container)',
+                                      borderRadius: 4,
+                                      padding: '5px 8px',
+                                      borderLeft: `2px solid ${isRejected ? 'var(--gray-300)' : 'var(--dui-warning)'}`,
+                                    }}>
+                                      <span style={{ fontWeight: 500 }}>指南依据：</span>
+                                      未提供指南原文依据，请重新分析该章节。
+                                    </div>
+                                  )}
+                                  {guidelineEvidence.map((evidence, ei) => (
+                                    <div key={ei} style={{
+                                      fontSize: 12,
+                                      color: isRejected ? 'var(--gray-400)' : 'var(--gray-700)',
+                                      lineHeight: 1.65,
+                                      background: isRejected ? 'var(--gray-50)' : 'var(--dui-primary-container)',
+                                      borderRadius: 4,
+                                      padding: '5px 8px',
+                                      borderLeft: `2px solid ${isRejected ? 'var(--gray-300)' : 'var(--dui-primary)'}`,
+                                    }}>
+                                      <div style={{ fontWeight: 500, color: isRejected ? 'var(--gray-400)' : 'var(--dui-primary)', marginBottom: 2 }}>
+                                        指南依据：{evidence.source || '未标明来源'}
+                                      </div>
+                                      {evidence.quote && <div style={{ whiteSpace: 'pre-wrap' }}>{evidence.quote}</div>}
+                                      {evidence.relevance && (
+                                        <div style={{ marginTop: 3, color: isRejected ? 'var(--gray-400)' : 'var(--gray-600)' }}>{evidence.relevance}</div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {!isAnalysing && analysis?.verification_summary && (
+                      <div style={{
+                        marginTop: 8,
+                        padding: '7px 10px',
+                        background: 'var(--blue-light)',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        color: 'var(--gray-600)',
+                        lineHeight: 1.7,
+                        borderLeft: '3px solid var(--dui-primary)',
+                      }}>
+                        <span style={{ fontWeight: 500, color: 'var(--blue)' }}>二次核验：</span>
+                        {analysis.verification_summary}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Quality Verdict Panel */}
       {visibleAnalyses.length > 0 && (() => {
