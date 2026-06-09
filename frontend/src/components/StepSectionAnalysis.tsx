@@ -27,6 +27,11 @@ export function isSummarySection(heading: string): boolean {
   return SUMMARY_HEADINGS.some(p => heading.includes(p))
 }
 
+function formatReferenceForPrompt(doc: ReferenceDoc, index: number, isPriority = false) {
+  const marker = isPriority ? '（重点指南）' : ''
+  return `### 参考数据源 ${index + 1}${marker}\n文件名：${doc.filename}\n\n${doc.text}`
+}
+
 interface AnalysisGroup {
   representative: ArticleSection
   childSections: ArticleSection[]
@@ -233,6 +238,10 @@ export default function StepSectionAnalysis({
     const selected = new Set(getSelectedReferenceNames(groupId))
     return referenceDocs.filter(d => selected.has(d.filename))
   }
+  const getReferencePromptText = (doc: ReferenceDoc, isPriority = false) => {
+    const index = referenceDocs.findIndex(d => d.filename === doc.filename)
+    return formatReferenceForPrompt(doc, index >= 0 ? index : 0, isPriority)
+  }
   const setGroupReferenceNames = (groupId: string, names: string[]) => {
     setSectionReferenceSelections(prev => {
       const next = { ...prev }
@@ -289,8 +298,8 @@ export default function StepSectionAnalysis({
       content: group.combinedContent,
       word_count: group.combinedContent.length,
     }
-    const referenceTexts = getSelectedReferenceDocs(group.representative.id).map(d => d.text)
-    const priorityReferenceTexts = getPriorityReferenceDocs(group.representative.id).map(d => d.text)
+    const referenceTexts = getSelectedReferenceDocs(group.representative.id).map(d => getReferencePromptText(d))
+    const priorityReferenceTexts = getPriorityReferenceDocs(group.representative.id).map(d => getReferencePromptText(d, true))
     const res = await apiFetch('/api/analyze/section', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -789,6 +798,8 @@ export default function StepSectionAnalysis({
                             const isConfirmed = issue.status === 'confirmed'
                             const isExpanded = expandedId === issue.id
                             const hasAnchor = (issue.anchors ?? []).some(a => typeof a.line_start === 'number')
+                            const guidelineEvidence = issue.guideline_evidence ?? []
+                            const shouldShowGuidelineEvidence = ['missing_content', 'accuracy', 'outdated'].includes(issue.issue_type)
                             return (
                               <div key={j} style={{
                                 background: isRejected ? 'var(--gray-50)' : 'white',
@@ -892,6 +903,52 @@ export default function StepSectionAnalysis({
                                         borderLeft: `2px solid ${isRejected ? 'var(--gray-300)' : sevColor}`,
                                       }}>
                                         {ex}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {!isExpanded && shouldShowGuidelineEvidence && (
+                                  <div style={{
+                                    marginTop: 6,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 5,
+                                  }}>
+                                    {guidelineEvidence.length === 0 && (
+                                      <div style={{
+                                        fontSize: 12,
+                                        color: isRejected ? 'var(--gray-400)' : 'var(--dui-warning)',
+                                        lineHeight: 1.65,
+                                        background: isRejected ? 'var(--gray-50)' : 'var(--dui-warning-container)',
+                                        borderRadius: 4,
+                                        padding: '5px 8px',
+                                        borderLeft: `2px solid ${isRejected ? 'var(--gray-300)' : 'var(--dui-warning)'}`,
+                                      }}>
+                                        <span style={{ fontWeight: 500 }}>指南依据：</span>
+                                        未提供指南原文依据，请重新分析该章节。
+                                      </div>
+                                    )}
+                                    {guidelineEvidence.map((evidence, ei) => (
+                                      <div key={ei} style={{
+                                        fontSize: 12,
+                                        color: isRejected ? 'var(--gray-400)' : 'var(--gray-700)',
+                                        lineHeight: 1.65,
+                                        background: isRejected ? 'var(--gray-50)' : 'var(--dui-primary-container)',
+                                        borderRadius: 4,
+                                        padding: '5px 8px',
+                                        borderLeft: `2px solid ${isRejected ? 'var(--gray-300)' : 'var(--dui-primary)'}`,
+                                      }}>
+                                        <div style={{ fontWeight: 500, color: isRejected ? 'var(--gray-400)' : 'var(--dui-primary)', marginBottom: 2 }}>
+                                          指南依据：{evidence.source || '未标明来源'}
+                                        </div>
+                                        {evidence.quote && (
+                                          <div style={{ whiteSpace: 'pre-wrap' }}>{evidence.quote}</div>
+                                        )}
+                                        {evidence.relevance && (
+                                          <div style={{ marginTop: 3, color: isRejected ? 'var(--gray-400)' : 'var(--gray-600)' }}>
+                                            {evidence.relevance}
+                                          </div>
+                                        )}
                                       </div>
                                     ))}
                                   </div>

@@ -31,6 +31,12 @@ class IssueAnchor(BaseModel):
     match_mode: str = ""  # exact / compact / unmatched
 
 
+class GuidelineEvidence(BaseModel):
+    source: str = ""
+    quote: str = ""
+    relevance: str = ""
+
+
 class SectionIssue(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex[:8])
     issue_type: str  # missing_content/structure/accuracy/outdated/style
@@ -38,6 +44,7 @@ class SectionIssue(BaseModel):
     severity: str = "medium"
     examples: List[str] = []
     anchors: List[IssueAnchor] = []
+    guideline_evidence: List[GuidelineEvidence] = []
     reviewer_note: str = ""
     status: str = "ai"  # ai/confirmed/added/rejected
     deduction_score: float = 1.0

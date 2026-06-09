@@ -140,6 +140,7 @@ export interface SectionIssue {
   severity: 'high' | 'medium' | 'low'
   examples: string[]
   anchors?: IssueAnchor[]
+  guideline_evidence?: GuidelineEvidence[]
   reviewer_note: string
   status: 'ai' | 'confirmed' | 'added' | 'rejected'
   deduction_score?: number
@@ -154,6 +155,12 @@ export interface IssueAnchor {
   line_end?: number | null
   heading_hint?: string
   match_mode?: string
+}
+
+export interface GuidelineEvidence {
+  source: string
+  quote: string
+  relevance?: string
 }
 
 export interface SectionAnalysis {
