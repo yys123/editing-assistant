@@ -1,11 +1,14 @@
 import unittest
+from unittest.mock import patch
 
-from models import SectionIssue, IssueAnchor
+from models import ArticleSection, SectionIssue, IssueAnchor
 from services.analyzer import (
     _attach_issue_anchors,
+    _analyze_section_with_reference_block,
     _build_section_issue,
     _build_reference_blocks,
     _restore_missing_guideline_evidence,
+    _verify_section_issues,
 )
 
 
@@ -93,6 +96,61 @@ class IssueAnchorTests(unittest.TestCase):
         self.assertEqual(len(blocks), 1)
         self.assertIn("### 参考数据源 4（重点指南）", blocks[0])
         self.assertNotIn("### 参考数据源 1\n### 参考数据源 4", blocks[0])
+
+
+class QualityPromptTests(unittest.IsolatedAsyncioTestCase):
+    async def test_section_analysis_prompt_ignores_article_reference_numbers(self):
+        section = ArticleSection(
+            heading="诊断",
+            content="情感淡漠评估量表[53]和情感淡漠量表[54]是量表。",
+            word_count=30,
+            level=1,
+        )
+
+        async def fake_generate_text(prompt, *args, **kwargs):
+            self.assertIn("不要将章节原文中的参考文献序号", prompt)
+            self.assertIn("不得仅因原文引用序号与指南参考文献列表编号不一致", prompt)
+            return '{"issues":[]}'
+
+        with patch("services.analyzer.generate_text", side_effect=fake_generate_text):
+            await _analyze_section_with_reference_block(
+                "抑郁障碍",
+                section,
+                "质量标准",
+                "内容规范",
+                "### 参考数据源 4：指南.pdf\n[53] 指南参考文献列表内容",
+                "",
+                ["诊断"],
+                context="test",
+            )
+
+    async def test_section_issue_verify_prompt_ignores_article_reference_numbers(self):
+        section = ArticleSection(
+            heading="诊断",
+            content="情感淡漠评估量表[53]和情感淡漠量表[54]是量表。",
+            word_count=30,
+            level=1,
+        )
+        issue = SectionIssue(
+            issue_type="accuracy",
+            description="参考文献引用序号错误",
+            severity="medium",
+        )
+
+        async def fake_generate_text(prompt, *args, **kwargs):
+            self.assertIn("不要将章节原文中的参考文献序号", prompt)
+            self.assertIn("不得仅因原文引用序号与指南参考文献列表编号不一致", prompt)
+            return '{"verification_summary":"删除引用序号误判","issues":[]}'
+
+        with patch("services.analyzer.generate_text", side_effect=fake_generate_text):
+            await _verify_section_issues(
+                "抑郁障碍",
+                section,
+                [issue],
+                "质量标准",
+                "内容规范",
+                "### 参考数据源 4：指南.pdf\n[53] 指南参考文献列表内容",
+            )
 
 
 if __name__ == "__main__":
