@@ -11,7 +11,7 @@ function isLevel3Heading(text: string) {
 }
 
 function isFigureOrTableCaptionLine(text: string) {
-  return /^(?:\[图注\]|\[图片\]|(?:图|表)\s*\d+\s*\S*)/.test(text.trim())
+  return /^(?:\[图注\]|\[图片\]|(?:图|表)\s*\d+\s*\S*|[ivxlcdm]+\.\s+\S+)/i.test(text.trim())
 }
 
 function splitInlineLevel3Heading(text: string) {

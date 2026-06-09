@@ -74,11 +74,16 @@ _fix_cjk_and_replacement = _fix_cjk_en_replacements
 _ARABIC_NUMBERED_HEADING_RE = re.compile(r"^\d+[、.．]\s*\S+")
 _MEDIA_MARKER_RE = re.compile(r"^\[(?:图片|图片内容|图注)\]")
 _FIGURE_TABLE_CAPTION_RE = re.compile(r"^(?:图|表)\s*\d+\s*\S*")
+_ROMAN_CAPTION_NOTE_RE = re.compile(r"^[ivxlcdm]+\.\s+\S+", re.I)
 
 
 def _is_media_or_caption_line(text: str) -> bool:
     stripped = text.strip()
-    return bool(_MEDIA_MARKER_RE.match(stripped) or _FIGURE_TABLE_CAPTION_RE.match(stripped))
+    return bool(
+        _MEDIA_MARKER_RE.match(stripped)
+        or _FIGURE_TABLE_CAPTION_RE.match(stripped)
+        or _ROMAN_CAPTION_NOTE_RE.match(stripped)
+    )
 
 
 def _split_caption_trailing_numbered_heading(text: str) -> str:
@@ -390,8 +395,9 @@ async def parse_article_sections(text: str) -> ParsedArticle:
 
     Falls back to regex/BS4 parsing if AI fails.
     """
+    has_explicit_markers = bool(re.search(r"^\[H[123]\]", text, re.MULTILINE))
     normalized = _normalize_structured_markers(text)
-    if re.search(r"^\[H[123]\]", normalized, re.MULTILINE):
+    if has_explicit_markers and re.search(r"^\[H[123]\]", normalized, re.MULTILINE):
         return _parse_structured_markers(normalized)
 
     plain_structured = _parse_plain_numbered_sections(normalized)
@@ -713,10 +719,24 @@ def _normalize_plain_heading(text: str) -> str:
     return re.sub(r"[\s：:]+", "", text.strip())
 
 
+def _strip_heading_marker(text: str) -> str:
+    return re.sub(r"^\[H[123]\]\s*", "", text.strip())
+
+
 def _plain_heading_level(line: str, seen_level1: bool, seen_level2: bool) -> int:
-    stripped = line.strip()
+    raw = line.strip()
+    marker_match = re.match(r"^\[H([123])\]\s*(.+)$", raw)
+    stripped = marker_match.group(2).strip() if marker_match else raw
     if not stripped:
         return 0
+    if marker_match:
+        marker_level = int(marker_match.group(1))
+        if marker_level == 1 and _normalize_plain_heading(stripped) in _LEVEL1_HEADINGS:
+            return 1
+        if marker_level == 2 and seen_level1:
+            return 2
+        if marker_level == 3 and seen_level2:
+            return 3
     if _normalize_plain_heading(stripped) in _LEVEL1_HEADINGS:
         return 1
     if not seen_level1:
@@ -755,13 +775,14 @@ def _parse_plain_numbered_sections(text: str) -> Optional[ParsedArticle]:
 
     for line in lines:
         stripped = line.strip()
-        if _normalize_plain_heading(stripped) == "参考文献":
+        heading_text = _strip_heading_marker(stripped)
+        if _normalize_plain_heading(heading_text) == "参考文献":
             break
 
         level = _plain_heading_level(stripped, seen_level1, seen_level2)
         if level:
             flush()
-            current_heading = stripped
+            current_heading = heading_text
             current_level = level
             current_lines = []
             if level == 1:

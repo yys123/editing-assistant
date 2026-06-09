@@ -57,4 +57,19 @@ assert.match(
   /\[图注\] xiii[\s\S]*保留方案。\n\[H3\] 2、 手术治疗策略/,
 )
 
+const plainRomanCaptionFollowedByHeading = [
+  '[H1] 治疗',
+  '1、 药物治疗策略',
+  'xiii. EMA 建议患者年龄在 65 岁以上且没有可供选择的治疗药物时，该药物可作为保留方案。',
+  '2、 手术治疗策略',
+  '严重的 CD 并发症、内科治疗无效、CD 相关癌变的患者需要外科手术。',
+].join('\n')
+
+const plainRomanCaptionStructured = articleContentToStructuredMarkers(plainRomanCaptionFollowedByHeading)
+
+assert.match(
+  plainRomanCaptionStructured,
+  /xiii\. EMA[\s\S]*保留方案。\n\[H3\] 2、 手术治疗策略/,
+)
+
 console.log('articleStructure tests passed')
