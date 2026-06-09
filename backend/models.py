@@ -21,12 +21,23 @@ class ParsedArticle(BaseModel):
     total_words: int   # sum of section word_counts (Chinese chars, refs excluded)
 
 
+class IssueAnchor(BaseModel):
+    quote: str = ""
+    start: Optional[int] = None
+    end: Optional[int] = None
+    line_start: Optional[int] = None
+    line_end: Optional[int] = None
+    heading_hint: str = ""
+    match_mode: str = ""  # exact / compact / unmatched
+
+
 class SectionIssue(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex[:8])
     issue_type: str  # missing_content/structure/accuracy/outdated/style
     description: str
     severity: str = "medium"
     examples: List[str] = []
+    anchors: List[IssueAnchor] = []
     reviewer_note: str = ""
     status: str = "ai"  # ai/confirmed/added/rejected
     deduction_score: float = 1.0

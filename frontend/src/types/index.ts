@@ -139,10 +139,21 @@ export interface SectionIssue {
   description: string
   severity: 'high' | 'medium' | 'low'
   examples: string[]
+  anchors?: IssueAnchor[]
   reviewer_note: string
   status: 'ai' | 'confirmed' | 'added' | 'rejected'
   deduction_score?: number
   is_key_content?: boolean
+}
+
+export interface IssueAnchor {
+  quote: string
+  start?: number | null
+  end?: number | null
+  line_start?: number | null
+  line_end?: number | null
+  heading_hint?: string
+  match_mode?: string
 }
 
 export interface SectionAnalysis {

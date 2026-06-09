@@ -4,7 +4,7 @@ from models import (
     QAItem, QualityReport, NeedsAnalysis, IterationPlan,
     IssueItem, DimOneReport, DimTwoReport, DimThreeReport, DimFourReport,
     NeedCluster, GapItem,
-    ArticleSection, SectionAnalysis, SectionIssue, GapAnalysis, ParsedArticle,
+    ArticleSection, SectionAnalysis, SectionIssue, IssueAnchor, GapAnalysis, ParsedArticle,
     NeedSectionMapping, SectionNeedsGap, NeedCoverage,
 )
 from services.text_llm import generate_text
@@ -19,6 +19,133 @@ REFERENCE_BATCH_MAX_CHARS = 300000  # 参考资料优先全文提供；超长时
 SECTION_PROMPT_MAX_CHARS = 120000
 QUALITY_STANDARD_MAX_CHARS = 10000
 CONTENT_SPEC_MAX_CHARS = 8000
+
+
+def _parse_issue_anchors(item: dict) -> List[IssueAnchor]:
+    anchors: List[IssueAnchor] = []
+    for raw in item.get("anchors", []) or []:
+        if isinstance(raw, str):
+            quote = raw.strip()
+            heading_hint = ""
+        elif isinstance(raw, dict):
+            quote = str(raw.get("quote", "")).strip()
+            heading_hint = str(raw.get("heading_hint", "")).strip()
+        else:
+            continue
+        if quote:
+            anchors.append(IssueAnchor(quote=quote, heading_hint=heading_hint))
+    return anchors
+
+
+def _build_section_issue(item: dict) -> SectionIssue:
+    return SectionIssue(
+        issue_type=item.get("issue_type", "missing_content"),
+        description=item.get("description", ""),
+        severity=item.get("severity", "medium"),
+        examples=item.get("examples", []),
+        anchors=_parse_issue_anchors(item),
+        deduction_score=float(item.get("deduction_score", 1.0)),
+        is_key_content=bool(item.get("is_key_content", False)),
+    )
+
+
+def _clean_anchor_quote(text: str) -> str:
+    quote = str(text or "").strip()
+    quote = quote.strip("「」“”\"'` ")
+    quote = re.sub(r"^(?:原文|原文片段|证据片段|出处|示例)\s*[：:]\s*", "", quote).strip()
+    quote = quote.strip("「」“”\"'` ")
+    return quote
+
+
+def _compact_with_map(text: str) -> Tuple[str, List[int]]:
+    chars: List[str] = []
+    positions: List[int] = []
+    for idx, char in enumerate(text):
+        if char.isspace():
+            continue
+        chars.append(char)
+        positions.append(idx)
+    return "".join(chars), positions
+
+
+def _line_range_for_span(text: str, start: int, end: int) -> Tuple[int, int]:
+    line_start = text.count("\n", 0, start)
+    line_end = text.count("\n", 0, max(start, end - 1))
+    return line_start, line_end
+
+
+def _locate_quote(text: str, quote: str) -> Optional[IssueAnchor]:
+    cleaned = _clean_anchor_quote(quote)
+    if len(cleaned) < 3:
+        return None
+
+    start = text.find(cleaned)
+    match_mode = "exact"
+    if start == -1:
+        compact_text, text_positions = _compact_with_map(text)
+        compact_quote, _quote_positions = _compact_with_map(cleaned)
+        if len(compact_quote) < 3:
+            return None
+        compact_start = compact_text.find(compact_quote)
+        if compact_start == -1:
+            return None
+        start = text_positions[compact_start]
+        end = text_positions[compact_start + len(compact_quote) - 1] + 1
+        match_mode = "compact"
+    else:
+        end = start + len(cleaned)
+
+    line_start, line_end = _line_range_for_span(text, start, end)
+    return IssueAnchor(
+        quote=cleaned,
+        start=start,
+        end=end,
+        line_start=line_start,
+        line_end=line_end,
+        match_mode=match_mode,
+    )
+
+
+def _issue_anchor_candidates(issue: SectionIssue) -> List[str]:
+    candidates: List[str] = []
+    candidates.extend(anchor.quote for anchor in issue.anchors if anchor.quote)
+    candidates.extend(issue.examples or [])
+
+    for pattern in (
+        r"原文[：:]\s*([^；。\n]+)",
+        r"“([^”]{3,120})”",
+        r"\"([^\"]{3,120})\"",
+        r"「([^」]{3,120})」",
+    ):
+        candidates.extend(re.findall(pattern, issue.description or ""))
+
+    seen = set()
+    unique: List[str] = []
+    for candidate in candidates:
+        cleaned = _clean_anchor_quote(candidate)
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            unique.append(cleaned)
+    return unique
+
+
+def _attach_issue_anchors(issues: List[SectionIssue], section_content: str) -> List[SectionIssue]:
+    for issue in issues:
+        located: List[IssueAnchor] = []
+        seen_spans = set()
+        for candidate in _issue_anchor_candidates(issue):
+            anchor = _locate_quote(section_content, candidate)
+            if not anchor:
+                continue
+            span = (anchor.start, anchor.end)
+            if span in seen_spans:
+                continue
+            seen_spans.add(span)
+            located.append(anchor)
+            if len(located) >= 3:
+                break
+        issue.anchors = located
+    return issues
 
 
 def _parse_issues(items: list) -> List[IssueItem]:
@@ -241,7 +368,10 @@ async def _verify_section_issues(
         examples_text = ""
         if issue.examples:
             examples_text = "\n    示例：" + "；".join(issue.examples[:3])
-        issues_text += f"\n  {i}. [{type_label}/{sev}优先]{key_note} {issue.description}{examples_text}"
+        anchors_text = ""
+        if issue.anchors:
+            anchors_text = "\n    原文定位：" + "；".join(a.quote for a in issue.anchors[:3] if a.quote)
+        issues_text += f"\n  {i}. [{type_label}/{sev}优先]{key_note} {issue.description}{examples_text}{anchors_text}"
 
     prompt = f"""请对【{disease}】知识库词条「{section.heading}」章节的质量分析结果进行二次校验与优化。
 
@@ -272,6 +402,9 @@ async def _verify_section_issues(
       "description": "核验后精准的问题描述（包含原文出处或缺失位置）",
       "severity": "high",
       "examples": ["原文片段或具体示例"],
+      "anchors": [
+        {{"quote": "从章节原文中逐字摘录、最能定位该问题的连续片段", "heading_hint": "所在小标题，可为空"}}
+      ],
       "deduction_score": 5.0,
       "is_key_content": true
     }}
@@ -280,6 +413,7 @@ async def _verify_section_issues(
 
 issue_type取值：missing_content / accuracy / outdated / structure / style
 severity取值：high / medium / low
+anchors定位要求：每个问题尽量保留或补充1-3个quote，quote必须逐字摘录自章节原文；accuracy/outdated/style类问题必须提供对应原文片段；missing_content可提供最接近的标题或留空。
 若所有问题核验后均属实且无需修改，原样输出并在verification_summary中说明「问题属实，无需调整」。
 若所有问题均被推翻，输出 {{"verification_summary": "...", "issues": []}}"""
 
@@ -290,14 +424,7 @@ severity取值：high / medium / low
     for item in data.get("issues", []):
         if not isinstance(item, dict):
             continue
-        refined_issues.append(SectionIssue(
-            issue_type=item.get("issue_type", "missing_content"),
-            description=item.get("description", ""),
-            severity=item.get("severity", "medium"),
-            examples=item.get("examples", []),
-            deduction_score=float(item.get("deduction_score", 1.0)),
-            is_key_content=bool(item.get("is_key_content", False)),
-        ))
+        refined_issues.append(_build_section_issue(item))
 
     verification_summary = data.get("verification_summary", "")
     return refined_issues, verification_summary
@@ -555,6 +682,9 @@ async def _analyze_section_with_reference_block(
       "description": "具体缺失的内容描述",
       "severity": "high",
       "examples": ["具体体现或原文片段"],
+      "anchors": [
+        {{"quote": "从章节原文中逐字摘录、最能定位该问题的连续片段", "heading_hint": "所在小标题，可为空"}}
+      ],
       "deduction_score": 5.0,
       "is_key_content": true
     }}
@@ -583,6 +713,11 @@ is_key_content说明（仅missing_content类型有效）：
 - 重点内容包括：定义/概述、典型临床表现、主要辅助检查、诊断标准/诊断、治疗
 - 属于重点内容缺失则设为true，否则false（非重点内容、数据源缺失均设false）
 
+anchors定位要求：
+- 每个问题尽量提供1-3个anchors；quote必须逐字摘录自“章节内容（含子章节）”，用于前端点击问题后定位原文
+- accuracy/outdated/style类问题必须提供对应原文片段；structure类问题提供最相关标题或段落；missing_content类问题提供最接近的缺失位置标题或留空
+- quote不要写“应为XXX”、不要改写、不要摘录参考文献，只摘录知识库原文中真实存在的连续片段
+
 若无问题，输出 {{"issues": []}}"""
 
     text = await generate_text(prompt, SYSTEM_PROMPT, context=context)
@@ -592,14 +727,7 @@ is_key_content说明（仅missing_content类型有效）：
     for item in data.get("issues", []):
         if not isinstance(item, dict):
             continue
-        issues.append(SectionIssue(
-            issue_type=item.get("issue_type", "missing_content"),
-            description=item.get("description", ""),
-            severity=item.get("severity", "medium"),
-            examples=item.get("examples", []),
-            deduction_score=float(item.get("deduction_score", 1.0)),
-            is_key_content=bool(item.get("is_key_content", False)),
-        ))
+        issues.append(_build_section_issue(item))
     return issues
 
 
@@ -660,7 +788,10 @@ async def _merge_chunk_issues(
         examples_text = ""
         if issue.examples:
             examples_text = "\n    示例：" + "；".join(issue.examples[:3])
-        issues_text += f"\n  {i}. [{type_label}/{sev}优先]{key_note} {issue.description}{examples_text}"
+        anchors_text = ""
+        if issue.anchors:
+            anchors_text = "\n    原文定位：" + "；".join(a.quote for a in issue.anchors[:3] if a.quote)
+        issues_text += f"\n  {i}. [{type_label}/{sev}优先]{key_note} {issue.description}{examples_text}{anchors_text}"
 
     prompt = f"""以下是对【{disease}】词条「{section_heading}」章节按段落分块分析后汇总的所有问题（共{len(all_issues)}项，可能含重复）。
 
@@ -681,6 +812,9 @@ async def _merge_chunk_issues(
       "description": "合并后的问题描述",
       "severity": "high",
       "examples": ["具体示例"],
+      "anchors": [
+        {{"quote": "合并后保留的原文定位片段", "heading_hint": "所在小标题，可为空"}}
+      ],
       "deduction_score": 5.0,
       "is_key_content": true
     }}
@@ -689,6 +823,7 @@ async def _merge_chunk_issues(
 
 issue_type取值：missing_content / accuracy / outdated / structure / style
 severity取值：high / medium / low
+anchors沿用原问题中最能定位原文的quote；若合并多个问题，可保留1-3个quote。
 若所有问题均不重复，原样输出并在merge_summary中说明「无重复问题，全部保留」。"""
 
     text = await generate_text(prompt, SYSTEM_PROMPT, context="section_chunk_merge")
@@ -698,14 +833,7 @@ severity取值：high / medium / low
     for item in data.get("issues", []):
         if not isinstance(item, dict):
             continue
-        merged_issues.append(SectionIssue(
-            issue_type=item.get("issue_type", "missing_content"),
-            description=item.get("description", ""),
-            severity=item.get("severity", "medium"),
-            examples=item.get("examples", []),
-            deduction_score=float(item.get("deduction_score", 1.0)),
-            is_key_content=bool(item.get("is_key_content", False)),
-        ))
+        merged_issues.append(_build_section_issue(item))
 
     merge_summary = data.get("merge_summary", "")
     return merged_issues, merge_summary
@@ -744,6 +872,7 @@ async def analyze_section(
         merged_issues, summary = await _merge_chunk_issues(
             disease, section.heading, all_issues,
         )
+        _attach_issue_anchors(merged_issues, section.content)
         return SectionAnalysis(
             section_id=section.id,
             section_heading=section.heading,
@@ -770,6 +899,7 @@ async def analyze_section(
     verified_issues, verification_summary = await _verify_section_issues(
         disease, section, issues, quality_standard, content_spec
     )
+    _attach_issue_anchors(verified_issues, section.content)
 
     return SectionAnalysis(
         section_id=section.id,

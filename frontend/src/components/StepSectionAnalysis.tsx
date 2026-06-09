@@ -177,6 +177,8 @@ export default function StepSectionAnalysis({
 
   // Manual review state
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [activeAnchor, setActiveAnchor] = useState<{ groupId: string; issueId: string; lineStart: number; lineEnd: number } | null>(null)
+  const sourceLineRefs = React.useRef<Record<string, HTMLDivElement | null>>({})
 
   const updateIssue = (sectionId: string, issueId: string, changes: Partial<SectionIssue>) => {
     setSectionAnalyses(sectionAnalyses.map((sa: SectionAnalysis) =>
@@ -207,6 +209,19 @@ export default function StepSectionAnalysis({
     analysis_source_hash: parsedArticleSourceHash,
     analysis_parser_version: parsedArticleParserVersion,
   })
+
+  const locateIssue = (groupId: string, issue: SectionIssue) => {
+    const anchor = (issue.anchors ?? []).find(a => typeof a.line_start === 'number')
+    if (typeof anchor?.line_start !== 'number') return
+    const lineEnd = typeof anchor.line_end === 'number' ? anchor.line_end : anchor.line_start
+    setActiveAnchor({ groupId, issueId: issue.id, lineStart: anchor.line_start, lineEnd })
+    requestAnimationFrame(() => {
+      sourceLineRefs.current[`${groupId}:${anchor.line_start}`]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    })
+  }
 
   const getSelectedReferenceNames = (groupId: string) => {
     const saved = sectionReferenceSelections[groupId]
@@ -704,18 +719,31 @@ export default function StepSectionAnalysis({
                       fontSize: 12, lineHeight: 1.9, color: 'var(--gray-700)',
                     }}>
                       {group.combinedContent.split('\n').map((line, li) => {
+                        const isActiveLine = activeAnchor?.groupId === group.representative.id
+                          && li >= activeAnchor.lineStart
+                          && li <= activeAnchor.lineEnd
+                        const lineBaseStyle: React.CSSProperties = {
+                          background: isActiveLine ? 'var(--dui-warning-container)' : 'transparent',
+                          borderRadius: 4,
+                          padding: isActiveLine ? '1px 4px' : '0 4px',
+                          marginLeft: -4,
+                          transition: 'background 0.2s ease',
+                        }
+                        const lineRef = (node: HTMLDivElement | null) => {
+                          sourceLineRefs.current[`${group.representative.id}:${li}`] = node
+                        }
                         if (line.startsWith('### ')) return (
-                          <div key={li} style={{ fontWeight: 500, color: 'var(--gray-800)', margin: '8px 0 2px', fontSize: 12 }}>
+                          <div ref={lineRef} key={li} style={{ ...lineBaseStyle, fontWeight: 500, color: 'var(--gray-800)', marginTop: 8, marginBottom: 2, fontSize: 12 }}>
                             {line.slice(4)}
                           </div>
                         )
                         if (line.startsWith('## ')) return (
-                          <div key={li} style={{ fontWeight: 500, color: 'var(--gray-900)', margin: '10px 0 3px', fontSize: 13, borderBottom: '0.5px solid var(--dui-divider)', paddingBottom: 2 }}>
+                          <div ref={lineRef} key={li} style={{ ...lineBaseStyle, fontWeight: 500, color: 'var(--gray-900)', marginTop: 10, marginBottom: 3, fontSize: 13, borderBottom: '0.5px solid var(--dui-divider)', paddingBottom: 2 }}>
                             {line.slice(3)}
                           </div>
                         )
-                        if (!line.trim()) return <div key={li} style={{ height: 6 }} />
-                        return <div key={li} style={{ marginBottom: 2 }}>{line}</div>
+                        if (!line.trim()) return <div ref={lineRef} key={li} style={{ height: 6 }} />
+                        return <div ref={lineRef} key={li} style={{ ...lineBaseStyle, marginBottom: 2 }}>{line}</div>
                       })}
                     </div>
                   </div>
@@ -760,6 +788,7 @@ export default function StepSectionAnalysis({
                             const isRejected = issue.status === 'rejected'
                             const isConfirmed = issue.status === 'confirmed'
                             const isExpanded = expandedId === issue.id
+                            const hasAnchor = (issue.anchors ?? []).some(a => typeof a.line_start === 'number')
                             return (
                               <div key={j} style={{
                                 background: isRejected ? 'var(--gray-50)' : 'white',
@@ -799,6 +828,13 @@ export default function StepSectionAnalysis({
                                   )}
                                   {/* Action buttons */}
                                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                                    {hasAnchor && (
+                                      <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, color: 'var(--dui-warning)' }}
+                                        onClick={() => locateIssue(group.representative.id, issue)}
+                                        title="定位到左侧原文">
+                                        定位
+                                      </button>
+                                    )}
                                     {isConfirmed && (
                                       <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--green)', padding: '1px 6px' }}>✓ 已确认</span>
                                     )}
