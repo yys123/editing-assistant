@@ -113,6 +113,8 @@ class QualityPromptTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("详见表", prompt)
             self.assertIn("详见图", prompt)
             self.assertIn("固定编号", prompt)
+            self.assertIn("上下标", prompt)
+            self.assertIn("复制/解析", prompt)
             self.assertIn("若一个问题包含多个具体小问题或多个具体例子", prompt)
             return '{"issues":[]}'
 
@@ -147,6 +149,8 @@ class QualityPromptTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("详见表", prompt)
             self.assertIn("详见图", prompt)
             self.assertIn("固定编号", prompt)
+            self.assertIn("上下标", prompt)
+            self.assertIn("复制/解析", prompt)
             self.assertIn("若一个问题包含多个具体小问题或多个具体例子", prompt)
             return '{"verification_summary":"删除引用序号误判","issues":[]}'
 

@@ -31,11 +31,30 @@ const ARTICLE_ENTRY_TYPE_OPTIONS: Array<{ value: ArticleEntryType; label: string
 ]
 
 const BLOCK_TAGS = new Set(['ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'OL', 'P', 'SECTION', 'TABLE', 'TBODY', 'TD', 'TH', 'THEAD', 'TR', 'UL'])
-const INLINE_TAGS = new Set(['B', 'BR', 'EM', 'I', 'STRONG'])
+const INLINE_TAGS = new Set(['B', 'BR', 'EM', 'I', 'STRONG', 'SUP', 'SUB'])
 const FIGURE_NOTE_CLASS = 'rich-editor-figure-note'
+const SUPERSCRIPT_MAP: Record<string, string> = {
+  '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+  '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾', n: 'ⁿ',
+}
+const SUBSCRIPT_MAP: Record<string, string> = {
+  '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
+  '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎',
+  a: 'ₐ', e: 'ₑ', i: 'ᵢ', o: 'ₒ', r: 'ᵣ', u: 'ᵤ', v: 'ᵥ', x: 'ₓ',
+  h: 'ₕ', k: 'ₖ', l: 'ₗ', m: 'ₘ', n: 'ₙ', p: 'ₚ', s: 'ₛ', t: 'ₜ',
+}
 interface NumberingState {
   sectionCounters: Record<number, number>
   orderedCounters: Record<string, number>
+}
+
+function scriptText(text: string, script: 'sup' | 'sub') {
+  const compact = text.replace(/\s+/g, '')
+  if (!compact) return ''
+  const map = script === 'sup' ? SUPERSCRIPT_MAP : SUBSCRIPT_MAP
+  const converted = Array.from(compact).map(char => map[char] ?? char).join('')
+  if (converted !== compact) return converted
+  return `${script === 'sup' ? '^' : '_'}(${compact})`
 }
 
 function normalizeEditorText(text: string) {
@@ -527,6 +546,9 @@ function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): stri
 
   const tag = node.tagName
   if (tag === 'BR') return '\n'
+  if (tag === 'SUP' || tag === 'SUB') {
+    return scriptText(node.textContent || '', tag === 'SUP' ? 'sup' : 'sub')
+  }
 
   const elementText = cleanElementText(node)
   if (node.classList.contains(FIGURE_NOTE_CLASS)) {

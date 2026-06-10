@@ -23,6 +23,20 @@ _REFERENCE_STOP_KEYWORDS = {"参考文献", "相关指南", "参考资料", "ref
 _CN_NUMS = "一二三四五六七八九十百"
 _H2_NUM_RE = re.compile(r'^[' + _CN_NUMS + r']+[、]')
 _H3_PAREN_RE = re.compile(r'^（[' + _CN_NUMS + r']+）')
+_SUPERSCRIPT_MAP = str.maketrans("0123456789+-=()n", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿ")
+_SUBSCRIPT_MAP = str.maketrans("0123456789+-=()aeioruvxhklmnpst", "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑᵢₒᵣᵤᵥₓₕₖₗₘₙₚₛₜ")
+
+
+def _script_text(text: str, script: str) -> str:
+    compact = re.sub(r"\s+", "", text)
+    if not compact:
+        return ""
+    table = _SUPERSCRIPT_MAP if script == "sup" else _SUBSCRIPT_MAP
+    converted = compact.translate(table)
+    if converted != compact:
+        return converted
+    marker = "^" if script == "sup" else "_"
+    return f"{marker}({compact})"
 
 
 def _extract_text_with_refs(tag: Tag) -> str:
@@ -42,6 +56,8 @@ def _extract_text_with_refs(tag: Tag) -> str:
                 ref = child.get_text(strip=True)
                 if ref:
                     parts.append(f"^[{ref}]")
+            elif child.name in {"sup", "sub"}:
+                parts.append(_script_text(child.get_text(" ", strip=True), child.name))
             else:
                 parts.append(_extract_text_with_refs(child))
     return re.sub(r"\s+", " ", "".join(parts)).strip()

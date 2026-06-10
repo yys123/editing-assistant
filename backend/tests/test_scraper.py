@@ -27,6 +27,23 @@ class HtmlStructuredParserTests(unittest.TestCase):
         self.assertIn("[H2] 二、ACEI 作用机制", structured)
         self.assertIn("[H3] （一）Ang II 的病理生理机制", structured)
 
+    def test_preserves_non_reference_superscript_and_subscript(self):
+        html = """
+        <section class="page_disease-section">
+          <div>
+            <h2>辅助检查</h2>
+            <div class="ck-content">
+              <p>白细胞计数单位为 5 × 10<sup>9</sup>/L，二氧化碳写作 CO<sub>2</sub>。</p>
+            </div>
+          </div>
+        </section>
+        """
+
+        structured = parse_html_structured(html)
+
+        self.assertIn("5 × 10⁹/L", structured)
+        self.assertIn("CO₂", structured)
+
 
 if __name__ == "__main__":
     unittest.main()
