@@ -492,6 +492,7 @@ async def _verify_section_issues(
 issue_type取值：missing_content / accuracy / outdated / structure / style
 severity取值：high / medium / low
 anchors定位要求：每个问题尽量保留或补充1-3个quote，quote必须逐字摘录自章节原文；accuracy/outdated/style类问题必须提供对应原文片段；missing_content可提供最接近的标题或留空。
+若一个问题包含多个具体小问题或多个具体例子（例如多个术语格式问题、多个重复位置、多个错误数据点），必须尽量为每个小问题分别提供一个anchor；每个anchor的quote应对应一个具体原文位置，避免只给一个总定位。若examples中列出“1. ...；2. ...；3. ...”等编号小点，anchors原则上不得少于这些编号小点数量，除非某个小点在章节原文中确实找不到对应片段。
 guideline_evidence要求：若问题属于missing_content、accuracy或outdated，且判断依据来自参考指南/重点指南，必须填写1-3条guideline_evidence；source统一写“参考数据源 N：文件名”，N必须使用上传数据源的固定全局序号，即使该资料被标记为重点指南，也不要写“重点指南 N”；quote必须逐字摘录指南原文中支持该判断的连续片段，relevance说明该指南原文与问题的关系。若无法找到指南原文依据，不要把该项作为“与指南不相符/缺失/陈旧”问题保留。
 若所有问题核验后均属实且无需修改，原样输出并在verification_summary中说明「问题属实，无需调整」。
 若所有问题均被推翻，输出 {{"verification_summary": "...", "issues": []}}"""
@@ -800,6 +801,7 @@ is_key_content说明（仅missing_content类型有效）：
 
 anchors定位要求：
 - 每个问题尽量提供1-3个anchors；quote必须逐字摘录自“章节内容（含子章节）”，用于前端点击问题后定位原文
+- 若一个问题包含多个具体小问题或多个具体例子（例如多个术语格式问题、多个重复位置、多个错误数据点），必须尽量为每个小问题分别提供一个anchor；每个anchor的quote应对应一个具体原文位置，避免只给一个总定位。若examples中列出“1. ...；2. ...；3. ...”等编号小点，anchors原则上不得少于这些编号小点数量，除非某个小点在章节原文中确实找不到对应片段
 - accuracy/outdated/style类问题必须提供对应原文片段；structure类问题提供最相关标题或段落；missing_content类问题提供最接近的缺失位置标题或留空
 - quote不要写“应为XXX”、不要改写、不要摘录参考文献，只摘录知识库原文中真实存在的连续片段
 

@@ -5,6 +5,7 @@ import {
   haveSectionAnalysisIdsChanged,
   remapSectionAnalysesToCurrentSections,
 } from '../utils/sectionAnalysisCompatibility'
+import { getIssueLocatorAnchors, getLocatableIssueAnchors, LocatableIssueAnchor } from '../utils/issueAnchors'
 
 interface Props {
   disease: string
@@ -186,7 +187,7 @@ export default function StepSectionAnalysis({
 
   // Manual review state
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [activeAnchor, setActiveAnchor] = useState<{ groupId: string; issueId: string; lineStart: number; lineEnd: number } | null>(null)
+  const [activeAnchor, setActiveAnchor] = useState<{ groupId: string; issueId: string; anchorIndex: number; lineStart: number; lineEnd: number } | null>(null)
   const [fullscreenGroupId, setFullscreenGroupId] = useState<string | null>(null)
   const sourceLineRefs = React.useRef<Record<string, HTMLDivElement | null>>({})
 
@@ -244,14 +245,14 @@ export default function StepSectionAnalysis({
     analysis_parser_version: parsedArticleParserVersion,
   })
 
-  const locateIssue = (groupId: string, issue: SectionIssue) => {
-    const anchor = (issue.anchors ?? []).find(a => typeof a.line_start === 'number')
-    if (typeof anchor?.line_start !== 'number') return
-    const lineEnd = typeof anchor.line_end === 'number' ? anchor.line_end : anchor.line_start
-    setActiveAnchor({ groupId, issueId: issue.id, lineStart: anchor.line_start, lineEnd })
+  const locateIssue = (groupId: string, issue: SectionIssue, anchor?: LocatableIssueAnchor) => {
+    const targetAnchor = anchor ?? getLocatableIssueAnchors(issue.anchors)[0]
+    if (typeof targetAnchor?.line_start !== 'number') return
+    const lineEnd = typeof targetAnchor.line_end === 'number' ? targetAnchor.line_end : targetAnchor.line_start
+    setActiveAnchor({ groupId, issueId: issue.id, anchorIndex: targetAnchor.index, lineStart: targetAnchor.line_start, lineEnd })
     requestAnimationFrame(() => {
       const scope = fullscreenGroupId === groupId ? 'fullscreen' : 'main'
-      sourceLineRefs.current[`${scope}:${groupId}:${anchor.line_start}`]?.scrollIntoView({
+      sourceLineRefs.current[`${scope}:${groupId}:${targetAnchor.line_start}`]?.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
       })
@@ -840,7 +841,8 @@ export default function StepSectionAnalysis({
                             const isRejected = issue.status === 'rejected'
                             const isConfirmed = issue.status === 'confirmed'
                             const isExpanded = expandedId === issue.id
-                            const hasAnchor = (issue.anchors ?? []).some(a => typeof a.line_start === 'number')
+                            const locatableAnchors = getIssueLocatorAnchors(issue, group.combinedContent)
+                            const hasAnchor = locatableAnchors.length > 0
                             const guidelineEvidence = issue.guideline_evidence ?? []
                             const shouldShowGuidelineEvidence = ['missing_content', 'accuracy', 'outdated'].includes(issue.issue_type)
                             return (
@@ -886,7 +888,7 @@ export default function StepSectionAnalysis({
                                       <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, color: 'var(--dui-warning)' }}
                                         onClick={() => locateIssue(group.representative.id, issue)}
                                         title="定位到左侧原文">
-                                        定位
+                                        {locatableAnchors.length > 1 ? `定位 ${locatableAnchors.length}处` : '定位'}
                                       </button>
                                     )}
                                     {isConfirmed && (
@@ -934,6 +936,32 @@ export default function StepSectionAnalysis({
                                   <div style={{ fontSize: 12, color: isRejected ? 'var(--gray-400)' : 'var(--gray-800)', lineHeight: 1.7,
                                     textDecoration: isRejected ? 'line-through' : 'none' }}>
                                     {issue.description}
+                                  </div>
+                                )}
+                                {!isExpanded && locatableAnchors.length > 1 && (
+                                  <div style={{ marginTop: 6, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                                    {locatableAnchors.map(anchor => {
+                                      const isActiveAnchor = activeAnchor?.groupId === group.representative.id
+                                        && activeAnchor.issueId === issue.id
+                                        && activeAnchor.anchorIndex === anchor.index
+                                      return (
+                                        <button
+                                          key={anchor.index}
+                                          className="btn btn-sm"
+                                          style={{
+                                            padding: '2px 8px',
+                                            fontSize: 12,
+                                            color: isActiveAnchor ? 'var(--m3-primary)' : 'var(--dui-warning)',
+                                            background: isActiveAnchor ? 'var(--dui-primary-container)' : 'var(--m3-surface-container-low)',
+                                            border: `0.5px solid ${isActiveAnchor ? 'var(--m3-primary)' : 'var(--dui-divider)'}`,
+                                          }}
+                                          onClick={() => locateIssue(group.representative.id, issue, anchor)}
+                                          title={anchor.quote || anchor.heading_hint || anchor.label}
+                                        >
+                                          {anchor.label}
+                                        </button>
+                                      )
+                                    })}
                                   </div>
                                 )}
                                 {/* Examples */}
@@ -1166,7 +1194,8 @@ export default function StepSectionAnalysis({
                           const sevBg = issue.severity === 'high' ? 'var(--red-light)' : issue.severity === 'medium' ? 'var(--orange-light)' : 'var(--blue-light)'
                           const isRejected = issue.status === 'rejected'
                           const isConfirmed = issue.status === 'confirmed'
-                          const hasAnchor = (issue.anchors ?? []).some(a => typeof a.line_start === 'number')
+                          const locatableAnchors = getIssueLocatorAnchors(issue, group.combinedContent)
+                          const hasAnchor = locatableAnchors.length > 0
                           const guidelineEvidence = issue.guideline_evidence ?? []
                           const shouldShowGuidelineEvidence = ['missing_content', 'accuracy', 'outdated'].includes(issue.issue_type)
                           return (
@@ -1200,7 +1229,7 @@ export default function StepSectionAnalysis({
                                   {hasAnchor && (
                                     <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, color: 'var(--dui-warning)' }}
                                       onClick={() => locateIssue(group.representative.id, issue)}>
-                                      定位
+                                      {locatableAnchors.length > 1 ? `定位 ${locatableAnchors.length}处` : '定位'}
                                     </button>
                                   )}
                                   {!isRejected && !isConfirmed && (
@@ -1231,6 +1260,32 @@ export default function StepSectionAnalysis({
                               <div style={{ fontSize: 13, color: isRejected ? 'var(--gray-400)' : 'var(--gray-800)', lineHeight: 1.75, textDecoration: isRejected ? 'line-through' : 'none' }}>
                                 {issue.description}
                               </div>
+                              {locatableAnchors.length > 1 && (
+                                <div style={{ marginTop: 7, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                                  {locatableAnchors.map(anchor => {
+                                    const isActiveAnchor = activeAnchor?.groupId === group.representative.id
+                                      && activeAnchor.issueId === issue.id
+                                      && activeAnchor.anchorIndex === anchor.index
+                                    return (
+                                      <button
+                                        key={anchor.index}
+                                        className="btn btn-sm"
+                                        style={{
+                                          padding: '2px 8px',
+                                          fontSize: 12,
+                                          color: isActiveAnchor ? 'var(--m3-primary)' : 'var(--dui-warning)',
+                                          background: isActiveAnchor ? 'var(--dui-primary-container)' : 'var(--m3-surface-container-low)',
+                                          border: `0.5px solid ${isActiveAnchor ? 'var(--m3-primary)' : 'var(--dui-divider)'}`,
+                                        }}
+                                        onClick={() => locateIssue(group.representative.id, issue, anchor)}
+                                        title={anchor.quote || anchor.heading_hint || anchor.label}
+                                      >
+                                        {anchor.label}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
                               {issue.examples && issue.examples.length > 0 && (
                                 <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
                                   {issue.examples.map((ex, ei) => (
