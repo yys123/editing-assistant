@@ -28,6 +28,21 @@ interface Props {
 const SUMMARY_HEADINGS = ['更新要点', '诊断要点', '治疗要点']
 const MAX_SECTION_ANALYSIS_CONCURRENCY = 3
 const NO_REFERENCES_SELECTED = '__none__'
+
+function getSourceLineBaseStyle(isActiveLine: boolean): React.CSSProperties {
+  return {
+    background: isActiveLine ? '#FFE0B8' : 'transparent',
+    borderLeft: `3px solid ${isActiveLine ? 'var(--dui-warning)' : 'transparent'}`,
+    borderRadius: 4,
+    boxShadow: isActiveLine
+      ? 'inset 0 0 0 1px rgba(188, 76, 0, 0.28), 0 1px 6px rgba(188, 76, 0, 0.16)'
+      : 'none',
+    padding: isActiveLine ? '2px 6px 2px 7px' : '0 4px 0 7px',
+    marginLeft: -7,
+    transition: 'background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
+  }
+}
+
 export function isSummarySection(heading: string): boolean {
   return SUMMARY_HEADINGS.some(p => heading.includes(p))
 }
@@ -775,13 +790,7 @@ export default function StepSectionAnalysis({
                         const isActiveLine = activeAnchor?.groupId === group.representative.id
                           && li >= activeAnchor.lineStart
                           && li <= activeAnchor.lineEnd
-                        const lineBaseStyle: React.CSSProperties = {
-                          background: isActiveLine ? 'var(--dui-warning-container)' : 'transparent',
-                          borderRadius: 4,
-                          padding: isActiveLine ? '1px 4px' : '0 4px',
-                          marginLeft: -4,
-                          transition: 'background 0.2s ease',
-                        }
+                        const lineBaseStyle = getSourceLineBaseStyle(isActiveLine)
                         const lineRef = (node: HTMLDivElement | null) => {
                           sourceLineRefs.current[`main:${group.representative.id}:${li}`] = node
                         }
@@ -1138,13 +1147,7 @@ export default function StepSectionAnalysis({
                       const isActiveLine = activeAnchor?.groupId === group.representative.id
                         && li >= activeAnchor.lineStart
                         && li <= activeAnchor.lineEnd
-                      const lineBaseStyle: React.CSSProperties = {
-                        background: isActiveLine ? 'var(--dui-warning-container)' : 'transparent',
-                        borderRadius: 4,
-                        padding: isActiveLine ? '1px 4px' : '0 4px',
-                        marginLeft: -4,
-                        transition: 'background 0.2s ease',
-                      }
+                      const lineBaseStyle = getSourceLineBaseStyle(isActiveLine)
                       const lineRef = (node: HTMLDivElement | null) => {
                         sourceLineRefs.current[`fullscreen:${group.representative.id}:${li}`] = node
                       }

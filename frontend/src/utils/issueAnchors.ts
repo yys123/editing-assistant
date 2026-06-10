@@ -3,6 +3,8 @@ import type { IssueAnchor, SectionIssue } from '../types'
 export interface LocatableIssueAnchor extends IssueAnchor {
   index: number
   label: string
+  line_start: number
+  line_end?: number | null
 }
 
 export function getLocatableIssueAnchors(anchors: IssueAnchor[] | undefined): LocatableIssueAnchor[] {
@@ -190,12 +192,13 @@ function inferAnchorFromExample(
   const lines = sectionContent.split('\n')
   let best: { line: number; score: number } | null = null
 
-  lines.forEach((line, index) => {
-    if (!line.trim()) return
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
+    if (!line.trim()) continue
     const score = scoreTextAgainstExample(line, example.text)
-    if (score <= 0) return
+    if (score <= 0) continue
     if (!best || score > best.score) best = { line: index, score }
-  })
+  }
 
   if (!best || best.score < 4 || usedLines.has(best.line)) return null
   usedLines.add(best.line)
