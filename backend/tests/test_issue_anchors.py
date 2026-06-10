@@ -110,6 +110,9 @@ class QualityPromptTests(unittest.IsolatedAsyncioTestCase):
         async def fake_generate_text(prompt, *args, **kwargs):
             self.assertIn("不要将章节原文中的参考文献序号", prompt)
             self.assertIn("不得仅因原文引用序号与指南参考文献列表编号不一致", prompt)
+            self.assertIn("详见表", prompt)
+            self.assertIn("详见图", prompt)
+            self.assertIn("固定编号", prompt)
             self.assertIn("若一个问题包含多个具体小问题或多个具体例子", prompt)
             return '{"issues":[]}'
 
@@ -141,6 +144,9 @@ class QualityPromptTests(unittest.IsolatedAsyncioTestCase):
         async def fake_generate_text(prompt, *args, **kwargs):
             self.assertIn("不要将章节原文中的参考文献序号", prompt)
             self.assertIn("不得仅因原文引用序号与指南参考文献列表编号不一致", prompt)
+            self.assertIn("详见表", prompt)
+            self.assertIn("详见图", prompt)
+            self.assertIn("固定编号", prompt)
             self.assertIn("若一个问题包含多个具体小问题或多个具体例子", prompt)
             return '{"verification_summary":"删除引用序号误判","issues":[]}'
 

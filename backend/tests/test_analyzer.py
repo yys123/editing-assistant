@@ -17,6 +17,20 @@ class QualityStandardSelectionTests(unittest.TestCase):
             "自定义标准",
         )
 
+    def test_quality_standard_allows_fixed_figure_table_references(self):
+        text = standards.get_quality_standard()
+
+        self.assertIn("详见表", text)
+        self.assertIn("详见图", text)
+        self.assertIn("固定编号", text)
+
+    def test_content_spec_allows_fixed_figure_table_references(self):
+        text = standards.get_content_spec()
+
+        self.assertIn("详见表", text)
+        self.assertIn("详见图", text)
+        self.assertIn("固定编号", text)
+
 
 class ReferenceBlockTests(unittest.TestCase):
     def test_priority_reference_block_sets_conflict_rule(self):
