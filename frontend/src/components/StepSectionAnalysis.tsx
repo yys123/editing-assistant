@@ -1,6 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { ArticleEntryType, ArticleSection, ParsedArticle, SectionAnalysis, SectionIssue, ReferenceDoc, StandardsOverride } from '../types'
 import { apiFetch } from '../api'
+import {
+  haveSectionAnalysisIdsChanged,
+  remapSectionAnalysesToCurrentSections,
+} from '../utils/sectionAnalysisCompatibility'
 
 interface Props {
   disease: string
@@ -205,6 +209,21 @@ export default function StepSectionAnalysis({
   }
 
   const groups = useMemo(() => buildAnalysisGroups(parsedArticle.sections), [parsedArticle.sections])
+  const analysisTargets = useMemo(
+    () => groups.map(group => ({
+      id: group.representative.id,
+      heading: group.representative.heading,
+    })),
+    [groups],
+  )
+
+  useEffect(() => {
+    const remapped = remapSectionAnalysesToCurrentSections(sectionAnalyses, analysisTargets)
+    if (haveSectionAnalysisIdsChanged(sectionAnalyses, remapped)) {
+      setSectionAnalyses(remapped)
+    }
+  }, [analysisTargets, sectionAnalyses, setSectionAnalyses])
+
   const currentGroupIds = useMemo(() => new Set(groups.map(g => g.representative.id)), [groups])
   const visibleAnalyses = useMemo(
     () => sectionAnalyses.filter(a => currentGroupIds.has(a.section_id)),
