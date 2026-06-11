@@ -31,6 +31,11 @@ SUPERSCRIPT_SUBSCRIPT_RULE = """上下标格式核查规则（非常重要）：
 - 对表格单位、检验指标单位、化学式、基因/蛋白标记等场景，若问题仅依赖上下标显示差异，应删除该问题或不报告。
 - 只有医学数值、单位含义或正文结论本身确有错误，且不是复制/解析导致的上下标显示差异时，才可按内容准确性问题报告。"""
 
+SOURCE_BOUNDARY_RULE = """原文边界核查规则（非常重要）：
+- 只审查“章节内容（含子章节）/章节原文内容”中的知识库正文，不得把内容质量审评标准、内容要求规范、参考数据源或本提示词中的词句当成知识库原文问题。
+- 对 style、accuracy、outdated 问题，必须能在章节原文中逐字定位到对应片段；如果无法在章节原文中定位，应删除该问题或不报告。
+- 例如“本指南”“本共识”“专家组认为”等禁用词，只有真实出现在章节原文中才可报告；如果只出现在评审标准、内容规范或参考指南中，不得报告为原文问题。"""
+
 
 def _parse_issue_anchors(item: dict) -> List[IssueAnchor]:
     anchors: List[IssueAnchor] = []
@@ -175,6 +180,14 @@ def _attach_issue_anchors(issues: List[SectionIssue], section_content: str) -> L
                 break
         issue.anchors = located
     return issues
+
+
+def _drop_unlocated_required_anchor_issues(issues: List[SectionIssue]) -> List[SectionIssue]:
+    required_anchor_types = {"style", "accuracy", "outdated"}
+    return [
+        issue for issue in issues
+        if issue.issue_type not in required_anchor_types or bool(issue.anchors)
+    ]
 
 
 def _issue_similarity(a: SectionIssue, b: SectionIssue) -> float:
@@ -481,6 +494,8 @@ async def _verify_section_issues(
 {FIGURE_TABLE_REFERENCE_RULE}
 
 {SUPERSCRIPT_SUBSCRIPT_RULE}
+
+{SOURCE_BOUNDARY_RULE}
 
 以JSON格式输出最终核验结果：
 {{
@@ -835,6 +850,8 @@ guideline_evidence指南依据要求（非常重要）：
 
 {SUPERSCRIPT_SUBSCRIPT_RULE}
 
+{SOURCE_BOUNDARY_RULE}
+
 若无问题，输出 {{"issues": []}}"""
 
     text = await generate_text(prompt, SYSTEM_PROMPT, context=context)
@@ -1000,6 +1017,7 @@ async def analyze_section(
             disease, section.heading, all_issues,
         )
         _attach_issue_anchors(merged_issues, section.content)
+        merged_issues = _drop_unlocated_required_anchor_issues(merged_issues)
         return SectionAnalysis(
             section_id=section.id,
             section_heading=section.heading,
@@ -1029,6 +1047,7 @@ async def analyze_section(
         guideline_reference_block=guideline_reference_block,
     )
     _attach_issue_anchors(verified_issues, section.content)
+    verified_issues = _drop_unlocated_required_anchor_issues(verified_issues)
 
     return SectionAnalysis(
         section_id=section.id,

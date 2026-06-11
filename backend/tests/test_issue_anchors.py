@@ -7,6 +7,7 @@ from services.analyzer import (
     _analyze_section_with_reference_block,
     _build_section_issue,
     _build_reference_blocks,
+    _drop_unlocated_required_anchor_issues,
     _restore_missing_guideline_evidence,
     _verify_section_issues,
 )
@@ -97,6 +98,31 @@ class IssueAnchorTests(unittest.TestCase):
         self.assertIn("### 参考数据源 4（重点指南）", blocks[0])
         self.assertNotIn("### 参考数据源 1\n### 参考数据源 4", blocks[0])
 
+    def test_drops_style_issue_when_anchor_not_found_in_section_content(self):
+        content = "发病机制包括免疫异常和遗传因素。"
+        issue = SectionIssue(
+            issue_type="style",
+            description="存在“本指南”等禁止用语。",
+            severity="low",
+            examples=["本指南"],
+        )
+
+        _attach_issue_anchors([issue], content)
+        filtered = _drop_unlocated_required_anchor_issues([issue])
+
+        self.assertEqual(filtered, [])
+
+    def test_keeps_missing_content_issue_without_anchor(self):
+        issue = SectionIssue(
+            issue_type="missing_content",
+            description="缺少筛查频次。",
+            severity="medium",
+        )
+
+        filtered = _drop_unlocated_required_anchor_issues([issue])
+
+        self.assertEqual(filtered, [issue])
+
 
 class QualityPromptTests(unittest.IsolatedAsyncioTestCase):
     async def test_section_analysis_prompt_ignores_article_reference_numbers(self):
@@ -115,6 +141,8 @@ class QualityPromptTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("固定编号", prompt)
             self.assertIn("上下标", prompt)
             self.assertIn("复制/解析", prompt)
+            self.assertIn("不得把内容质量审评标准", prompt)
+            self.assertIn("无法在章节原文中定位", prompt)
             self.assertIn("若一个问题包含多个具体小问题或多个具体例子", prompt)
             return '{"issues":[]}'
 
@@ -151,6 +179,8 @@ class QualityPromptTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("固定编号", prompt)
             self.assertIn("上下标", prompt)
             self.assertIn("复制/解析", prompt)
+            self.assertIn("不得把内容质量审评标准", prompt)
+            self.assertIn("无法在章节原文中定位", prompt)
             self.assertIn("若一个问题包含多个具体小问题或多个具体例子", prompt)
             return '{"verification_summary":"删除引用序号误判","issues":[]}'
 
