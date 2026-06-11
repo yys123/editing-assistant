@@ -54,7 +54,7 @@ def validate_registration_code(code: str, user_id: str) -> bool:
 
 # ── FastAPI dependency ─────────────────────────────────────────────────────────
 
-def get_current_user(request: Request) -> dict:
+async def get_current_user(request: Request) -> dict:
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         raise HTTPException(401, "未登录")

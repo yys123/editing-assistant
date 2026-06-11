@@ -1,4 +1,5 @@
 import json
+import inspect
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +20,9 @@ class AdminAuthTests(unittest.TestCase):
         with patch.object(auth, "settings", fake_settings):
             self.assertTrue(auth.is_admin_email("shengkaixiang@dxy.cn"))
             self.assertFalse(auth.is_admin_email("normal@dxy.cn"))
+
+    def test_current_user_dependency_is_async_to_preserve_contextvars(self):
+        self.assertTrue(inspect.iscoroutinefunction(auth.get_current_user))
 
 
 class AdminRuntimeConfigTests(unittest.TestCase):
