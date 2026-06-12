@@ -143,6 +143,9 @@ class QualityPromptTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("复制/解析", prompt)
             self.assertIn("不得把内容质量审评标准", prompt)
             self.assertIn("无法在章节原文中定位", prompt)
+            self.assertIn("一、", prompt)
+            self.assertIn("1、", prompt)
+            self.assertIn("不得仅因缺少“（一）”", prompt)
             self.assertIn("若一个问题包含多个具体小问题或多个具体例子", prompt)
             return '{"issues":[]}'
 
@@ -181,6 +184,9 @@ class QualityPromptTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("复制/解析", prompt)
             self.assertIn("不得把内容质量审评标准", prompt)
             self.assertIn("无法在章节原文中定位", prompt)
+            self.assertIn("一、", prompt)
+            self.assertIn("1、", prompt)
+            self.assertIn("不得仅因缺少“（一）”", prompt)
             self.assertIn("若一个问题包含多个具体小问题或多个具体例子", prompt)
             return '{"verification_summary":"删除引用序号误判","issues":[]}'
 

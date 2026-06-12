@@ -36,6 +36,11 @@ SOURCE_BOUNDARY_RULE = """原文边界核查规则（非常重要）：
 - 对 style、accuracy、outdated 问题，必须能在章节原文中逐字定位到对应片段；如果无法在章节原文中定位，应删除该问题或不报告。
 - 例如“本指南”“本共识”“专家组认为”等禁用词，只有真实出现在章节原文中才可报告；如果只出现在评审标准、内容规范或参考指南中，不得报告为原文问题。"""
 
+HEADING_NUMBERING_RULE = """标题序号层级核查规则（非常重要）：
+- 标题序号常规顺序可为“一、→（一）→1、→（1）→1）→①→a.→I.”，但允许根据内容需要跳过中间层级。
+- “一、”后面可以直接使用“1、”，不一定必须先出现“（一）”；不得仅因缺少“（一）”而判定标题层级混乱或结构问题。
+- 只有在同一层级内部编号前后矛盾、标题与正文归属明显错位，或层级跳转导致用户无法理解内容关系时，才可报告结构问题。"""
+
 
 def _parse_issue_anchors(item: dict) -> List[IssueAnchor]:
     anchors: List[IssueAnchor] = []
@@ -497,6 +502,8 @@ async def _verify_section_issues(
 
 {SOURCE_BOUNDARY_RULE}
 
+{HEADING_NUMBERING_RULE}
+
 以JSON格式输出最终核验结果：
 {{
   "verification_summary": "二次核验总结：说明做了哪些调整（删除/修正/合并了哪些问题）以及最终结论",
@@ -851,6 +858,8 @@ guideline_evidence指南依据要求（非常重要）：
 {SUPERSCRIPT_SUBSCRIPT_RULE}
 
 {SOURCE_BOUNDARY_RULE}
+
+{HEADING_NUMBERING_RULE}
 
 若无问题，输出 {{"issues": []}}"""
 

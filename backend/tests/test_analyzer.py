@@ -31,6 +31,14 @@ class QualityStandardSelectionTests(unittest.TestCase):
         self.assertIn("详见图", text)
         self.assertIn("固定编号", text)
 
+    def test_quality_standard_allows_numbered_heading_after_chinese_heading(self):
+        text = standards.get_quality_standard()
+
+        self.assertIn("一、", text)
+        self.assertIn("1、", text)
+        self.assertIn("可以直接", text)
+        self.assertIn("不得仅因缺少“（一）”", text)
+
 
 class ReferenceBlockTests(unittest.TestCase):
     def test_priority_reference_block_sets_conflict_rule(self):
