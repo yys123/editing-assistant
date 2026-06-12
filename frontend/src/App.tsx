@@ -349,6 +349,10 @@ function AppContent() {
     setRefEvalResult(null)
   }
 
+  const handleRemoveReferenceDoc = (filename: string) => {
+    handleSetReferenceDocs(referenceDocs.filter(doc => doc.filename !== filename))
+  }
+
   // ── QA helpers ───────────────────────────────────────────────────────────────
   const handleSetQaItems = (items: QAItem[]) => {
     setQaItems(items)
@@ -915,6 +919,7 @@ function AppContent() {
               sectionPriorityReferenceSelections={sectionPriorityReferenceSelections}
               setSectionPriorityReferenceSelections={setSectionPriorityReferenceSelections}
               referenceDocs={referenceDocs}
+              onRemoveReferenceDoc={handleRemoveReferenceDoc}
               standardsOverride={standardsOverride}
             />
           )}

@@ -1378,28 +1378,32 @@ export default function StepUpload({
               {/* Existing docs */}
               {referenceDocs.map((doc, i) => (
                 <div key={i} className="pdf-item-card">
-                  <span className="material-symbols-outlined" style={{ fontSize: 28, color: doc.filename.toLowerCase().endsWith('.pdf') ? 'var(--dui-danger)' : 'var(--dui-primary)' }}>
-                    {doc.filename.toLowerCase().endsWith('.pdf')
-                      ? 'picture_as_pdf'
-                      : (doc.filename.toLowerCase().endsWith('.doc') || doc.filename.toLowerCase().endsWith('.docx')) ? 'description' : 'language'}
-                  </span>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--m3-on-surface)', textAlign: 'center', wordBreak: 'break-all', lineHeight: 1.3 }}>
-                    {doc.filename.length > 30 ? doc.filename.slice(0, 27) + '...' : doc.filename}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, width: '100%' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 28, flexShrink: 0, color: doc.filename.toLowerCase().endsWith('.pdf') ? 'var(--dui-danger)' : 'var(--dui-primary)' }}>
+                      {doc.filename.toLowerCase().endsWith('.pdf')
+                        ? 'picture_as_pdf'
+                        : (doc.filename.toLowerCase().endsWith('.doc') || doc.filename.toLowerCase().endsWith('.docx')) ? 'description' : 'language'}
+                    </span>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--m3-on-surface)', textAlign: 'center', wordBreak: 'break-word', lineHeight: 1.3, minWidth: 0, flex: 1 }}>
+                      {doc.filename.length > 42 ? doc.filename.slice(0, 39) + '...' : doc.filename}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>{doc.char_count} 字符</div>
-                  <button
-                    onClick={() => setReferenceDocs(referenceDocs.filter((_, j) => j !== i))}
-                    style={{
-                      position: 'absolute', top: 6, right: 6,
-                      background: 'rgba(0,0,0,0.04)', border: 'none', borderRadius: '50%',
-                      width: 22, height: 22, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      opacity: 0, transition: 'opacity 0.15s',
-                    }}
-                    className="pdf-item-delete"
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--m3-error)' }}>close</span>
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', marginTop: 8 }}>
+                    <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>{doc.char_count} 字符</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`确定删除参考数据源「${doc.filename}」吗？`)) {
+                          setReferenceDocs(referenceDocs.filter((_, j) => j !== i))
+                        }
+                      }}
+                      className="pdf-item-delete"
+                      title="删除该参考数据源"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--m3-error)' }}>close</span>
+                      删除
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

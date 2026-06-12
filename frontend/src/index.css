@@ -642,7 +642,7 @@ body {
   border: 0.5px solid var(--dui-divider);
   border-radius: var(--dui-radius-card);
   padding: 14px 16px;
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; flex-direction: column; align-items: stretch; justify-content: center;
   transition: all 0.15s;
 }
 .pdf-item-card:hover { box-shadow: var(--dui-shadow-s1); border-color: transparent; }
@@ -650,12 +650,13 @@ body {
 .pdf-item-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 128px; color: var(--dui-text); }
 .pdf-item-meta { font-size: 12px; color: var(--dui-text-sub); }
 .pdf-item-delete {
-  opacity: 0; border: none; background: transparent;
-  color: var(--dui-danger); cursor: pointer; padding: 4px;
-  border-radius: 4px; transition: all 0.15s;
+  opacity: 1; border: none; background: var(--dui-danger-container);
+  color: var(--dui-danger); cursor: pointer; padding: 3px 7px;
+  border-radius: var(--dui-radius-pill); transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center; gap: 2px;
+  font-size: 11px;
 }
-.pdf-item-card:hover .pdf-item-delete { opacity: 1; }
-.pdf-item-delete:hover { background: var(--dui-danger-container); }
+.pdf-item-delete:hover { filter: brightness(0.96); }
 
 /* ═══════════════════════════════════════════════════════
    AUTH PAGE (DUI: white card on light gray, purple CTA)
