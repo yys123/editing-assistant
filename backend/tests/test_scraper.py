@@ -44,6 +44,22 @@ class HtmlStructuredParserTests(unittest.TestCase):
         self.assertIn("5 × 10⁹/L", structured)
         self.assertIn("CO₂", structured)
 
+    def test_converts_plain_numeric_superscript_citation_to_ref_marker(self):
+        html = """
+        <section class="page_disease-section">
+          <div>
+            <h2>治疗</h2>
+            <div class="ck-content">
+              <p>治疗选择有限性<sup>315</sup>，但大多数患者可获益。</p>
+            </div>
+          </div>
+        </section>
+        """
+
+        structured = parse_html_structured(html)
+
+        self.assertIn("治疗选择有限性^[315]，但大多数患者可获益。", structured)
+
 
 if __name__ == "__main__":
     unittest.main()

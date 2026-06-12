@@ -57,6 +57,57 @@ function scriptText(text: string, script: 'sup' | 'sub') {
   return `${script === 'sup' ? '^' : '_'}(${compact})`
 }
 
+function isReferenceSupText(text: string) {
+  return /^\d+(?:[,，\-~～至]\d+)*$/.test(text.replace(/\s+/g, ''))
+}
+
+function nearestTextBefore(node: Node) {
+  let current: Node | null = node
+  while (current) {
+    let sibling = current.previousSibling
+    while (sibling) {
+      const text = sibling.textContent || ''
+      if (text) return text
+      sibling = sibling.previousSibling
+    }
+    current = current.parentNode
+  }
+  return ''
+}
+
+function nearestTextAfter(node: Node) {
+  let current: Node | null = node
+  while (current) {
+    let sibling = current.nextSibling
+    while (sibling) {
+      const text = sibling.textContent || ''
+      if (text) return text
+      sibling = sibling.nextSibling
+    }
+    current = current.parentNode
+  }
+  return ''
+}
+
+function looksLikeReferenceSup(node: HTMLElement) {
+  const compact = (node.textContent || '').replace(/\s+/g, '')
+  if (!isReferenceSupText(compact)) return false
+
+  const before = nearestTextBefore(node).trimEnd()
+  const after = nearestTextAfter(node).trimStart()
+  const prevChar = before ? before.charAt(before.length - 1) : ''
+  const nextChar = after ? after.charAt(0) : ''
+
+  // Keep scientific notation and units as visual superscripts, e.g. 10^9/L.
+  if (prevChar && /[\d×*/+\-=]/.test(prevChar)) return false
+  if (nextChar && /[A-Za-z0-9/]/.test(nextChar)) return false
+  return true
+}
+
+function referenceSupText(node: HTMLElement) {
+  return `^[${(node.textContent || '').replace(/\s+/g, '')}]`
+}
+
 function normalizeEditorText(text: string) {
   return text
     .replace(/\u00a0/g, ' ')
@@ -547,6 +598,7 @@ function nodeToPlainText(node: Node, state: NumberingState, listDepth = 0): stri
   const tag = node.tagName
   if (tag === 'BR') return '\n'
   if (tag === 'SUP' || tag === 'SUB') {
+    if (tag === 'SUP' && looksLikeReferenceSup(node)) return referenceSupText(node)
     return scriptText(node.textContent || '', tag === 'SUP' ? 'sup' : 'sub')
   }
 

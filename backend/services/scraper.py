@@ -39,6 +39,57 @@ def _script_text(text: str, script: str) -> str:
     return f"{marker}({compact})"
 
 
+def _is_reference_sup_text(text: str) -> bool:
+    compact = re.sub(r"\s+", "", text)
+    return bool(re.fullmatch(r"\d+(?:[,，\-~～至]\d+)*", compact))
+
+
+def _nearest_text_before(tag: Tag) -> str:
+    current = tag
+    while current is not None:
+        sibling = current.previous_sibling
+        while sibling is not None:
+            text = sibling.get_text("", strip=False) if isinstance(sibling, Tag) else str(sibling)
+            if text:
+                return text
+            sibling = sibling.previous_sibling
+        current = current.parent if isinstance(current.parent, Tag) else None
+    return ""
+
+
+def _nearest_text_after(tag: Tag) -> str:
+    current = tag
+    while current is not None:
+        sibling = current.next_sibling
+        while sibling is not None:
+            text = sibling.get_text("", strip=False) if isinstance(sibling, Tag) else str(sibling)
+            if text:
+                return text
+            sibling = sibling.next_sibling
+        current = current.parent if isinstance(current.parent, Tag) else None
+    return ""
+
+
+def _looks_like_reference_sup(tag: Tag) -> bool:
+    text = tag.get_text(" ", strip=True)
+    if not _is_reference_sup_text(text):
+        return False
+
+    before = _nearest_text_before(tag).rstrip()
+    after = _nearest_text_after(tag).lstrip()
+    prev_char = before[-1:] if before else ""
+    next_char = after[:1] if after else ""
+
+    # Scientific notation and units such as 10^9 or cm^2 should remain true
+    # superscripts. Citation superscripts are usually attached to prose.
+    if prev_char and re.match(r"[\d×*/+\-=]", prev_char):
+        return False
+    if next_char and re.match(r"[A-Za-z0-9/]", next_char):
+        return False
+
+    return True
+
+
 def _extract_text_with_refs(tag: Tag) -> str:
     """Recursively extract text, converting literature-sup elements to ^[N] notation.
 
@@ -56,6 +107,9 @@ def _extract_text_with_refs(tag: Tag) -> str:
                 ref = child.get_text(strip=True)
                 if ref:
                     parts.append(f"^[{ref}]")
+            elif child.name == "sup" and _looks_like_reference_sup(child):
+                ref = re.sub(r"\s+", "", child.get_text(" ", strip=True))
+                parts.append(f"^[{ref}]")
             elif child.name in {"sup", "sub"}:
                 parts.append(_script_text(child.get_text(" ", strip=True), child.name))
             else:
