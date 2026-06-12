@@ -1176,7 +1176,7 @@ export default function StepUpload({
             {showStandardsPanel && (
               <div style={{ marginTop: 14 }}>
                 <p style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 14 }}>
-                  若不上传，使用内置的「内容质量审评标准3.0」和「内容要求规范」。
+                  若不上传，系统会按当前词条类型使用对应的内置质量审评标准和内容要求规范。
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ padding: '12px', background: 'var(--m3-surface-container-low)', borderRadius: 8 }}>

@@ -2,6 +2,7 @@ import os
 from typing import Optional
 
 _DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+_STANDARDS_DIR = os.path.join(_DATA_DIR, "standards")
 
 BUILTIN_QUALITY_STANDARD = """# 医学知识库内容质量审评标准
 
@@ -368,6 +369,101 @@ BUILTIN_CONTENT_SPEC = """# 医学知识库词条内容要求规范
 - 颜色选择原则：文字颜色尽量选择深色，背景颜色尽量选择浅色，以舒适不伤眼睛为准
 """
 
+BUILTIN_TUMOR_CONTENT_SPEC = """# 肿瘤词条医学知识库词条内容要求规范
+
+本规范仅用于“肿瘤词条”。如与通用疾病词条内容要求规范冲突，以本规范为准。
+
+## 一、肿瘤词条核心字段
+
+### 1. 基础知识
+- 危险因素。
+- 流行病学。
+
+### 2. 诊断
+- 临床表现。
+- 辅助检查：含实验室检查、影像学检查、病理、免疫组化等。
+- 病情评估（如有）。
+
+### 3. 分期
+- 分期应单独列为一级字段。
+- 应列出分期依据，如 TNM、UICC 等。
+- 危险度评估、复发风险评估（如有）。
+
+### 4. 治疗
+- 按不同分期分别撰写治疗方案推荐。
+- 说明不同治疗方式的适应证、禁忌证、剂量、疗程、周期、注意事项等。
+- 手术操作细节可以不保留，但术式选择、淋巴结清扫选择等关键决策内容应保留。
+- 可保留确定某治疗方案的里程碑研究，但内容必须精简。
+- 应包含疗效评估。
+
+### 5. 预防
+- 高危人群。
+- 筛查频次。
+
+### 6. 预后
+- 生存率。
+
+## 二、撰写框架要求
+
+### 基础知识
+- 危险因素仅需提及具体危险因素，不需要展开。
+- 分型（如有）可列为 A、B、C 等类型，并用一句话概括。
+
+### 诊断
+- 临床表现（如有）一句话概括；或列出不同类型的表现，不需要展开。
+- 影像学检查、实验室检查仅需提到检查名称，如 CT、CEA 等。
+- 病理学检查需提及病理分型、分子分型等。
+- 免疫组化和分子分型需根据不同肿瘤提供相关内容。
+
+### 分期
+- 列出分期依据，如 TNM、UICC 等。
+
+### 治疗
+- 按不同分期列出具体治疗方式。
+- 不同肿瘤的分期不同，具体以临床治疗实践和指南推荐为准。
+
+### 疗效评估
+- 列出评估疗效的标准，如 RESIST。
+
+### 筛查
+- 列出高危人群及筛查频次。
+
+## 三、“治疗”字段之外内容生产
+
+- 基础知识：危险因素、流行病学。
+- 诊断：临床表现；辅助检查，含实验室检查、影像学检查、病理、免疫组化等项目的适应人群和影像学典型表现（如有）；病情评估（如有）。
+- 分期：单独列为字段；包含危险度评估、复发风险评估（如有）。
+- 预防：高危人群、筛查频次。
+- 预后：生存率。
+- 因治疗外内容通常国内指南基本满足生产需要，应主要参考中文指南；如中文指南未包含重大进展，可选用英文指南补充。
+
+## 四、“治疗”内容生产
+
+### 1. 按临床通用分期撰写
+- 按某个肿瘤的临床通用分期撰写治疗内容。
+- 例如 HR+HER2- 型乳腺癌可分为：原位癌、浸润性乳腺癌（不做术前全身治疗、做术前全身治疗）、晚期乳腺癌。
+- 例如原发性肝癌可分为：IA、IB、IIA、IIB、IIIA、IIIB、IV 期。
+- 不同肿瘤分期不同，具体以临床治疗实践和指南推荐为准。
+
+### 2. 不同分期的推荐治疗方案
+- 明确不同分期下的推荐治疗方案。
+- 根据可手术/不可手术、驱动基因阴性/阳性、EGFR 经典突变等关键临床分层组织内容（如适用）。
+- 药物、手术、放疗、免疫、靶向、新辅助、辅助治疗等应置于对应分期和临床场景下，不应孤立堆砌。
+
+### 3. 不同治疗方式的必要信息
+- 手术治疗：包含适应证、禁忌证、术式选择、淋巴结清扫选择；具体手术操作细节可以不保留。
+- 化疗、靶向、免疫等药物治疗：包含药物方案、剂量、周期、疗程、适应证、禁忌证和注意事项。
+- 放疗：包含方案、剂量、周期、靶区、放疗技术或种类。
+- 介入/消融治疗：参考放疗要求，说明适应证、方案、周期/次数、关键技术或种类。
+- 新辅助/辅助治疗：明确适用分期、人群、方案、疗程和后续衔接治疗。
+
+## 五、通用格式要求
+
+- 正文中保留“详见表 2”“详见表2”“详见图 3”“见图1”等固定图表编号引用，属于知识库词条内对已有图/表的正常引用，符合要求。
+- 参考文献序号不是评审内容。
+- 上下标不是评审内容；不得仅因复制/解析后上标或下标显示为普通字符而扣分。
+"""
+
 
 BUILTIN_REF_EVAL_STANDARD = """# 参考信息源评估标准
 
@@ -425,7 +521,21 @@ def _load_file(name: str) -> Optional[str]:
     path = os.path.join(_DATA_DIR, name)
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
-            return f.read()
+            text = f.read()
+            return text if text.strip() else None
+    return None
+
+
+def _normalize_entry_type(entry_type: Optional[str]) -> str:
+    return entry_type if entry_type in {"disease", "tumor", "non_disease"} else "disease"
+
+
+def _load_standard_file(entry_type: Optional[str], filename: str) -> Optional[str]:
+    path = os.path.join(_STANDARDS_DIR, _normalize_entry_type(entry_type), filename)
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+            return text if text.strip() else None
     return None
 
 
@@ -442,13 +552,23 @@ REF_EVAL_STANDARD = _file_ref_eval if _file_ref_eval else BUILTIN_REF_EVAL_STAND
 def get_quality_standard(override: Optional[str] = None, entry_type: Optional[str] = None) -> str:
     if override:
         return override
+    file_text = _load_standard_file(entry_type, "quality_review.md")
+    if file_text:
+        return file_text
     if entry_type == "tumor":
         return BUILTIN_TUMOR_QUALITY_STANDARD
     return QUALITY_STANDARD
 
 
-def get_content_spec(override: Optional[str] = None) -> str:
-    return override if override else CONTENT_SPEC
+def get_content_spec(override: Optional[str] = None, entry_type: Optional[str] = None) -> str:
+    if override:
+        return override
+    file_text = _load_standard_file(entry_type, "content_spec.md")
+    if file_text:
+        return file_text
+    if entry_type == "tumor":
+        return BUILTIN_TUMOR_CONTENT_SPEC
+    return CONTENT_SPEC
 
 
 def get_ref_eval_standard(override: Optional[str] = None) -> str:

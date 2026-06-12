@@ -31,6 +31,20 @@ class QualityStandardSelectionTests(unittest.TestCase):
         self.assertIn("详见图", text)
         self.assertIn("固定编号", text)
 
+    def test_tumor_entry_uses_tumor_content_spec(self):
+        text = standards.get_content_spec(entry_type="tumor")
+
+        self.assertIn("肿瘤词条医学知识库词条内容要求规范", text)
+        self.assertIn("基础知识", text)
+        self.assertIn("分期", text)
+        self.assertIn("RESIST", text)
+
+    def test_content_spec_override_has_priority(self):
+        self.assertEqual(
+            standards.get_content_spec("自定义规范", entry_type="tumor"),
+            "自定义规范",
+        )
+
     def test_quality_standard_allows_numbered_heading_after_chinese_heading(self):
         text = standards.get_quality_standard()
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from services.standards import QUALITY_STANDARD, CONTENT_SPEC, REF_EVAL_STANDARD
+from services.standards import REF_EVAL_STANDARD, get_content_spec as resolve_content_spec, get_quality_standard as resolve_quality_standard
 
 from auth import get_current_user
 
@@ -7,13 +7,15 @@ router = APIRouter(prefix="/api/standards", tags=["standards"], dependencies=[De
 
 
 @router.get("/quality")
-def get_quality_standard():
-    return {"text": QUALITY_STANDARD, "char_count": len(QUALITY_STANDARD)}
+def get_quality_standard(entry_type: str = "disease"):
+    text = resolve_quality_standard(entry_type=entry_type)
+    return {"text": text, "char_count": len(text)}
 
 
 @router.get("/spec")
-def get_content_spec():
-    return {"text": CONTENT_SPEC, "char_count": len(CONTENT_SPEC)}
+def get_content_spec(entry_type: str = "disease"):
+    text = resolve_content_spec(entry_type=entry_type)
+    return {"text": text, "char_count": len(text)}
 
 
 @router.get("/ref-eval")

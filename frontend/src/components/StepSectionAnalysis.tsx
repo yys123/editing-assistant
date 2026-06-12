@@ -20,7 +20,6 @@ interface Props {
   sectionPriorityReferenceSelections: Record<string, string[]>
   setSectionPriorityReferenceSelections: React.Dispatch<React.SetStateAction<Record<string, string[]>>>
   referenceDocs: ReferenceDoc[]
-  onRemoveReferenceDoc?: (filename: string) => void
   standardsOverride: StandardsOverride
 }
 
@@ -192,7 +191,7 @@ export default function StepSectionAnalysis({
   disease, articleEntryType, parsedArticle, parsedArticleSourceHash, parsedArticleParserVersion, sectionAnalyses, setSectionAnalyses,
   sectionReferenceSelections, setSectionReferenceSelections,
   sectionPriorityReferenceSelections, setSectionPriorityReferenceSelections,
-  referenceDocs, onRemoveReferenceDoc, standardsOverride
+  referenceDocs, standardsOverride
 }: Props) {
   // Per-section loading/error state; analysing=true means in-flight
   const [analysing, setAnalysing] = useState<Record<string, boolean>>({})
@@ -754,31 +753,6 @@ export default function StepSectionAnalysis({
                           >
                             {isPriority ? '重点' : '设重点'}
                           </button>
-                          {onRemoveReferenceDoc && (
-                            <button
-                              type="button"
-                              onClick={e => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                if (window.confirm(`确定删除参考数据源「${doc.filename}」吗？`)) {
-                                  onRemoveReferenceDoc(doc.filename)
-                                }
-                              }}
-                              style={{
-                                border: 'none',
-                                borderRadius: 999,
-                                padding: '3px 7px',
-                                fontSize: 11,
-                                cursor: 'pointer',
-                                flexShrink: 0,
-                                background: 'var(--dui-danger-container)',
-                                color: 'var(--dui-danger)',
-                              }}
-                              title="删除该参考数据源"
-                            >
-                              删除
-                            </button>
-                          )}
                         </label>
                       )
                     })}

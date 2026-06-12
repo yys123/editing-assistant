@@ -27,6 +27,11 @@ venv/
 *.db-shm
 *.db-wal
 backend/data/
+!backend/data/
+backend/data/*
+!backend/data/standards/
+!backend/data/standards/**
+backend/data/standards/**/.DS_Store
 
 # Logs
 logs/

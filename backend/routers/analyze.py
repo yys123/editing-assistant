@@ -62,7 +62,7 @@ async def analyze_single_section(req: SectionAnalyzeRequest):
     from services.standards import get_quality_standard, get_content_spec
     try:
         quality_std = get_quality_standard(req.quality_standard_text, entry_type=req.article_entry_type)
-        content_spec = get_content_spec(req.content_spec_text)
+        content_spec = get_content_spec(req.content_spec_text, entry_type=req.article_entry_type)
         result = await analyze_section(
             req.disease, req.section, quality_std, content_spec, req.reference_texts,
             priority_reference_texts=req.priority_reference_texts,
