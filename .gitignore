@@ -39,3 +39,4 @@ logs/
 # Dev tooling
 .dev_pids
 *.log
+.worktrees/
