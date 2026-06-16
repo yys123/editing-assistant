@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import StepUpload from './components/StepUpload'
 import StepRefReview from './components/StepRefReview'
 import StepSectionPreview from './components/StepSectionPreview'
-import StepSectionAnalysis from './components/StepSectionAnalysis'
+import StepSectionAnalysis, { getSectionAnalysisTargetIds } from './components/StepSectionAnalysis'
 import StepGapAnalysis from './components/StepGapAnalysis'
 import StepPlanReview from './components/StepPlanReview'
 import StepGenerate, { extractSectionContent } from './components/StepGenerate'
@@ -35,6 +35,12 @@ const STEP_ICONS: Record<Step, string> = {
   5: 'group',
   6: 'edit_note',
   7: 'auto_awesome',
+}
+
+function isFreshSectionAnalysis(analysis: SectionAnalysis, sourceHash?: string, parserVersion?: number): boolean {
+  return !!sourceHash
+    && analysis.analysis_source_hash === sourceHash
+    && analysis.analysis_parser_version === parserVersion
 }
 
 function ChangePasswordModal({ onClose }: { onClose: () => void }) {
@@ -438,16 +444,21 @@ function AppContent() {
     const hasValidParsedArticle = !!session.parsedArticle
       && session.parsedArticleSourceHash === expectedParsedHash
       && session.parsedArticleParserVersion === ARTICLE_PARSE_CACHE_VERSION
-    const sessionCurrentSectionIds = new Set((session.parsedArticle?.sections ?? []).map(section => section.id))
-    const sessionHasFreshSectionAnalyses = hasValidParsedArticle
-      && (session.sectionAnalyses ?? []).some(analysis => sessionCurrentSectionIds.has(analysis.section_id))
-      && !(session.sectionAnalyses ?? []).some(analysis =>
-        sessionCurrentSectionIds.has(analysis.section_id)
-        && (
-          analysis.analysis_source_hash !== session.parsedArticleSourceHash
-          || analysis.analysis_parser_version !== session.parsedArticleParserVersion
+    const sessionAnalysisTargetIds = hasValidParsedArticle
+      ? getSectionAnalysisTargetIds(session.parsedArticle?.sections ?? [])
+      : []
+    const sessionAnalysisTargets = new Set(sessionAnalysisTargetIds)
+    const sessionFreshSectionIds = new Set(
+      (session.sectionAnalyses ?? [])
+        .filter(analysis =>
+          sessionAnalysisTargets.has(analysis.section_id)
+          && isFreshSectionAnalysis(analysis, session.parsedArticleSourceHash, session.parsedArticleParserVersion)
         )
-      )
+        .map(analysis => analysis.section_id)
+    )
+    const sessionHasFreshSectionAnalyses = hasValidParsedArticle
+      && sessionAnalysisTargetIds.length > 0
+      && sessionAnalysisTargetIds.every(id => sessionFreshSectionIds.has(id))
     setParsedArticle(hasValidParsedArticle ? session.parsedArticle ?? null : null)
     setParsedArticleSourceHash(hasValidParsedArticle ? session.parsedArticleSourceHash ?? '' : '')
     setParsedArticleParserVersion(hasValidParsedArticle ? session.parsedArticleParserVersion : undefined)
@@ -580,16 +591,24 @@ function AppContent() {
     setStep(4)
   }
 
-  const currentParsedSectionIds = new Set(parsedArticle?.sections.map(s => s.id) ?? [])
-  const hasCurrentSectionAnalyses = !!parsedArticle
-    && sectionAnalyses.some(analysis => currentParsedSectionIds.has(analysis.section_id))
+  const currentAnalysisTargetIds = parsedArticle ? getSectionAnalysisTargetIds(parsedArticle.sections) : []
+  const currentAnalysisTargets = new Set(currentAnalysisTargetIds)
+  const freshSectionIds = new Set(
+    sectionAnalyses
+      .filter(analysis =>
+        currentAnalysisTargets.has(analysis.section_id)
+        && isFreshSectionAnalysis(analysis, parsedArticleSourceHash, parsedArticleParserVersion)
+      )
+      .map(analysis => analysis.section_id)
+  )
+  const hasCompleteFreshSectionAnalyses = !!parsedArticle
+    && currentAnalysisTargetIds.length > 0
+    && currentAnalysisTargetIds.every(id => freshSectionIds.has(id))
   const hasStaleSectionAnalyses = !!parsedArticle
     && sectionAnalyses.some(analysis =>
-      currentParsedSectionIds.has(analysis.section_id)
-      && (
-        analysis.analysis_source_hash !== parsedArticleSourceHash
-        || analysis.analysis_parser_version !== parsedArticleParserVersion
-      )
+      currentAnalysisTargets.has(analysis.section_id)
+      && analysis.issues.length > 0
+      && !isFreshSectionAnalysis(analysis, parsedArticleSourceHash, parsedArticleParserVersion)
     )
 
   // ── Step nav canClick logic ──────────────────────────────────────────────────
@@ -598,7 +617,7 @@ function AppContent() {
     if (s === 2) return !!(disease && articleContent)
     if (s === 3) return !!(disease && articleContent)
     if (s === 4) return !!parsedArticle
-    if (s === 5) return hasCurrentSectionAnalyses && !hasStaleSectionAnalyses
+    if (s === 5) return hasCompleteFreshSectionAnalyses && !hasStaleSectionAnalyses
     if (s === 6) return !!gapAnalysis
     if (s === 7) return draftHistory.length > 0 || gapItems.length > 0
     return false

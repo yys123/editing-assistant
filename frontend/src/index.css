@@ -649,6 +649,53 @@ body {
 .pdf-item-info { display: flex; align-items: center; gap: 12px; overflow: hidden; }
 .pdf-item-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 128px; color: var(--dui-text); }
 .pdf-item-meta { font-size: 12px; color: var(--dui-text-sub); }
+.reference-source-card {
+  position: relative;
+  min-height: 94px;
+  padding: 14px 42px 12px 14px;
+  justify-content: space-between;
+  gap: 10px;
+}
+.reference-source-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+}
+.reference-source-text {
+  min-width: 0;
+  flex: 1;
+}
+.reference-source-index {
+  color: var(--dui-primary);
+  font-size: 11px;
+  font-weight: 500;
+  margin-bottom: 3px;
+}
+.reference-source-name {
+  color: var(--m3-on-surface);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.reference-source-meta {
+  color: var(--m3-on-surface-variant);
+  font-size: 12px;
+  line-height: 1;
+  padding-left: 38px;
+}
+.reference-source-delete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 999px;
+}
 .pdf-item-delete {
   opacity: 1; border: none; background: var(--dui-danger-container);
   color: var(--dui-danger); cursor: pointer; padding: 3px 7px;

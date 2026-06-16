@@ -47,6 +47,28 @@ class IssueAnchorTests(unittest.TestCase):
         self.assertEqual(issue.anchors[0].line_start, 0)
         self.assertEqual(issue.anchors[0].match_mode, "compact")
 
+    def test_attach_issue_anchors_extracts_quoted_anchor_from_examples(self):
+        content = "\n".join([
+            "(3) DSA 术前评估注意事项",
+            "2) 动脉瘤结构",
+            "1. 动脉瘤结构是 BAVM 出血的重要危险结构，可发生在供血动脉，畸形团以及引流静脉近端。",
+        ])
+        issue = SectionIssue(
+            issue_type="outdated",
+            description="未包含 Redekop 诊断分型。",
+            severity="medium",
+            examples=[
+                "在“2) 动脉瘤结构”中，仅描述了动脉瘤发生的解剖部位，未引入 Redekop Ⅰ/Ⅱ/Ⅲ型分类法。"
+            ],
+        )
+
+        _attach_issue_anchors([issue], content)
+
+        self.assertEqual(len(issue.anchors), 1)
+        self.assertEqual(issue.anchors[0].quote, "2) 动脉瘤结构")
+        self.assertEqual(issue.anchors[0].line_start, 1)
+        self.assertEqual(issue.anchors[0].match_mode, "exact")
+
     def test_build_section_issue_parses_guideline_evidence(self):
         issue = _build_section_issue({
             "issue_type": "missing_content",
@@ -139,6 +161,9 @@ class QualityPromptTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("详见表", prompt)
             self.assertIn("详见图", prompt)
             self.assertIn("固定编号", prompt)
+            self.assertIn("图片二进制本身无法随 prompt 传递", prompt)
+            self.assertIn("默认对应图片在实际词条中存在", prompt)
+            self.assertIn("只看到图注", prompt)
             self.assertIn("上下标", prompt)
             self.assertIn("复制/解析", prompt)
             self.assertIn("不得把内容质量审评标准", prompt)
@@ -180,6 +205,9 @@ class QualityPromptTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("详见表", prompt)
             self.assertIn("详见图", prompt)
             self.assertIn("固定编号", prompt)
+            self.assertIn("图片二进制本身无法随 prompt 传递", prompt)
+            self.assertIn("默认对应图片在实际词条中存在", prompt)
+            self.assertIn("只看到图注", prompt)
             self.assertIn("上下标", prompt)
             self.assertIn("复制/解析", prompt)
             self.assertIn("不得把内容质量审评标准", prompt)

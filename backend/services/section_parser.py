@@ -3,7 +3,7 @@ import re
 import hashlib
 from typing import List, Optional
 from models import ArticleSection, ParsedArticle
-from services.text_llm import generate_text
+from services.text_llm import generate_json, generate_text
 
 # ── Load content framework spec at module init ─────────────────────────────────
 _FRAMEWORK_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "content_framework.md")
@@ -411,8 +411,6 @@ async def parse_article_sections(text: str) -> ParsedArticle:
 
 
 async def _parse_with_ai(text: str) -> ParsedArticle:
-    from services.utils import extract_json
-
     is_structured = bool(re.search(r"^\[H[123]\]", text, re.MULTILINE))
 
     framework_summary = _extract_framework_summary()
@@ -422,8 +420,9 @@ async def _parse_with_ai(text: str) -> ParsedArticle:
     else:
         prompt = _build_plain_prompt(text, framework_summary)
 
-    raw = await generate_text(prompt, _SYSTEM_PROMPT, context="article_parse_sections")
-    data = extract_json(raw)
+    data = await generate_json(
+        prompt, _SYSTEM_PROMPT, context="article_parse_sections", text_generator=generate_text
+    )
 
     sections: List[ArticleSection] = []
     for item in data.get("sections", []):

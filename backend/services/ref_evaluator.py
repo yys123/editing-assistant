@@ -1,7 +1,6 @@
 from typing import List, Optional
 from models import ReferenceDoc, RefEvalResult, RefEvalItemResult
-from services.text_llm import generate_text
-from services.utils import extract_json
+from services.text_llm import generate_json, generate_text
 from services.standards import get_ref_eval_standard
 
 
@@ -73,8 +72,9 @@ async def evaluate_references(
 - 如果某篇文献质量明显不足，给出"建议替换"并说明理由
 - 对每篇文献的评估应简洁客观"""
 
-    text = await generate_text(prompt, system_prompt, context="reference_eval")
-    data = extract_json(text)
+    data = await generate_json(
+        prompt, system_prompt, context="reference_eval", text_generator=generate_text
+    )
 
     items = []
     for item_data in data.get("item_evaluations", []):

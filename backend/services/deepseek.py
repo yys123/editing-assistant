@@ -24,6 +24,18 @@ def _get_param(runtime_config: dict, key: str, fallback):
     return fallback if value in (None, "") else value
 
 
+def _format_deepseek_exception(exc: Exception, timeout_seconds) -> str:
+    timeout_exception = getattr(httpx, "TimeoutException", None)
+    if timeout_exception and isinstance(exc, timeout_exception):
+        return (
+            f"DeepSeek 请求超时（timeout_seconds={timeout_seconds or 60}）。"
+            "这通常发生在输入内容较长或模型输出较大时；请稍后重试，"
+            "或调高 deepseek_timeout_seconds / 减少单次分析内容。"
+        )
+    message = str(exc).strip()
+    return message or f"DeepSeek 请求失败（{type(exc).__name__}）"
+
+
 async def generate_text_with_deepseek(
     prompt: str,
     system_instruction: str = None,
@@ -79,6 +91,16 @@ async def generate_text_with_deepseek(
         "Authorization": f"Bearer {settings.deepseek_api_key}",
         "Content-Type": "application/json",
     }
+    request_log_path = ai_audit.save_ai_request_payload(
+        context=context,
+        provider="deepseek",
+        model=model,
+        audit=audit,
+        request={
+            "url": url,
+            "payload": payload,
+        },
+    )
 
     started_at = time.perf_counter()
     try:
@@ -94,13 +116,20 @@ async def generate_text_with_deepseek(
 
         choice = choices[0]
         finish_reason = str(choice.get("finish_reason", "")).lower()
+        usage = data.get("usage") or {}
+        if finish_reason == "length":
+            raise ValueError(
+                "DeepSeek 输出被模型截断（finish_reason=length，"
+                f"output_tokens={usage.get('completion_tokens')}，"
+                f"max_tokens={max_tokens or 'provider_default'}）。"
+                "请减少单次分析内容或提高模型输出上限后重试。"
+            )
         if finish_reason and finish_reason not in {"stop", "length"}:
             raise ValueError(f"DeepSeek 生成异常终止（finish_reason={finish_reason})")
 
         message = choice.get("message") or {}
         text = (message.get("content") or "").strip()
 
-        usage = data.get("usage") or {}
         _log.info(
             "llm_call context=%s provider=deepseek model=%s prompt_tokens=%s output_tokens=%s total_tokens=%s elapsed_ms=%s prompt_chars=%s warning=%s",
             context,
@@ -125,18 +154,26 @@ async def generate_text_with_deepseek(
             total_tokens=usage.get("total_tokens"),
             elapsed_ms=elapsed_ms,
             status="success",
+            request_log_path=request_log_path,
             **audit,
         )
         return text
     except Exception as e:
         elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        error_message = _format_deepseek_exception(e, timeout_seconds)
         ai_audit.record_ai_call(
             context=context,
             provider="deepseek",
             model=model,
             elapsed_ms=elapsed_ms,
             status="error",
-            error=str(e)[:500],
+            error=error_message[:500],
+            request_log_path=request_log_path,
             **audit,
         )
+        timeout_exception = getattr(httpx, "TimeoutException", None)
+        if timeout_exception and isinstance(e, timeout_exception):
+            raise ValueError(error_message) from e
+        if not str(e).strip():
+            raise ValueError(error_message) from e
         raise

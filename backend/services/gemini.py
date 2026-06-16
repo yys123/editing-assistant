@@ -27,13 +27,15 @@ def _date_prefix() -> str:
     return f"【系统当前日期：{today.year}年{today.month:02d}月{today.day:02d}日】"
 
 
+def _build_system_instruction(system_instruction: str = None) -> str:
+    date_line = _date_prefix()
+    return f"{date_line}\n{system_instruction}" if system_instruction else date_line
+
+
 def get_model(system_instruction: str = None) -> genai.GenerativeModel:
     """Return a cached GenerativeModel, always prepending today's date to the
     system instruction so the model never draws stale temporal conclusions."""
-    date_line = _date_prefix()
-    full_instruction = (
-        f"{date_line}\n{system_instruction}" if system_instruction else date_line
-    )
+    full_instruction = _build_system_instruction(system_instruction)
     # Cache key includes the date so the model object refreshes each day.
     key = full_instruction
     if key not in _model_cache:
@@ -87,6 +89,16 @@ async def generate_text_with_gemini(
         "gemini", settings.gemini_model, context, prompt, system_instruction,
         context_window_tokens=context_window,
     )
+    request_log_path = ai_audit.save_ai_request_payload(
+        context=context,
+        provider="gemini",
+        model=settings.gemini_model,
+        audit=audit,
+        request={
+            "system_instruction": _build_system_instruction(system_instruction),
+            "prompt": prompt,
+        },
+    )
     started_at = time.perf_counter()
     try:
         response = await loop.run_in_executor(None, model.generate_content, prompt)
@@ -114,7 +126,13 @@ async def generate_text_with_gemini(
 
         candidate = response.candidates[0]
         finish = candidate.finish_reason.name if hasattr(candidate.finish_reason, 'name') else str(candidate.finish_reason)
-        if finish not in ('STOP', 'MAX_TOKENS', '1', '2'):
+        if finish in ('MAX_TOKENS', '2'):
+            raise ValueError(
+                "Gemini 输出被模型截断（finish_reason=MAX_TOKENS，"
+                f"output_tokens={output_tokens}）。"
+                "请减少单次分析内容或提高模型输出上限后重试。"
+            )
+        if finish not in ('STOP', '1'):
             raise ValueError(f"生成异常终止（finish_reason={finish}）")
 
         text = response.text
@@ -130,6 +148,7 @@ async def generate_text_with_gemini(
             total_tokens=total_tokens,
             elapsed_ms=elapsed_ms,
             status="success",
+            request_log_path=request_log_path,
             **audit,
         )
         return text
@@ -142,6 +161,7 @@ async def generate_text_with_gemini(
             elapsed_ms=elapsed_ms,
             status="error",
             error=str(e)[:500],
+            request_log_path=request_log_path,
             **audit,
         )
         raise

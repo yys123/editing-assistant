@@ -103,6 +103,10 @@ function buildAnalysisGroups(sections: ArticleSection[]): AnalysisGroup[] {
   return groups
 }
 
+export function getSectionAnalysisTargetIds(sections: ArticleSection[]): string[] {
+  return buildAnalysisGroups(sections).map(group => group.representative.id)
+}
+
 // === 4-dimension scoring system ===
 
 // D1=内容全面 D2=结构合理 D3=内容准确 D4=内容精炼流畅

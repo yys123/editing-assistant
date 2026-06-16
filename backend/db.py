@@ -70,9 +70,13 @@ def init_db():
                 context_usage_ratio      REAL,
                 status                   TEXT NOT NULL,
                 warning                  TEXT DEFAULT '',
-                error                    TEXT DEFAULT ''
+                error                    TEXT DEFAULT '',
+                request_log_path         TEXT DEFAULT ''
             )
         """)
+        ai_cols = {row[1] for row in conn.execute("PRAGMA table_info(ai_call_logs)")}
+        if "request_log_path" not in ai_cols:
+            conn.execute("ALTER TABLE ai_call_logs ADD COLUMN request_log_path TEXT DEFAULT ''")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_ai_call_logs_created ON ai_call_logs(created_at DESC)"
         )
@@ -271,6 +275,7 @@ def insert_ai_call_log(entry: dict) -> dict:
         "status": entry.get("status") or "unknown",
         "warning": entry.get("warning") or "",
         "error": entry.get("error") or "",
+        "request_log_path": entry.get("request_log_path") or "",
     }
     with _conn() as conn:
         conn.execute(
@@ -279,8 +284,8 @@ def insert_ai_call_log(entry: dict) -> dict:
                 id, created_at, user_id, context, provider, model, prompt_chars,
                 estimated_prompt_tokens, prompt_tokens, output_tokens, total_tokens,
                 elapsed_ms, context_window_tokens, context_usage_ratio, status,
-                warning, error
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                warning, error, request_log_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 row["id"], row["created_at"], row["user_id"], row["context"],
@@ -289,6 +294,7 @@ def insert_ai_call_log(entry: dict) -> dict:
                 row["output_tokens"], row["total_tokens"], row["elapsed_ms"],
                 row["context_window_tokens"], row["context_usage_ratio"],
                 row["status"], row["warning"], row["error"],
+                row["request_log_path"],
             ),
         )
         conn.commit()
@@ -303,6 +309,15 @@ def list_ai_call_logs(limit: int = 100) -> list:
             (safe_limit,),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def get_ai_call_log(log_id: str):
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM ai_call_logs WHERE id = ?",
+            (log_id,),
+        ).fetchone()
+    return dict(row) if row else None
 
 
 def summarize_ai_call_logs() -> dict:

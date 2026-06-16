@@ -1,9 +1,16 @@
 import math
+import json
+import re
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import db
 from auth import get_current_user_context
 from config import settings
+
+REQUEST_LOG_DIR = Path(__file__).parent.parent / "data" / "ai_requests"
 
 
 def estimate_prompt_tokens(text: str) -> int:
@@ -51,6 +58,49 @@ def context_warning(estimated_tokens: int, context_window_tokens: Optional[int])
 def current_user_id() -> Optional[str]:
     user = get_current_user_context()
     return user.get("id") if user else None
+
+
+def _safe_slug(value: str, fallback: str = "unknown") -> str:
+    slug = re.sub(r"[^a-zA-Z0-9_.-]+", "_", value or "").strip("._-")
+    return (slug or fallback)[:80]
+
+
+def save_ai_request_payload(
+    *,
+    context: str,
+    provider: str,
+    model: str,
+    request: dict,
+    audit: dict = None,
+) -> str:
+    """Best-effort local snapshot of the exact payload sent to the AI provider."""
+    try:
+        now = datetime.now(timezone.utc)
+        call_id = uuid.uuid4().hex
+        day_dir = REQUEST_LOG_DIR / now.strftime("%Y-%m-%d")
+        day_dir.mkdir(parents=True, exist_ok=True)
+        filename = (
+            f"{now.strftime('%H%M%S_%f')}_"
+            f"{_safe_slug(context)}_{_safe_slug(provider)}_{call_id[:8]}.json"
+        )
+        payload = {
+            "id": call_id,
+            "created_at": now.isoformat(),
+            "user_id": current_user_id(),
+            "context": context or "unknown",
+            "provider": provider or "unknown",
+            "model": model or "unknown",
+            "audit": audit or {},
+            "request": request,
+        }
+        path = day_dir / filename
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
+        return str(path)
+    except Exception:
+        return ""
 
 
 def record_ai_call(**entry) -> None:

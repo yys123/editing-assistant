@@ -10,6 +10,7 @@ from fastapi import HTTPException
 
 import auth
 import db
+from routers import admin
 from routers import history
 from services import admin_runtime
 
@@ -72,6 +73,98 @@ class AdminRuntimeConfigTests(unittest.TestCase):
         self.assertEqual(admin_effective["text_model_provider"], "deepseek")
         self.assertEqual(admin_effective["deepseek_model"], "deepseek-reasoner")
         self.assertEqual(user_effective["text_model_provider"], "gemini")
+
+
+class AiCallLogDbTests(unittest.TestCase):
+    def test_ai_call_log_preserves_request_log_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "sessions.db"
+            with patch.object(db, "DB_PATH", path):
+                db.init_db()
+                db.insert_ai_call_log({
+                    "context": "section_analysis",
+                    "provider": "deepseek",
+                    "model": "deepseek-chat",
+                    "prompt_chars": 10,
+                    "status": "success",
+                    "request_log_path": "/tmp/request.json",
+                })
+
+                logs = db.list_ai_call_logs(1)
+
+        self.assertEqual(logs[0]["request_log_path"], "/tmp/request.json")
+
+
+class AdminAiRequestPayloadTests(unittest.TestCase):
+    def test_ai_call_logs_hide_unreadable_request_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "ai_requests"
+            day = base / "2026-06-16"
+            day.mkdir(parents=True)
+            payload_path = day / "request.json"
+            payload_path.write_text("{}", encoding="utf-8")
+
+            logs = [
+                {"id": "valid", "request_log_path": str(payload_path)},
+                {"id": "invalid", "request_log_path": "/tmp/ai-request.json"},
+            ]
+            with patch.object(admin, "REQUEST_LOG_DIR", base), patch.object(
+                admin.db, "list_ai_call_logs", return_value=logs
+            ), patch.object(admin.db, "summarize_ai_call_logs", return_value={}):
+                result = admin.get_ai_call_logs(user={"is_admin": True})
+
+        self.assertEqual(result["items"][0]["request_log_path"], str(payload_path))
+        self.assertEqual(result["items"][1]["request_log_path"], "")
+
+    def test_admin_can_read_saved_ai_request_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "ai_requests"
+            day = base / "2026-06-16"
+            day.mkdir(parents=True)
+            payload_path = day / "request.json"
+            payload_path.write_text(json.dumps({
+                "request": {
+                    "payload": {
+                        "messages": [
+                            {"role": "system", "content": "系统提示"},
+                            {"role": "user", "content": "用户 Prompt"},
+                        ],
+                    },
+                },
+            }, ensure_ascii=False), encoding="utf-8")
+
+            log = {
+                "id": "log-1",
+                "context": "section_analysis",
+                "provider": "deepseek",
+                "model": "deepseek-chat",
+                "request_log_path": str(payload_path),
+            }
+
+            with patch.object(admin, "REQUEST_LOG_DIR", base), patch.object(
+                admin.db, "get_ai_call_log", return_value=log
+            ):
+                result = admin.get_ai_call_request_payload("log-1", {"is_admin": True})
+
+        self.assertIn("[system]\n系统提示", result["prompt"])
+        self.assertIn("[user]\n用户 Prompt", result["prompt"])
+        self.assertEqual(result["payload"]["request"]["payload"]["messages"][1]["content"], "用户 Prompt")
+
+    def test_admin_request_payload_rejects_paths_outside_audit_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "ai_requests"
+            base.mkdir()
+            outside = Path(tmp) / "request.json"
+            outside.write_text("{}", encoding="utf-8")
+            log = {"id": "log-1", "request_log_path": str(outside)}
+
+            with patch.object(admin, "REQUEST_LOG_DIR", base), patch.object(
+                admin.db, "get_ai_call_log", return_value=log
+            ):
+                with self.assertRaises(HTTPException) as ctx:
+                    admin.get_ai_call_request_payload("log-1", {"is_admin": True})
+
+        self.assertEqual(ctx.exception.status_code, 403)
 
 
 class AdminHistoryPermissionTests(unittest.TestCase):

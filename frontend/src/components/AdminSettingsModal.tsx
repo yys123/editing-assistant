@@ -43,6 +43,7 @@ interface AiCallLog {
   status: string
   warning: string
   error: string
+  request_log_path: string
 }
 
 interface AiCallSummary {
@@ -53,6 +54,13 @@ interface AiCallSummary {
   success_calls: number
   failed_calls: number
   max_context_usage_ratio: number | null
+}
+
+interface AiRequestPayload {
+  log: AiCallLog
+  prompt: string
+  payload: any
+  raw_json: string
 }
 
 interface Props {
@@ -86,6 +94,10 @@ export default function AdminSettingsModal({ onClose }: Props) {
   const [hasApiKey, setHasApiKey] = useState(false)
   const [aiLogs, setAiLogs] = useState<AiCallLog[]>([])
   const [aiSummary, setAiSummary] = useState<AiCallSummary | null>(null)
+  const [aiRequest, setAiRequest] = useState<AiRequestPayload | null>(null)
+  const [aiRequestLoading, setAiRequestLoading] = useState(false)
+  const [aiRequestError, setAiRequestError] = useState('')
+  const [aiRequestTab, setAiRequestTab] = useState<'prompt' | 'raw'>('prompt')
 
   const loadAiLogs = async () => {
     const r = await apiFetch('/api/admin/ai-call-logs?limit=20')
@@ -116,6 +128,28 @@ export default function AdminSettingsModal({ onClose }: Props) {
   }
 
   const thinkingEnabled = config.deepseek_thinking_type === 'enabled'
+
+  const openAiRequest = async (log: AiCallLog) => {
+    setAiRequest(null)
+    setAiRequestError('')
+    setAiRequestLoading(false)
+    setAiRequestTab('prompt')
+    if (!log.request_log_path) {
+      setAiRequestError('该记录没有保存请求原始数据。只有启用请求审计后产生的新 AI 调用，才可以查看 Prompt 和原始 JSON。')
+      return
+    }
+    setAiRequestLoading(true)
+    try {
+      const r = await apiFetch(`/api/admin/ai-call-logs/${encodeURIComponent(log.id)}/request-payload`)
+      const data = await safeJson(r)
+      if (!r.ok) throw new Error(data.detail || '读取请求原始数据失败')
+      setAiRequest(data)
+    } catch (e: any) {
+      setAiRequestError(e.message || '读取请求原始数据失败')
+    } finally {
+      setAiRequestLoading(false)
+    }
+  }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -289,31 +323,51 @@ export default function AdminSettingsModal({ onClose }: Props) {
                 </div>
               )}
               <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid var(--m3-outline-variant)', borderRadius: 10 }}>
-                <table style={{ minWidth: 680, width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <table style={{ minWidth: 940, width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
                     <tr style={{ background: 'var(--m3-surface-container-low)' }}>
                       <th style={{ textAlign: 'left', padding: 8 }}>时间</th>
                       <th style={{ textAlign: 'left', padding: 8 }}>场景</th>
                       <th style={{ textAlign: 'left', padding: 8 }}>模型</th>
+                      <th style={{ textAlign: 'left', padding: 8 }}>请求文件</th>
                       <th style={{ textAlign: 'right', padding: 8 }}>Tokens</th>
                       <th style={{ textAlign: 'right', padding: 8 }}>上下文</th>
                       <th style={{ textAlign: 'left', padding: 8 }}>状态</th>
+                      <th style={{ textAlign: 'left', padding: 8 }}>操作</th>
                     </tr>
                   </thead>
                   <tbody>
                     {aiLogs.length === 0 ? (
                       <tr>
-                        <td colSpan={6} style={{ padding: 14, textAlign: 'center', color: 'var(--m3-on-surface-variant)' }}>暂无调用记录</td>
+                        <td colSpan={8} style={{ padding: 14, textAlign: 'center', color: 'var(--m3-on-surface-variant)' }}>暂无调用记录</td>
                       </tr>
                     ) : aiLogs.map(log => (
                       <tr key={log.id} style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
                         <td style={{ padding: 8, whiteSpace: 'nowrap' }}>{new Date(log.created_at).toLocaleString()}</td>
                         <td style={{ padding: 8 }}>{log.context}</td>
                         <td style={{ padding: 8 }}>{log.provider}/{log.model}</td>
+                        <td style={{ padding: 8, maxWidth: 220 }}>
+                          {log.request_log_path ? (
+                            <code title={log.request_log_path} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {log.request_log_path}
+                            </code>
+                          ) : '—'}
+                        </td>
                         <td style={{ padding: 8, textAlign: 'right' }}>{(log.total_tokens ?? log.estimated_prompt_tokens ?? 0).toLocaleString()}</td>
                         <td style={{ padding: 8, textAlign: 'right' }}>{log.context_usage_ratio == null ? '—' : `${Math.round(log.context_usage_ratio * 100)}%`}</td>
                         <td style={{ padding: 8, color: log.status === 'success' ? 'var(--m3-tertiary)' : 'var(--m3-error)' }}>
                           {log.status}{log.warning ? ` · ${log.warning}` : ''}
+                        </td>
+                        <td style={{ padding: 8 }}>
+                          <button
+                            type="button"
+                            className="btn-m3-outline"
+                            style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+                            disabled={!log.request_log_path}
+                            onClick={() => openAiRequest(log)}
+                          >
+                            查看 Prompt / 原始数据
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -334,6 +388,70 @@ export default function AdminSettingsModal({ onClose }: Props) {
           </form>
         )}
       </div>
+      {(aiRequestLoading || aiRequest || aiRequestError) && (
+        <div className="modal-overlay" style={{ zIndex: 1200 }}>
+          <div className="modal-card" style={{ width: 'min(960px, calc(100vw - 32px))', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '16px 20px', borderBottom: '1px solid var(--m3-outline-variant)' }}>
+              <div style={{ minWidth: 0 }}>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 500, color: 'var(--m3-on-surface)' }}>Prompt 和原始请求数据</h3>
+                {aiRequest?.log && (
+                  <div style={{ marginTop: 5, fontSize: 12, color: 'var(--m3-on-surface-variant)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {aiRequest.log.context} · {aiRequest.log.provider}/{aiRequest.log.model}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAiRequest(null)
+                  setAiRequestError('')
+                  setAiRequestLoading(false)
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--m3-on-surface-variant)' }}>close</span>
+              </button>
+            </div>
+
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--m3-outline-variant)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className={aiRequestTab === 'prompt' ? 'btn-gradient' : 'btn-m3-outline'}
+                style={{ fontSize: 12, padding: '6px 12px' }}
+                onClick={() => setAiRequestTab('prompt')}
+              >
+                Prompt
+              </button>
+              <button
+                type="button"
+                className={aiRequestTab === 'raw' ? 'btn-gradient' : 'btn-m3-outline'}
+                style={{ fontSize: 12, padding: '6px 12px' }}
+                onClick={() => setAiRequestTab('raw')}
+              >
+                原始 JSON
+              </button>
+            </div>
+
+            <div style={{ padding: 20, overflow: 'auto', minHeight: 260 }}>
+              {aiRequestLoading ? (
+                <div style={{ padding: '40px 0', textAlign: 'center' }}>
+                  <div className="spinner" style={{ margin: '0 auto' }} />
+                </div>
+              ) : aiRequestError ? (
+                <div style={{ padding: '10px 14px', background: 'var(--m3-error-container)', color: 'var(--m3-error)', borderRadius: 8, fontSize: 13 }}>
+                  {aiRequestError}
+                </div>
+              ) : (
+                <pre style={{ margin: 0, padding: 14, borderRadius: 8, background: 'var(--m3-surface-container-low)', color: 'var(--m3-on-surface)', fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {aiRequestTab === 'prompt'
+                    ? (aiRequest?.prompt || '该请求没有可单独抽取的 Prompt，请查看原始 JSON。')
+                    : (aiRequest?.raw_json || JSON.stringify(aiRequest?.payload ?? {}, null, 2))}
+                </pre>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

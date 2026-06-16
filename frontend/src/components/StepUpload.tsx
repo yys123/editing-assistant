@@ -1429,32 +1429,33 @@ export default function StepUpload({
 
               {/* Existing docs */}
               {referenceDocs.map((doc, i) => (
-                <div key={i} className="pdf-item-card">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, width: '100%' }}>
+                <div key={i} className="pdf-item-card reference-source-card" title={doc.filename}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`确定删除参考数据源「${doc.filename}」吗？`)) {
+                        setReferenceDocs(referenceDocs.filter((_, j) => j !== i))
+                      }
+                    }}
+                    className="pdf-item-delete reference-source-delete"
+                    title={`删除参考数据源：${doc.filename}`}
+                    aria-label={`删除参考数据源：${doc.filename}`}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'var(--m3-error)' }}>close</span>
+                  </button>
+                  <div className="reference-source-main">
                     <span className="material-symbols-outlined" style={{ fontSize: 28, flexShrink: 0, color: doc.filename.toLowerCase().endsWith('.pdf') ? 'var(--dui-danger)' : 'var(--dui-primary)' }}>
                       {doc.filename.toLowerCase().endsWith('.pdf')
                         ? 'picture_as_pdf'
                         : (doc.filename.toLowerCase().endsWith('.doc') || doc.filename.toLowerCase().endsWith('.docx')) ? 'description' : 'language'}
                     </span>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--m3-on-surface)', textAlign: 'center', wordBreak: 'break-word', lineHeight: 1.3, minWidth: 0, flex: 1 }}>
-                      {doc.filename.length > 42 ? doc.filename.slice(0, 39) + '...' : doc.filename}
+                    <div className="reference-source-text">
+                      <div className="reference-source-index">参考数据源 {i + 1}</div>
+                      <div className="reference-source-name" title={doc.filename}>{doc.filename}</div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', marginTop: 8 }}>
-                    <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>{doc.char_count} 字符</div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm(`确定删除参考数据源「${doc.filename}」吗？`)) {
-                          setReferenceDocs(referenceDocs.filter((_, j) => j !== i))
-                        }
-                      }}
-                      className="pdf-item-delete"
-                      title="删除该参考数据源"
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: 14, color: 'var(--m3-error)' }}>close</span>
-                      删除
-                    </button>
+                  <div className="reference-source-meta">
+                    {doc.char_count.toLocaleString()} 字符
                   </div>
                 </div>
               ))}

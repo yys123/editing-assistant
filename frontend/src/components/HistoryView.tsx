@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { SessionRecord, Step } from '../types'
+import { filterHistorySessions, isOwnHistorySession } from '../utils/historyFilters'
 
 const STEP_LABELS: Record<number, string> = {
   1: '上传数据', 2: '参考文献审核', 3: '内容解析',
@@ -42,11 +43,23 @@ function getSessionUrl(id: string) {
 }
 
 export default function HistoryView({ sessions, currentUserId, isAdmin, loading, onClose, onDelete, onClone, onResume }: Props) {
-  const sorted = [...sessions].sort((a, b) => b.id.localeCompare(a.id))
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [tab, setTab] = useState<'analysis' | 'drafts'>('analysis')
   const [expandedDraft, setExpandedDraft] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [onlyMine, setOnlyMine] = useState(false)
+  const filteredSessions = useMemo(
+    () => filterHistorySessions(sessions, currentUserId, onlyMine),
+    [sessions, currentUserId, onlyMine],
+  )
+  const sorted = useMemo(
+    () => [...filteredSessions].sort((a, b) => b.id.localeCompare(a.id)),
+    [filteredSessions],
+  )
+  const ownTaskCount = useMemo(
+    () => sessions.filter(s => isOwnHistorySession(s, currentUserId)).length,
+    [sessions, currentUserId],
+  )
 
   const copyLink = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -72,6 +85,13 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
 
   const selected = sorted.find(s => s.id === selectedId) ?? null
 
+  useEffect(() => {
+    if (selectedId && !sorted.some(s => s.id === selectedId)) {
+      setSelectedId(null)
+      setExpandedDraft(null)
+    }
+  }, [selectedId, sorted])
+
   const handleSelect = (id: string) => {
     setSelectedId(prev => prev === id ? null : id)
     setTab('analysis')
@@ -93,8 +113,8 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
   }
 
   // Stats
-  const totalTasks = sessions.length
-  const completedTasks = sessions.filter(s => (s.draftHistory?.length ?? 0) > 0).length
+  const totalTasks = filteredSessions.length
+  const completedTasks = filteredSessions.filter(s => (s.draftHistory?.length ?? 0) > 0).length
   const inProgressTasks = totalTasks - completedTasks
 
   return (
@@ -110,6 +130,16 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button
+            className={`btn-m3-outline ${onlyMine ? 'active' : ''}`}
+            onClick={() => setOnlyMine(v => !v)}
+            title={onlyMine ? '显示全部任务' : '只显示自己创建的任务'}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+              {onlyMine ? 'person_check' : 'person'}
+            </span>
+            {onlyMine ? `我的任务 (${ownTaskCount})` : '只看我的'}
+          </button>
           <button className="btn-m3-outline" onClick={onClose}>
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_back</span>
             返回工作台
@@ -152,12 +182,12 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
             ) : sorted.length === 0 ? (
               <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--m3-on-surface-variant)', fontSize: 13 }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 36, display: 'block', marginBottom: 8, opacity: 0.4 }}>inbox</span>
-                暂无历史记录
+                {onlyMine ? '暂无自己创建的任务' : '暂无历史记录'}
               </div>
             ) : sorted.map(s => {
               const isSelected = s.id === selectedId
               const hasDrafts = (s.draftHistory?.length ?? 0) > 0
-              const isOwn = !s.owner_id || s.owner_id === currentUserId
+              const isOwn = isOwnHistorySession(s, currentUserId)
               const canEdit = isOwn || !!isAdmin
               return (
                 <div key={s.id}>
@@ -534,7 +564,7 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
             {/* Footer info */}
             {sorted.length > 0 && (
               <div style={{ padding: '12px 20px', fontSize: 12, color: 'var(--m3-on-surface-variant)', textAlign: 'center', borderTop: '0.5px solid var(--dui-divider)' }}>
-                共 {sessions.length} 条记录
+                共 {filteredSessions.length} 条记录{onlyMine && sessions.length !== filteredSessions.length ? ` · 已隐藏 ${sessions.length - filteredSessions.length} 条他人任务` : ''}
               </div>
             )}
           </div>
