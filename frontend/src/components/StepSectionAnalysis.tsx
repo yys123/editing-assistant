@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { ArticleEntryType, ArticleSection, ParsedArticle, SectionAnalysis, SectionIssue, ReferenceDoc, StandardsOverride } from '../types'
-import { apiFetch } from '../api'
+import { apiFetch, safeJson } from '../api'
 import {
   haveSectionAnalysisIdsChanged,
   remapSectionAnalysesToCurrentSections,
 } from '../utils/sectionAnalysisCompatibility'
-import { getIssueLocatorAnchors, getLocatableIssueAnchors, LocatableIssueAnchor } from '../utils/issueAnchors'
+import { getIssueLocatorAnchors, LocatableIssueAnchor } from '../utils/issueAnchors'
+import { countChineseWords } from '../utils/sectionContent'
 
 interface Props {
   disease: string
@@ -56,6 +57,10 @@ interface AnalysisGroup {
   representative: ArticleSection
   childSections: ArticleSection[]
   combinedContent: string
+}
+
+function getAnalysisGroupWordCount(group: AnalysisGroup): number {
+  return countChineseWords(`${group.representative.heading}\n${group.combinedContent}`)
 }
 
 function buildAnalysisGroups(sections: ArticleSection[]): AnalysisGroup[] {
@@ -264,14 +269,22 @@ export default function StepSectionAnalysis({
     analysis_parser_version: parsedArticleParserVersion,
   })
 
-  const locateIssue = (groupId: string, issue: SectionIssue, anchor?: LocatableIssueAnchor) => {
-    const targetAnchor = anchor ?? getLocatableIssueAnchors(issue.anchors)[0]
+  const locateIssue = (group: AnalysisGroup, issue: SectionIssue, anchor?: LocatableIssueAnchor) => {
+    const groupId = group.representative.id
+    const targetAnchor = anchor ?? getIssueLocatorAnchors(issue, group.combinedContent)[0]
     if (typeof targetAnchor?.line_start !== 'number') return
-    const lineEnd = typeof targetAnchor.line_end === 'number' ? targetAnchor.line_end : targetAnchor.line_start
-    setActiveAnchor({ groupId, issueId: issue.id, anchorIndex: targetAnchor.index, lineStart: targetAnchor.line_start, lineEnd })
+    const lastLine = Math.max(group.combinedContent.split('\n').length - 1, 0)
+    const lineStart = Math.min(Math.max(targetAnchor.line_start, 0), lastLine)
+    const lineEnd = typeof targetAnchor.line_end === 'number'
+      ? Math.min(Math.max(targetAnchor.line_end, lineStart), lastLine)
+      : lineStart
+    setActiveAnchor({ groupId, issueId: issue.id, anchorIndex: targetAnchor.index, lineStart, lineEnd })
     requestAnimationFrame(() => {
       const scope = fullscreenGroupId === groupId ? 'fullscreen' : 'main'
-      sourceLineRefs.current[`${scope}:${groupId}:${targetAnchor.line_start}`]?.scrollIntoView({
+      const target = sourceLineRefs.current[`${scope}:${groupId}:${lineStart}`]
+        ?? sourceLineRefs.current[`main:${groupId}:${lineStart}`]
+        ?? sourceLineRefs.current[`fullscreen:${groupId}:${lineStart}`]
+      target?.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
       })
@@ -346,7 +359,7 @@ export default function StepSectionAnalysis({
     const mergedSection: ArticleSection = {
       ...group.representative,
       content: group.combinedContent,
-      word_count: group.combinedContent.length,
+      word_count: getAnalysisGroupWordCount(group),
     }
     const referenceTexts = getSelectedReferenceDocs(group.representative.id).map(d => getReferencePromptText(d))
     const priorityReferenceTexts = getPriorityReferenceDocs(group.representative.id).map(d => getReferencePromptText(d, true))
@@ -366,7 +379,7 @@ export default function StepSectionAnalysis({
         priority_reference_texts: priorityReferenceTexts,
       }),
     })
-    const data = await res.json()
+    const data = await safeJson(res)
     if (!res.ok) throw new Error(data.detail || '分析失败')
     return data as SectionAnalysis
   }
@@ -455,7 +468,7 @@ export default function StepSectionAnalysis({
       {/* Page header */}
       <div style={{ marginBottom: 24 }}>
         <h2 className="font-headline" style={{ fontSize: 22, fontWeight: 500, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
-          内容质量审评
+          内容质量评审
         </h2>
         <p style={{ fontSize: 14, color: 'var(--m3-on-surface-variant)' }}>
           AI 逐章节审核内容质量，识别问题并给出改进建议
@@ -478,7 +491,7 @@ export default function StepSectionAnalysis({
             </>
           ) : isComplete ? (
             <>
-              <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)' }}>内容质量审评完成</span>
+              <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)' }}>内容质量评审完成</span>
               <span style={{ color: 'var(--m3-tertiary)' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 4 }}>check_circle</span>
                 {analysedCount} / {groups.length} 个章节组已分析
@@ -486,7 +499,7 @@ export default function StepSectionAnalysis({
             </>
           ) : (
             <>
-              <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)' }}>请选择章节开始内容质量审评</span>
+              <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--m3-on-surface)' }}>请选择章节开始内容质量评审</span>
               <span style={{ color: 'var(--m3-tertiary)' }}>
                 已分析 {analysedCount} / {groups.length} 个章节组
               </span>
@@ -529,7 +542,7 @@ export default function StepSectionAnalysis({
           const hasAnalysis = !!analysis
           const allIssues = analysis?.issues ?? []
           const issues = allIssues.filter(issue => issue.status !== 'rejected')
-          const totalChars = group.combinedContent.length
+          const totalWords = getAnalysisGroupWordCount(group)
           const selectedRefNames = getSelectedReferenceNames(group.representative.id)
           const selectedRefCount = getSelectedReferenceDocs(group.representative.id).length
           const priorityRefNames = getPriorityReferenceNames(group.representative.id)
@@ -562,7 +575,7 @@ export default function StepSectionAnalysis({
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontWeight: 500, fontSize: 13 }}>{group.representative.heading}</span>
                 </div>
-                <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>{totalChars} 字</span>
+                <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>{totalWords} 字</span>
                 {isAnalysing && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
@@ -898,8 +911,8 @@ export default function StepSectionAnalysis({
                                   {/* Action buttons */}
                                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
                                     {hasAnchor && (
-                                      <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, color: 'var(--dui-warning)' }}
-                                        onClick={() => locateIssue(group.representative.id, issue)}
+                                      <button type="button" className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, color: 'var(--dui-warning)' }}
+                                        onClick={() => locateIssue(group, issue, locatableAnchors[0])}
                                         title="定位到左侧原文">
                                         {locatableAnchors.length > 1 ? `定位 ${locatableAnchors.length}处` : '定位'}
                                       </button>
@@ -959,6 +972,7 @@ export default function StepSectionAnalysis({
                                         && activeAnchor.anchorIndex === anchor.index
                                       return (
                                         <button
+                                          type="button"
                                           key={anchor.index}
                                           className="btn btn-sm"
                                           style={{
@@ -968,7 +982,7 @@ export default function StepSectionAnalysis({
                                             background: isActiveAnchor ? 'var(--dui-primary-container)' : 'var(--m3-surface-container-low)',
                                             border: `0.5px solid ${isActiveAnchor ? 'var(--m3-primary)' : 'var(--dui-divider)'}`,
                                           }}
-                                          onClick={() => locateIssue(group.representative.id, issue, anchor)}
+                                          onClick={() => locateIssue(group, issue, anchor)}
                                           title={anchor.quote || anchor.heading_hint || anchor.label}
                                         >
                                           {anchor.label}
@@ -1108,7 +1122,7 @@ export default function StepSectionAnalysis({
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--m3-on-surface)' }}>{group.representative.heading}</div>
                   <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>
-                    {group.combinedContent.length} 字 · {isAnalysing ? '分析中' : hasError ? '分析失败' : isStale ? '旧审评结果' : `${issues.length} 个有效问题`}
+                    {getAnalysisGroupWordCount(group)} 字 · {isAnalysing ? '分析中' : hasError ? '分析失败' : isStale ? '旧审评结果' : `${issues.length} 个有效问题`}
                   </div>
                 </div>
                 <button
@@ -1234,8 +1248,8 @@ export default function StepSectionAnalysis({
                                 )}
                                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
                                   {hasAnchor && (
-                                    <button className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, color: 'var(--dui-warning)' }}
-                                      onClick={() => locateIssue(group.representative.id, issue)}>
+                                    <button type="button" className="btn btn-sm" style={{ padding: '1px 8px', fontSize: 12, color: 'var(--dui-warning)' }}
+                                      onClick={() => locateIssue(group, issue, locatableAnchors[0])}>
                                       {locatableAnchors.length > 1 ? `定位 ${locatableAnchors.length}处` : '定位'}
                                     </button>
                                   )}
@@ -1275,6 +1289,7 @@ export default function StepSectionAnalysis({
                                       && activeAnchor.anchorIndex === anchor.index
                                     return (
                                       <button
+                                        type="button"
                                         key={anchor.index}
                                         className="btn btn-sm"
                                         style={{
@@ -1284,7 +1299,7 @@ export default function StepSectionAnalysis({
                                           background: isActiveAnchor ? 'var(--dui-primary-container)' : 'var(--m3-surface-container-low)',
                                           border: `0.5px solid ${isActiveAnchor ? 'var(--m3-primary)' : 'var(--dui-divider)'}`,
                                         }}
-                                        onClick={() => locateIssue(group.representative.id, issue, anchor)}
+                                        onClick={() => locateIssue(group, issue, anchor)}
                                         title={anchor.quote || anchor.heading_hint || anchor.label}
                                       >
                                         {anchor.label}

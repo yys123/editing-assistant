@@ -20,6 +20,47 @@ function sectionParts(s: string): string[] {
   return s.split(' > ').map(p => p.trim()).filter(Boolean)
 }
 
+function isUserConfirmedIssue(issue: SectionAnalysis['issues'][number]): boolean {
+  return issue.status === 'confirmed' || issue.status === 'added'
+}
+
+function isUserConfirmedNeed(coverage: GapAnalysis['section_gaps'][number]['need_coverages'][number]): boolean {
+  return coverage.coverage_level !== 'full' && coverage.status === 'confirmed'
+}
+
+const priorityMeta: Record<string, { label: string; description: string }> = {
+  P0: { label: 'P0 最高', description: '最高优先：内容错误、重点内容缺失或高频未覆盖需求' },
+  P1: { label: 'P1 中等', description: '中等优先：中优问题、内容陈旧、结构问题或中频需求' },
+  P2: { label: 'P2 较低', description: '较低优先：非重点内容完善、精炼优化或低频需求' },
+}
+
+const sourceMeta: Record<string, { label: string; icon: string; bg: string; color: string }> = {
+  quality_eval: {
+    label: '质量问题',
+    icon: 'rule',
+    bg: 'var(--dui-danger-container)',
+    color: 'var(--dui-danger)',
+  },
+  user_needs: {
+    label: '用户需求',
+    icon: 'forum',
+    bg: 'var(--dui-warning-container)',
+    color: 'var(--dui-warning)',
+  },
+  both: {
+    label: '质量+需求',
+    icon: 'merge',
+    bg: 'var(--dui-primary-container)',
+    color: 'var(--dui-primary)',
+  },
+  manual: {
+    label: '手动补充',
+    icon: 'edit_note',
+    bg: 'var(--dui-surface-soft)',
+    color: 'var(--dui-text-sub)',
+  },
+}
+
 // Tree node for hierarchical display
 interface TreeNode {
   label: string
@@ -51,7 +92,7 @@ export default function StepPlanReview({
   const isGenerated = (g: GapItem) =>
     draftHistory.some(r => r.gap.section === g.section && r.gap.priority === g.priority)
 
-  const [loading, setLoading] = useState(gapItems.length === 0)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [editingIdx, setEditingIdx] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -74,13 +115,25 @@ export default function StepPlanReview({
     }
   }
 
+  const confirmedSectionAnalyses = useMemo(() => sectionAnalyses.map(sa => ({
+    ...sa,
+    issues: sa.issues.filter(isUserConfirmedIssue),
+  })), [sectionAnalyses])
+
+  const confirmedGapAnalysis = useMemo(() => ({
+    ...gapAnalysis,
+    section_gaps: gapAnalysis.section_gaps.map(sg => ({
+      ...sg,
+      need_coverages: (sg.need_coverages ?? []).filter(isUserConfirmedNeed),
+      gap_items: [],
+    })),
+    unmet_needs: [],
+  }), [gapAnalysis])
+
   // Stats
-  const confirmedIssues = sectionAnalyses.reduce((n, sa) =>
-    n + sa.issues.filter(i => i.status !== 'rejected').length, 0)
-  const confirmedNeeds = gapAnalysis.section_gaps.reduce((n, sg) =>
-    n + (sg.need_coverages ?? []).filter(nc =>
-      nc.coverage_level !== 'full' && nc.status !== 'rejected'
-    ).length, 0)
+  const confirmedIssues = confirmedSectionAnalyses.reduce((n, sa) => n + sa.issues.length, 0)
+  const confirmedNeeds = confirmedGapAnalysis.section_gaps.reduce((n, sg) => n + (sg.need_coverages ?? []).length, 0)
+  const hasConfirmedFindings = confirmedIssues > 0 || confirmedNeeds > 0
 
   const generate = async () => {
     setLoading(true)
@@ -91,8 +144,8 @@ export default function StepPlanReview({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           disease,
-          section_analyses: sectionAnalyses,
-          gap_analysis: gapAnalysis,
+          section_analyses: confirmedSectionAnalyses,
+          gap_analysis: confirmedGapAnalysis,
           parsed_article: parsedArticle,
         }),
       })
@@ -107,8 +160,8 @@ export default function StepPlanReview({
   }
 
   useEffect(() => {
-    if (gapItems.length === 0) generate()
-  }, [])
+    if (gapItems.length === 0 && hasConfirmedFindings) generate()
+  }, [gapItems.length, hasConfirmedFindings])
 
   const remove = (i: number) => {
     setGapItems(gapItems.filter((_, j) => j !== i))
@@ -201,13 +254,11 @@ export default function StepPlanReview({
     style: 'var(--dui-primary)',
   }
 
-  // Audit: sections with at least one non-rejected finding
-  const auditSections = sectionAnalyses.map(sa => {
-    const issues = sa.issues.filter(i => i.status !== 'rejected')
-    const sectionGap = gapAnalysis.section_gaps.find(sg => sg.section_id === sa.section_id)
-    const needs = (sectionGap?.need_coverages ?? []).filter(nc =>
-      nc.coverage_level !== 'full' && nc.status !== 'rejected'
-    )
+  // Audit: sections with at least one user-confirmed finding
+  const auditSections = confirmedSectionAnalyses.map(sa => {
+    const issues = sa.issues
+    const sectionGap = confirmedGapAnalysis.section_gaps.find(sg => sg.section_id === sa.section_id)
+    const needs = sectionGap?.need_coverages ?? []
     return { sa, issues, needs }
   }).filter(({ issues, needs }) => issues.length > 0 || needs.length > 0)
 
@@ -243,6 +294,13 @@ export default function StepPlanReview({
         {node.itemIndices.map(i => {
           const g = gapItems[i]
           const generated = isGenerated(g)
+          const priority = priorityMeta[g.priority] ?? { label: g.priority, description: '任务优先级' }
+          const source = sourceMeta[g.source] ?? {
+            label: g.source || '来源未知',
+            icon: 'label',
+            bg: 'var(--dui-surface-soft)',
+            color: 'var(--dui-text-sub)',
+          }
           return (
             <div key={i} style={{
               marginLeft: depth >= 1 ? indentPx + 12 : 0,
@@ -279,10 +337,26 @@ export default function StepPlanReview({
                 flexShrink: 0, alignSelf: 'flex-start', marginTop: 1,
                 background: priorityBg[g.priority] ?? 'var(--m3-surface-container-low)',
                 color: priorityColors[g.priority] ?? 'var(--m3-on-surface)',
-              }}>{g.priority}</span>
+                whiteSpace: 'nowrap',
+              }} title={priority.description}>{priority.label}</span>
 
               {/* Content */}
               <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                    fontSize: 12, fontWeight: 500, padding: '1px 7px', borderRadius: 6,
+                    background: source.bg, color: source.color,
+                  }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 13 }}>{source.icon}</span>
+                    {source.label}
+                  </span>
+                  {g.qa_frequency ? (
+                    <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
+                      用户提问约 {g.qa_frequency} 次
+                    </span>
+                  ) : null}
+                </div>
                 {editingIdx === i ? (
                   <div>
                     <textarea value={editValue}
@@ -298,11 +372,6 @@ export default function StepPlanReview({
                     {g.description}
                   </div>
                 )}
-                {g.qa_frequency ? (
-                  <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 3 }}>
-                    用户提问约 {g.qa_frequency} 次
-                  </div>
-                ) : null}
               </div>
 
               {/* Actions */}
@@ -380,7 +449,7 @@ export default function StepPlanReview({
           {confirmedIssues} 质量问题
         </span>
         <span style={{ background: 'var(--dui-warning-container)', color: 'var(--dui-warning)', borderRadius: 999, padding: '4px 14px', fontSize: 12, fontWeight: 500 }}>
-          {confirmedNeeds} 需求问题
+          {confirmedNeeds} 用户需求
         </span>
         <span style={{ background: 'var(--dui-success-container)', color: 'var(--dui-success)', borderRadius: 999, padding: '4px 14px', fontSize: 12, fontWeight: 500 }}>
           {gapItems.length} 计划任务
@@ -407,6 +476,20 @@ export default function StepPlanReview({
               联合生成 {checkedIndices.size} 个章节
             </button>
           )}
+        </div>
+
+        <div style={{
+          display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center',
+          padding: '8px 10px', marginBottom: 12, borderRadius: 8,
+          background: 'var(--m3-surface-container-low)', color: 'var(--m3-on-surface-variant)', fontSize: 12,
+        }}>
+          <span style={{ fontWeight: 500, color: 'var(--m3-on-surface)' }}>优先级说明</span>
+          <span>P0 最高优先</span>
+          <span>·</span>
+          <span>P1 中等优先</span>
+          <span>·</span>
+          <span>P2 较低优先</span>
+          <span style={{ marginLeft: 4 }}>来源标签用于区分质量审评问题与用户需求。</span>
         </div>
 
         {gapItems.length === 0 && (

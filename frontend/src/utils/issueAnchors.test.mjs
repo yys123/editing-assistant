@@ -65,4 +65,44 @@ assert.equal(deduped[0].line_start, 0)
 assert.equal(deduped[0].quote, '粗粉（X 线显影）')
 assert.equal(deduped[1].line_start, 1)
 
+const resolvedOutOfRange = getIssueLocatorAnchors({
+  id: 'issue-3',
+  issue_type: 'style',
+  description: '旧结果中的行号超过了当前展示文本范围。',
+  severity: 'low',
+  examples: [],
+  anchors: [
+    { quote: '找不到的历史片段', line_start: 99, line_end: 120 },
+  ],
+  reviewer_note: '',
+  status: 'ai',
+}, [
+  '第一行',
+  '第二行',
+].join('\n'))
+
+assert.equal(resolvedOutOfRange.length, 1)
+assert.equal(resolvedOutOfRange[0].line_start, 1)
+assert.equal(resolvedOutOfRange[0].line_end, 1)
+
+const resolvedByCurrentContent = getIssueLocatorAnchors({
+  id: 'issue-4',
+  issue_type: 'style',
+  description: '行号过期但 quote 仍可在当前展示文本定位。',
+  severity: 'low',
+  examples: [],
+  anchors: [
+    { quote: '真实片段', line_start: 99, line_end: 99 },
+  ],
+  reviewer_note: '',
+  status: 'ai',
+}, [
+  '第一行',
+  '真实片段',
+].join('\n'))
+
+assert.equal(resolvedByCurrentContent.length, 1)
+assert.equal(resolvedByCurrentContent[0].line_start, 1)
+assert.equal(resolvedByCurrentContent[0].line_end, 1)
+
 console.log('issueAnchors tests passed')

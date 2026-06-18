@@ -5,26 +5,32 @@ import StepSectionPreview from './components/StepSectionPreview'
 import StepSectionAnalysis, { getSectionAnalysisTargetIds } from './components/StepSectionAnalysis'
 import StepGapAnalysis from './components/StepGapAnalysis'
 import StepPlanReview from './components/StepPlanReview'
-import StepGenerate, { extractSectionContent } from './components/StepGenerate'
+import StepGenerate from './components/StepGenerate'
+import StepAiIntegration from './components/StepAiIntegration'
 import AdminSettingsModal from './components/AdminSettingsModal'
 import HistoryView from './components/HistoryView'
 import AuthPage from './components/AuthPage'
+import UtdMonitor from './components/utd/UtdMonitor'
 import { AuthProvider, useAuth } from './AuthContext'
 import { apiFetch } from './api'
 import {
-  ArticleEntryType, QAItem, DraftRecord, SessionRecord, GeneratedDraft,
+  ArticleEntryType, QAItem, DraftRecord, AiIntegrationRecord, SessionRecord, GeneratedDraft,
   ParsedArticle, SectionAnalysis, GapAnalysis, GapItem, ReferenceDoc, RefEvalResult, StandardsOverride, Step,
 } from './types'
 import { ARTICLE_PARSE_CACHE_VERSION, getArticleParseCacheKey } from './utils/parseCache'
+import { getGenerationOriginalContent } from './utils/generationScope'
+import { backfillDraftOriginalContent, extractSectionContent } from './utils/sectionContent'
+import { canOpenWorkflowStep, createEmptyGapAnalysis } from './utils/workflowNavigation'
 
 const STEP_LABELS: Record<Step, string> = {
   1: '上传数据',
   2: '参考文献审核',
   3: '内容解析',
-  4: '内容质量审评',
+  4: '内容质量评审',
   5: '用户需求分析',
   6: '审核与迭代计划',
   7: '生成稿件',
+  8: 'AI整合',
 }
 
 const STEP_ICONS: Record<Step, string> = {
@@ -35,6 +41,7 @@ const STEP_ICONS: Record<Step, string> = {
   5: 'group',
   6: 'edit_note',
   7: 'auto_awesome',
+  8: 'hub',
 }
 
 function isFreshSectionAnalysis(analysis: SectionAnalysis, sourceHash?: string, parserVersion?: number): boolean {
@@ -133,7 +140,7 @@ function AppContent() {
   const initialUrlSession = useRef(new URLSearchParams(window.location.search).get('session'))
 
   const [step, setStep] = useState<Step>(1)
-  const [appView, setAppView] = useState<'main' | 'history'>('main')
+  const [appView, setAppView] = useState<'main' | 'history' | 'utd'>('main')
 
   // Step 1
   const [disease, setDisease] = useState('')
@@ -169,6 +176,9 @@ function AppContent() {
   const [selectedGap, setSelectedGap] = useState<GapItem | null>(null)
   const [selectedGaps, setSelectedGaps] = useState<GapItem[]>([])   // 联合生成多选
   const [draftHistory, setDraftHistory] = useState<DraftRecord[]>([])
+
+  // Step 8
+  const [aiIntegrationHistory, setAiIntegrationHistory] = useState<AiIntegrationRecord[]>([])
 
   // 批量并行生成（App 级别，跨步骤持久运行）
   const [batchProgress, setBatchProgress] = useState<{ running: boolean; done: number; total: number; failed: number }>({ running: false, done: 0, total: 0, failed: 0 })
@@ -230,7 +240,7 @@ function AppContent() {
   // ── Auto-save (debounced) ────────────────────────────────────────────────────
   useEffect(() => {
     if (readOnly) return  // Don't save others' sessions
-    const hasProgress = articleContent.trim() || articleRichHtml.trim() || refEvalResult || parsedArticle || sectionAnalyses.length > 0 || gapAnalysis || draftHistory.length > 0
+    const hasProgress = articleContent.trim() || articleRichHtml.trim() || refEvalResult || parsedArticle || sectionAnalyses.length > 0 || gapAnalysis || draftHistory.length > 0 || aiIntegrationHistory.length > 0
     if (!sessionId || !hasProgress) return
 
     const record: SessionRecord = {
@@ -256,6 +266,7 @@ function AppContent() {
       referenceDocs,
       refEvalResult,
       draftHistory,
+      aiIntegrationHistory,
       plan: null,
     }
 
@@ -272,7 +283,7 @@ function AppContent() {
         body: JSON.stringify(record),
       }).catch(() => {})
     }, 1500)
-  }, [refEvalResult, parsedArticle, parsedArticleSourceHash, parsedArticleParserVersion, sectionAnalyses, sectionReferenceSelections, sectionPriorityReferenceSelections, gapAnalysis, gapItems, draftHistory, qaItems, step, articleContent, articleParseContent, articleRichHtml, disease, articleEntryType, qaCount, referenceDocs])
+  }, [refEvalResult, parsedArticle, parsedArticleSourceHash, parsedArticleParserVersion, sectionAnalyses, sectionReferenceSelections, sectionPriorityReferenceSelections, gapAnalysis, gapItems, draftHistory, aiIntegrationHistory, qaItems, step, articleContent, articleParseContent, articleRichHtml, disease, articleEntryType, qaCount, referenceDocs])
 
   const handleSetParsedArticle = (article: ParsedArticle, sourceHash: string, parserVersion: number) => {
     setParsedArticle(article)
@@ -363,14 +374,15 @@ function AppContent() {
 
   // ── Draft helpers ────────────────────────────────────────────────────────────
   const addDraftRecord = (record: DraftRecord) => {
+    const recordWithOriginal = backfillDraftOriginalContent([record], parsedArticle)[0]
     setDraftHistory(prev => {
-      const idx = prev.findIndex(r => r.gap.section === record.gap.section && r.gap.priority === record.gap.priority)
+      const idx = prev.findIndex(r => r.gap.section === recordWithOriginal.gap.section && r.gap.priority === recordWithOriginal.gap.priority)
       if (idx >= 0) {
         const next = [...prev]
-        next[idx] = record
+        next[idx] = recordWithOriginal
         return next
       }
-      return [...prev, record]
+      return [...prev, recordWithOriginal]
     })
   }
 
@@ -378,8 +390,18 @@ function AppContent() {
     setDraftHistory(prev => prev.map(r => r.id === id ? { ...r, editedContent } : r))
   }
 
+  const addAiIntegrationRecord = (record: AiIntegrationRecord) => {
+    if (!sessionId) setSessionId(new Date().toISOString())
+    setAiIntegrationHistory(prev => [...prev, record])
+  }
+
   // ── Navigation ───────────────────────────────────────────────────────────────
-  const goToStep = (s: Step) => setStep(s)
+  const goToStep = (s: Step) => {
+    if (s === 6 && !gapAnalysis) {
+      setGapAnalysis(createEmptyGapAnalysis(qaItems.length))
+    }
+    setStep(s)
+  }
 
   const startNewTask = () => {
     setSessionId(null)
@@ -405,6 +427,7 @@ function AppContent() {
     setGapItems([])
     setSelectedGap(null)
     setDraftHistory([])
+    setAiIntegrationHistory([])
     setStep(1)
     setAppView('main')
   }
@@ -465,10 +488,13 @@ function AppContent() {
     setSectionAnalyses(session.sectionAnalyses ?? [])
     setSectionReferenceSelections(session.sectionReferenceSelections ?? {})
     setSectionPriorityReferenceSelections(session.sectionPriorityReferenceSelections ?? {})
-    setGapAnalysis(hasValidParsedArticle ? session.gapAnalysis ?? null : null)
+    const restoredGapAnalysis = hasValidParsedArticle ? session.gapAnalysis ?? null : null
+    setGapAnalysis(restoredGapAnalysis)
     setGapItems(hasValidParsedArticle ? session.gapItems ?? [] : [])
     setSelectedGap(null)
-    setDraftHistory(session.draftHistory ?? [])
+    const restoredParsedArticle = hasValidParsedArticle ? session.parsedArticle ?? null : null
+    setDraftHistory(backfillDraftOriginalContent(session.draftHistory ?? [], restoredParsedArticle))
+    setAiIntegrationHistory(session.aiIntegrationHistory ?? [])
     // Remap old step numbers to new 7-step numbering
     const remapStep = (s: number): Step => {
       // Old 6-step: 1=上传, 2=解析, 3=质量, 4=需求, 5=计划, 6=生成
@@ -481,16 +507,18 @@ function AppContent() {
     let maxSafeStep: Step = 1
     if (session.articleContent) maxSafeStep = 2
     if (session.refEvalResult || (session.referenceDocs && session.referenceDocs.length === 0)) maxSafeStep = 3
-    if (hasValidParsedArticle) maxSafeStep = 4
-    if (sessionHasFreshSectionAnalyses) maxSafeStep = 5
-    if (sessionHasFreshSectionAnalyses && session.gapAnalysis) maxSafeStep = 6
+    if (hasValidParsedArticle) maxSafeStep = 6
     if (sessionHasFreshSectionAnalyses && session.draftHistory?.length) maxSafeStep = 7
     const rawTarget = session.currentStep ?? (session.plan ? 7 : 1)
     // If session was saved with old 6-step numbering (max 6 and no refEvalResult field),
     // remap; otherwise use as-is
     const isOldFormat = rawTarget <= 6 && !('refEvalResult' in session)
     const target: Step = isOldFormat ? remapStep(rawTarget) : (rawTarget as Step)
+    if (session.aiIntegrationHistory?.length || session.articleContent) maxSafeStep = Math.max(maxSafeStep, 8) as Step
     const resumeStep: Step = (Math.min(target, maxSafeStep) as Step)
+    if (resumeStep === 6 && hasValidParsedArticle && !restoredGapAnalysis) {
+      setGapAnalysis(createEmptyGapAnalysis((session.qaItems ?? []).length || session.qaCount || 0))
+    }
     setStep(resumeStep)
     setAppView('main')
   }
@@ -543,7 +571,7 @@ function AppContent() {
             disease,
             section: gap.section,
             gap_description: gap.description,
-            original_content: sectionContent || articleContent,
+            original_content: getGenerationOriginalContent(sectionContent, articleContent),
             qa_references: qaItems.slice(0, 50),
             article_context: articleContent.slice(0, 6000),
             reference_inputs: referenceDocs.map((d, i) => ({
@@ -591,36 +619,16 @@ function AppContent() {
     setStep(4)
   }
 
-  const currentAnalysisTargetIds = parsedArticle ? getSectionAnalysisTargetIds(parsedArticle.sections) : []
-  const currentAnalysisTargets = new Set(currentAnalysisTargetIds)
-  const freshSectionIds = new Set(
-    sectionAnalyses
-      .filter(analysis =>
-        currentAnalysisTargets.has(analysis.section_id)
-        && isFreshSectionAnalysis(analysis, parsedArticleSourceHash, parsedArticleParserVersion)
-      )
-      .map(analysis => analysis.section_id)
-  )
-  const hasCompleteFreshSectionAnalyses = !!parsedArticle
-    && currentAnalysisTargetIds.length > 0
-    && currentAnalysisTargetIds.every(id => freshSectionIds.has(id))
-  const hasStaleSectionAnalyses = !!parsedArticle
-    && sectionAnalyses.some(analysis =>
-      currentAnalysisTargets.has(analysis.section_id)
-      && analysis.issues.length > 0
-      && !isFreshSectionAnalysis(analysis, parsedArticleSourceHash, parsedArticleParserVersion)
-    )
-
   // ── Step nav canClick logic ──────────────────────────────────────────────────
   const canClick = (s: Step): boolean => {
-    if (s === 1) return true
-    if (s === 2) return !!(disease && articleContent)
-    if (s === 3) return !!(disease && articleContent)
-    if (s === 4) return !!parsedArticle
-    if (s === 5) return hasCompleteFreshSectionAnalyses && !hasStaleSectionAnalyses
-    if (s === 6) return !!gapAnalysis
-    if (s === 7) return draftHistory.length > 0 || gapItems.length > 0
-    return false
+    return canOpenWorkflowStep(s, {
+      disease,
+      articleContent,
+      hasParsedArticle: !!parsedArticle,
+      hasGapAnalysis: !!gapAnalysis,
+      draftHistoryCount: draftHistory.length,
+      gapItemsCount: gapItems.length,
+    })
   }
 
   // ── Footer nav config per step ───────────────────────────────────────────────
@@ -657,18 +665,13 @@ function AppContent() {
         return {
           backLabel: '返回内容解析', backAction: () => setStep(3),
           nextLabel: canClick(5) ? '下一步：用户需求分析' : null,
-          nextAction: canClick(5) ? () => setStep(5) : null,
-          extraRight: hasStaleSectionAnalyses ? (
-            <span style={{ fontSize: 13, color: 'var(--dui-warning)' }}>
-              当前审评结果基于旧解析，请先重新分析相关章节
-            </span>
-          ) : undefined,
+          nextAction: canClick(5) ? () => goToStep(5) : null,
         }
       case 5:
         return {
           backLabel: '返回质量审评', backAction: () => setStep(4),
           nextLabel: canClick(6) ? '下一步：审核与迭代计划' : null,
-          nextAction: canClick(6) ? () => setStep(6) : null,
+          nextAction: canClick(6) ? () => goToStep(6) : null,
         }
       case 6: {
         const ungeneratedCount = gapItems.filter(g =>
@@ -710,6 +713,12 @@ function AppContent() {
           backLabel: '返回迭代计划', backAction: () => setStep(6),
           nextLabel: null, nextAction: null,
         }
+      case 8:
+        return {
+          backLabel: canClick(7) ? '返回生成稿件' : '返回上传',
+          backAction: () => setStep(canClick(7) ? 7 : 1),
+          nextLabel: null, nextAction: null,
+        }
       default:
         return { backLabel: null, backAction: null, nextLabel: null, nextAction: null }
     }
@@ -734,6 +743,7 @@ function AppContent() {
   }
 
   const isHistoryView = appView === 'history'
+  const isUtdView = appView === 'utd'
 
   return (
       <div className="app">
@@ -770,6 +780,13 @@ function AppContent() {
               <span className="btn-m3-icon-label-count">{allSessions.length}</span>
             )}
           </button>
+          <button
+            className={`btn-m3-icon-label ${isUtdView ? 'active' : ''}`}
+            onClick={() => setAppView(v => v === 'utd' ? 'main' : 'utd')}
+          >
+            <span className="material-symbols-outlined">monitoring</span>
+            <span>更新监控</span>
+          </button>
           <button className="btn-m3-icon-label" onClick={() => setShowChangePwd(true)}>
             <span className="material-symbols-outlined">lock_reset</span>
             <span>修改密码</span>
@@ -788,12 +805,12 @@ function AppContent() {
         </div>
       </header>
 
-      {/* ── Left Sidebar (hidden in history view) ── */}
-      {!isHistoryView && (
+      {/* ── Left Sidebar (hidden in module views) ── */}
+      {!isHistoryView && !isUtdView && (
         <nav className="app-sidebar">
           <div style={{ padding: '20px 20px 12px' }}>
             <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--m3-on-surface)' }}>任务进度</div>
-            <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>7步临床工作流</div>
+            <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>8步临床工作流</div>
           </div>
           <div style={{ padding: '0 12px' }}>
             {steps.map(s => {
@@ -808,7 +825,7 @@ function AppContent() {
                 <button
                   key={s.key}
                   className={cls}
-                  onClick={() => canClick(s.key) && setStep(s.key)}
+                  onClick={() => canClick(s.key) && goToStep(s.key)}
                   disabled={isDisabled}
                   title={isDisabled ? '请先完成前置步骤' : undefined}
                 >
@@ -828,6 +845,20 @@ function AppContent() {
                       lineHeight: '18px',
                     }}>
                       {draftHistory.length}
+                    </span>
+                  )}
+                  {s.key === 8 && aiIntegrationHistory.length > 0 && (
+                    <span style={{
+                      marginLeft: 'auto',
+                      background: 'var(--m3-primary)',
+                      color: 'white',
+                      borderRadius: 999,
+                      padding: '0 7px',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      lineHeight: '18px',
+                    }}>
+                      {aiIntegrationHistory.length}
                     </span>
                   )}
                 </button>
@@ -851,6 +882,10 @@ function AppContent() {
             onResume={resumeSession}
           />
         </div>
+      ) : isUtdView ? (
+        <main className="app-main full-width">
+          <UtdMonitor onBack={() => setAppView('main')} />
+        </main>
       ) : (
         <main className="app-main">
           {/* 批量生成全局进度条 —— 在任意步骤都可见 */}
@@ -950,7 +985,7 @@ function AppContent() {
             />
           )}
 
-          {step === 6 && gapAnalysis && (
+          {step === 6 && parsedArticle && gapAnalysis && (
             <StepPlanReview
               disease={disease}
               parsedArticle={parsedArticle}
@@ -981,11 +1016,22 @@ function AppContent() {
               onBack={() => setStep(6)}
             />
           )}
+
+          {step === 8 && (
+            <StepAiIntegration
+              disease={disease}
+              articleContent={articleContent}
+              parsedArticle={parsedArticle}
+              referenceDocs={referenceDocs}
+              history={aiIntegrationHistory}
+              onAddRecord={addAiIntegrationRecord}
+            />
+          )}
         </main>
       )}
 
-      {/* ── Fixed Footer (hidden in history view) ── */}
-      {!isHistoryView && (() => {
+      {/* ── Fixed Footer (hidden in module views) ── */}
+      {!isHistoryView && !isUtdView && (() => {
         const fc = getFooterConfig()
         return (
           <footer className="app-footer">

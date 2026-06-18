@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     deepseek_context_window_tokens: int = 64000
     jwt_secret: str = "editing-assistant-secret-change-in-production"
     jwt_expire_days: int = 7
+    guide_app_id: str = ""
+    guide_app_sign_key: str = ""
+    guide_app_name: str = ""
+    guide_api_base: str = "https://newdrugs.dxy.cn/open-sign-api/article-quality/guide"
+    ncd_api_base: str = "https://newdrugs.dxy.cn/open-sign-api/article-quality/ncd"
 
     @property
     def cors_origins_list(self) -> List[str]:

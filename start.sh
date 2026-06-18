@@ -6,6 +6,21 @@ LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/nul
 
 echo "Starting Editing Assistant..."
 
+stop_port() {
+    local port="$1"
+    local label="$2"
+    local pids
+    pids=$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+        echo "Stopping existing $label on port $port: $pids"
+        kill $pids 2>/dev/null || true
+        sleep 1
+    fi
+}
+
+stop_port 8002 "backend"
+stop_port 5175 "frontend"
+
 # 选择 Python 解释器：优先项目 venv（与 cm/dev.sh 约定一致），其次系统 Python，最后裸 python3。
 # 可通过环境变量 PYTHON 覆盖。
 if [ -n "$PYTHON" ]; then

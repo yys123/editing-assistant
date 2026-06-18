@@ -209,33 +209,47 @@ def _assign_stable_section_ids(sections: List[ArticleSection]) -> List[ArticleSe
 # ── Word-count helper ──────────────────────────────────────────────────────────
 
 def count_chinese_words(text: str) -> int:
-    """Count words in Chinese medical text.
+    """Count words/chars in a Word-like way for Chinese medical text.
 
     Rules:
-    - Each CJK character = 1 word
-    - Each run of ASCII letters/digits = 1 word  (e.g. "ADHD" = 1, "50%" = 1)
+    - CJK characters and punctuation are counted individually.
+    - ASCII letter/digit runs are counted as one word (e.g. "ADHD" = 1, "10" = 1).
     - Structural markers ([H1], [图片], [表格] …) are excluded from count.
-    - Punctuation and whitespace are not counted.
+    - Reference superscript markers and Markdown table separators are excluded.
+    - Whitespace is not counted.
     """
     # Remove structural markers injected by parse_html_structured
     clean = re.sub(r"\[H\d\]|\[图片\]|\[表格\]|\[图注\]|\[表格标题\]|\[图片内容\]", "", text)
     # Remove reference superscript markers, e.g. ^[2,3] ^[1-5]
     clean = re.sub(r"\^\[\d[\d,，\-~～至]*\]", "", clean)
+    # Remove bracketed citation markers copied from rich text, e.g. [¹³⁻¹⁴], [8]
+    clean = re.sub(r"[［\[][⁰¹²³⁴⁵⁶⁷⁸⁹⁻,，\-~～至]+[］\]]", "", clean)
+    clean = re.sub(r"[［\[]\d[\d,，\-~～至]*[］\]]", "", clean)
     # Remove Markdown table separators
     clean = re.sub(r"\|[-|: ]+\|", "", clean)
     # Remove pipe chars from table rows (but keep the cell content)
     clean = clean.replace("|", " ")
 
-    # Count CJK characters
-    cjk = len(re.findall(
-        r"[\u4e00-\u9fff\u3400-\u4dbf\u20000-\u2a6df\u2a700-\u2b73f"
-        r"\u2b740-\u2b81f\u2b820-\u2ceaf\uf900-\ufaff\u2f800-\u2fa1f]",
-        clean
-    ))
-    # Count ASCII word tokens (letters + digits runs)
-    ascii_words = len(re.findall(r"[A-Za-z0-9]+", clean))
+    count = 0
+    index = 0
+    while index < len(clean):
+        char = clean[index]
+        if char.isspace():
+            index += 1
+            continue
+        if re.match(r"[A-Za-z0-9]", char):
+            index += 1
+            while index < len(clean) and re.match(r"[A-Za-z0-9]", clean[index]):
+                index += 1
+            count += 1
+            continue
+        count += 1
+        index += 1
+    return count
 
-    return cjk + ascii_words
+
+def _count_section_words(heading: str, content: str) -> int:
+    return count_chinese_words(heading) + count_chinese_words(content)
 
 
 # ── Post-parse validation & repair ────────────────────────────────────────────
@@ -373,7 +387,7 @@ def _validate_and_repair(
                 heading, ", ".join(reasons),
             )
             section.content = expected
-            section.word_count = count_chinese_words(expected)
+            section.word_count = _count_section_words(section.heading, expected)
             section.image_count = len(re.findall(r"\[图片\]", expected))
             section.table_count = len(re.findall(r"\[表格\]|\[表格标题\]", expected))
             repair_count += 1
@@ -438,7 +452,7 @@ async def _parse_with_ai(text: str) -> ParsedArticle:
         sections.append(ArticleSection(
             heading=heading,
             content=content,
-            word_count=count_chinese_words(content),
+            word_count=_count_section_words(heading, content),
             level=max(1, min(3, level)),
             image_count=image_count,
             table_count=table_count,
@@ -712,6 +726,12 @@ def _parse_with_fallback(text: str) -> ParsedArticle:
 
 _CJK_NUMBERED_HEADING_RE = re.compile(r"^[一二三四五六七八九十百]+[、.．]\s*\S+")
 _PAREN_NUMBERED_HEADING_RE = re.compile(r"^[（(][一二三四五六七八九十百\d]+[）)]\s*\S+")
+_ARABIC_LIST_ITEM_RE = re.compile(r"^\d+[、.)]\s*\S+")
+
+
+def _is_long_arabic_list_item(text: str) -> bool:
+    stripped = text.strip()
+    return bool(_ARABIC_LIST_ITEM_RE.match(stripped) and len(stripped) > 36)
 
 
 def _normalize_plain_heading(text: str) -> str:
@@ -742,8 +762,13 @@ def _plain_heading_level(line: str, seen_level1: bool, seen_level2: bool) -> int
         return 0
     if _CJK_NUMBERED_HEADING_RE.match(stripped):
         return 2
-    if seen_level2 and (_PAREN_NUMBERED_HEADING_RE.match(stripped) or _ARABIC_NUMBERED_HEADING_RE.match(stripped)):
+    if _is_long_arabic_list_item(stripped):
+        return 0
+    if seen_level2 and _PAREN_NUMBERED_HEADING_RE.match(stripped):
         if len(stripped) <= 80:
+            return 3
+    if seen_level2 and _ARABIC_LIST_ITEM_RE.match(stripped):
+        if len(stripped) <= 36:
             return 3
     return 0
 
@@ -766,7 +791,7 @@ def _parse_plain_numbered_sections(text: str) -> Optional[ParsedArticle]:
         sections.append(ArticleSection(
             heading=current_heading,
             content=content,
-            word_count=count_chinese_words(content),
+            word_count=_count_section_words(current_heading, content),
             level=current_level,
             image_count=len(re.findall(r"\[图片\]", content)),
             table_count=len(re.findall(r"\[表格\]|\[表格标题\]", content)),
@@ -821,7 +846,7 @@ def _parse_structured_markers(text: str) -> ParsedArticle:
         sections.append(ArticleSection(
             heading=current_heading,
             content=content,
-            word_count=count_chinese_words(content),
+            word_count=_count_section_words(current_heading, content),
             level=current_level,
             image_count=image_count,
             table_count=table_count,
@@ -832,6 +857,9 @@ def _parse_structured_markers(text: str) -> ParsedArticle:
         if m:
             level = int(m.group(1))
             heading_text = m.group(2).strip()
+            if level == 3 and _is_long_arabic_list_item(heading_text) and current_heading is not None:
+                current_lines.append(heading_text)
+                continue
             flush()
             current_heading = heading_text
             current_level = min(3, level)    # H1→1, H2→2, H3→3
@@ -859,7 +887,7 @@ def _parse_markdown(text: str) -> ParsedArticle:
         content = "\n".join(current_lines).strip()
         sections.append(ArticleSection(
             heading=current_heading, content=content,
-            word_count=count_chinese_words(content), level=current_level,
+            word_count=_count_section_words(current_heading, content), level=current_level,
         ))
 
     for line in lines:
@@ -898,7 +926,7 @@ def _parse_html_fallback(text: str) -> ParsedArticle:
         content = " ".join(content_parts).strip()
         sections.append(ArticleSection(
             heading=heading_text, content=content,
-            word_count=count_chinese_words(content), level=level,
+            word_count=_count_section_words(heading, content), level=level,
         ))
 
     _fix_section_levels(sections)

@@ -72,4 +72,30 @@ assert.match(
   /xiii\. EMA[\s\S]*保留方案。\n\[H3\] 2、 手术治疗策略/,
 )
 
+const longOrderedListItem = [
+  '[H1] 诊断',
+  '[H2] 三、 诊断',
+  '1) 盆底肌力测定是相对客观的阴道内张力检测方法，法国国家卫生诊断论证局（AN-AES）推出的会阴肌肉测试标准（GRRUG）受到业界的公认，它将测试盆底的肌力分成 6 个等级（0~V 级）。',
+  '2、 Glazer 评估法',
+  'Glazer 评估法来客观测量盆底表面肌电和盆底肌的功能。',
+].join('\n')
+
+const longOrderedListStructured = articleContentToStructuredMarkers(longOrderedListItem)
+
+assert.doesNotMatch(longOrderedListStructured, /^\[H3\] 1\) 盆底肌力测定/m)
+assert.match(longOrderedListStructured, /^1\) 盆底肌力测定/m)
+assert.match(longOrderedListStructured, /^\[H3\] 2、 Glazer 评估法/m)
+
+const legacyLongOrderedListMarker = [
+  '[H1] 诊断',
+  '[H2] 三、 诊断',
+  '[H3] 1) 盆底肌力测定是相对客观的阴道内张力检测方法，法国国家卫生诊断论证局（AN-AES）推出的会阴肌肉测试标准（GRRUG）受到业界的公认，它将测试盆底的肌力分成 6 个等级（0~V 级）。',
+  '[H3] 2、 Glazer 评估法',
+].join('\n')
+
+const legacyLongOrderedListStructured = articleContentToStructuredMarkers(legacyLongOrderedListMarker)
+
+assert.doesNotMatch(legacyLongOrderedListStructured, /^\[H3\] 1\) 盆底肌力测定/m)
+assert.match(legacyLongOrderedListStructured, /^1\) 盆底肌力测定/m)
+
 console.log('articleStructure tests passed')

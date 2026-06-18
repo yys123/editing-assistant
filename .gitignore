@@ -36,6 +36,12 @@ backend/data/standards/**/.DS_Store
 # Logs
 logs/
 
+# Deployment runtime state
+deploy/runtime/*
+!deploy/runtime/.gitkeep
+deploy/local-runtime/*
+!deploy/local-runtime/.gitkeep
+
 # Dev tooling
 .dev_pids
 *.log

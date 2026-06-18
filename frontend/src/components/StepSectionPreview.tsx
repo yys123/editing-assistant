@@ -116,7 +116,7 @@ export default function StepSectionPreview({
             {parsedArticle.sections.length} 个章节
           </span>
           <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
-            共 {parsedArticle.total_words} 字
+            字数 {parsedArticle.total_words} 字
           </span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
             <button

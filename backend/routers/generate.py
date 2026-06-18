@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
-from models import GenerationRequest, BatchGenerationRequest
-from services.generator import generate_section_draft, generate_multi_section_draft
+from models import GenerationRequest, BatchGenerationRequest, AiIntegrationRequest
+from services.generator import generate_section_draft, generate_multi_section_draft, generate_ai_integration_answer
 
 from auth import get_current_user
 
@@ -36,3 +36,15 @@ async def generate_batch_draft(req: BatchGenerationRequest):
         return result.model_dump()
     except Exception as e:
         raise HTTPException(500, f"联合生成失败: {str(e)}")
+
+
+@router.post("/ai-integration")
+async def generate_ai_integration(req: AiIntegrationRequest):
+    if not req.user_request.strip():
+        raise HTTPException(400, "请输入问题或要求")
+
+    try:
+        result = await generate_ai_integration_answer(req)
+        return result.model_dump()
+    except Exception as e:
+        raise HTTPException(500, f"AI整合失败: {str(e)}")

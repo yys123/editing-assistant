@@ -1,3 +1,35 @@
+import type { ReferenceDoc } from './types'
+
+export interface GuideSearchItem {
+  id: number
+  title: string
+}
+
+export interface GuideSearchResponse {
+  items: GuideSearchItem[]
+}
+
+export interface GuideDetail {
+  id: number
+  title: string
+  content: string
+}
+
+export interface EntrySearchItem {
+  id: number
+  name: string
+}
+
+export interface EntrySearchResponse {
+  items: EntrySearchItem[]
+}
+
+export interface EntryDetail {
+  id: number
+  name: string
+  content: string
+}
+
 export function getToken(): string | null {
   return localStorage.getItem('auth_token')
 }
@@ -38,9 +70,82 @@ export async function safeJson(res: Response): Promise<any> {
     return JSON.parse(text)
   } catch {
     if (!res.ok) {
+      const backendUnavailable = text.match(/^Backend\s+(\d+)\s+is unavailable(?::\s*(.*))?$/i)
+      if (backendUnavailable) {
+        const port = backendUnavailable[1]
+        const reason = backendUnavailable[2]?.trim()
+        throw new Error(`后端服务暂不可用（端口 ${port}${reason ? `：${reason}` : ''}）`)
+      }
       throw new Error(`服务器错误 (${res.status})，请稍后重试`)
     }
     throw new Error('服务器返回了非预期的响应格式')
+  }
+}
+
+function errorMessage(data: any, fallback: string) {
+  if (data && typeof data.detail === 'string') return data.detail
+  if (data && data.detail && typeof data.detail === 'object') {
+    const parts = []
+    if (typeof data.detail.message === 'string') parts.push(data.detail.message)
+    if (data.detail.code) parts.push(`code=${data.detail.code}`)
+    if (data.detail.config) {
+      parts.push(`config=${JSON.stringify(data.detail.config)}`)
+    }
+    if (data.detail.request?.url) {
+      parts.push(`url=${data.detail.request.url}`)
+    }
+    if (data.detail.request?.params) {
+      parts.push(`request=${JSON.stringify(data.detail.request.params)}`)
+    }
+    if (data.detail.response?.message) parts.push(`response=${data.detail.response.message}`)
+    if (Array.isArray(data.detail.dataKeys)) parts.push(`dataKeys=${data.detail.dataKeys.join(',')}`)
+    if (Array.isArray(data.detail.stringFields)) {
+      parts.push(`stringFields=${JSON.stringify(data.detail.stringFields)}`)
+    }
+    return parts.length > 0 ? parts.join('；') : fallback
+  }
+  if (data && typeof data.message === 'string') return data.message
+  return fallback
+}
+
+export async function searchGuides(keyword: string): Promise<GuideSearchResponse> {
+  const normalized = keyword.trim()
+  if (!normalized) throw new Error('请输入指南名称')
+  const res = await apiFetch(`/api/article/guides/search?keyword=${encodeURIComponent(normalized)}`)
+  const data = await safeJson(res)
+  if (!res.ok) throw new Error(errorMessage(data, '指南检索失败'))
+  return data
+}
+
+export async function fetchGuideDetail(id: number): Promise<GuideDetail> {
+  const res = await apiFetch(`/api/article/guides/${encodeURIComponent(String(id))}`)
+  const data = await safeJson(res)
+  if (!res.ok) throw new Error(errorMessage(data, '指南详情获取失败'))
+  return data
+}
+
+export async function searchEntries(keyword: string): Promise<EntrySearchResponse> {
+  const normalized = keyword.trim()
+  if (!normalized) throw new Error('请输入词条名称')
+  const res = await apiFetch(`/api/article/entries/search?keyword=${encodeURIComponent(normalized)}`)
+  const data = await safeJson(res)
+  if (!res.ok) throw new Error(errorMessage(data, '词条检索失败'))
+  return data
+}
+
+export async function fetchEntryDetail(id: number): Promise<EntryDetail> {
+  const res = await apiFetch(`/api/article/entries/${encodeURIComponent(String(id))}`)
+  const data = await safeJson(res)
+  if (!res.ok) throw new Error(errorMessage(data, '词条详情获取失败'))
+  return data
+}
+
+export function guideDetailToReferenceDoc(detail: GuideDetail): ReferenceDoc {
+  const safeTitle = detail.title.trim().replace(/[\\/:*?"<>|]/g, '_') || `指南-${detail.id}`
+  return {
+    filename: `${detail.id}-${safeTitle}`,
+    text: detail.content,
+    char_count: detail.content.length,
   }
 }
 

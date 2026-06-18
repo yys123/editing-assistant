@@ -7,7 +7,15 @@ function isLevel2Heading(text: string) {
 }
 
 function isLevel3Heading(text: string) {
-  return /^(?:[（(][一二三四五六七八九十百\d]+[）)]|\d+[、.)])\s*\S+/.test(text.trim())
+  const trimmed = text.trim()
+  if (isLongArabicListItem(trimmed)) return false
+  if (/^\d+[、.)]\s*\S+/.test(trimmed)) return true
+  return /^[（(][一二三四五六七八九十百\d]+[）)]\s*\S+/.test(trimmed)
+}
+
+function isLongArabicListItem(text: string) {
+  const trimmed = text.trim()
+  return /^\d+[、.)]\s*\S+/.test(trimmed) && trimmed.length > 36
 }
 
 function isFigureOrTableCaptionLine(text: string) {
@@ -48,8 +56,14 @@ export function articleContentToStructuredMarkers(text: string) {
 
     const markerMatch = trimmed.match(/^\[H([123])\]\s+(.+)$/)
     if (markerMatch) {
-      insideModule = Number(markerMatch[1]) === 1 || insideModule
-      hasLevel2InModule = Number(markerMatch[1]) === 2 ? true : Number(markerMatch[1]) === 1 ? false : hasLevel2InModule
+      const markerLevel = Number(markerMatch[1])
+      const markerText = markerMatch[2].trim()
+      if (markerLevel === 3 && isLongArabicListItem(markerText)) {
+        prevNonEmptyLine = markerText
+        return markerText
+      }
+      insideModule = markerLevel === 1 || insideModule
+      hasLevel2InModule = markerLevel === 2 ? true : markerLevel === 1 ? false : hasLevel2InModule
       prevNonEmptyLine = trimmed
       return line
     }

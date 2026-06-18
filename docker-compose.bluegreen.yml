@@ -1,0 +1,35 @@
+services:
+  backend-blue:
+    image: editing-assistant-backend:blue
+    container_name: editing-assistant-backend-blue
+    restart: unless-stopped
+    expose:
+      - "8004"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - backend-data:/app/data
+
+  backend-green:
+    image: editing-assistant-backend:green
+    container_name: editing-assistant-backend-green
+    restart: unless-stopped
+    expose:
+      - "8004"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - backend-data:/app/data
+
+  frontend:
+    image: editing-assistant-frontend:latest
+    container_name: editing-assistant-frontend
+    restart: unless-stopped
+    ports:
+      - "5177:5177"
+    volumes:
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/runtime/nginx-backend-upstream.conf:/etc/nginx/conf.d/backend-upstream.conf:ro
+
+volumes:
+  backend-data:

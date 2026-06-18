@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { apiFetch, getToken, setToken, clearToken, getStoredUser, setStoredUser } from './api'
 import type { User } from './types'
+import { parseAuthResponse } from './utils/authResponse'
 
 interface AuthContextType {
   user: User | null
@@ -39,8 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     })
-    const data = await r.json()
-    if (!r.ok) throw new Error(data.detail || '登录失败')
+    const data = await parseAuthResponse(r, '登录失败')
     setToken(data.token)
     setStoredUser(data.user)
     setUser(data.user)
@@ -52,8 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, reg_code: regCode, password, display_name: displayName }),
     })
-    const data = await r.json()
-    if (!r.ok) throw new Error(data.detail || '注册失败')
+    const data = await parseAuthResponse(r, '注册失败')
     setToken(data.token)
     setStoredUser(data.user)
     setUser(data.user)

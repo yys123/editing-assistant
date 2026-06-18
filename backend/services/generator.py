@@ -1,8 +1,11 @@
 import re
 from collections import defaultdict
+from dataclasses import dataclass
+from typing import Optional
 from models import (
     GenerationRequest, GeneratedDraft, QAItem, ReferenceInput,
-    BatchGenerationRequest, BatchGeneratedDraft,
+    BatchGenerationRequest, BatchGeneratedDraft, ReferenceAnchor,
+    AiIntegrationRequest, AiIntegrationResponse,
 )
 from services.text_llm import generate_json, generate_text
 
@@ -11,7 +14,7 @@ SYSTEM_PROMPT = """你是一位资深临床医学编辑，专注于为临床医�
 核心写作原则：
 1. 最小改动：在原文基础上进行针对性修订和补充，原文中已符合质量要求和用户需求的内容必须原样保留，不得大篇幅改写。只有当原内容在整体框架结构上存在明显缺陷时，才可进行大幅调整。
 2. 证据至上：所有新增或修订内容必须严格基于提供的参考文献和Q&A数据，禁止主观推测或编造数据。如果证据不足以支撑某个论点，明确标注"证据有限"。
-3. 精准溯源：每一个事实性陈述、数据、结论后必须标注引用标记[参考文献序号]（如[1]、[2]）或[Q&A编号]（如[Q1]、[Q3]）。一句话可有多个引用。
+3. 精准溯源：每一个事实性陈述、数据、结论后必须标注引用标记。引用参考数据源时使用每个参考片段列出的“引用标记”（如[3-22]），引用Q&A时使用[Q&A编号]（如[Q1]、[Q3]）。一句话可有多个引用。
 4. 时效优先：当多个证据源存在时，优先采用最近发布、最权威的来源（国际/国家指南 > 地方指南 > 教材 > 专家意见）。
 
 语言精炼专业，避免冗余。"""
@@ -97,6 +100,435 @@ def _chunk_reference(text: str, chunk_size: int = 500) -> list:
     return chunks
 
 
+_SOURCE_REF_BODY_CHARS = r'0-9\s,，、;；\-–—'
+_INLINE_SOURCE_REF_RE = re.compile(
+    rf'\^?\s*(?:<sup>\s*)?[\[［【]\s*([{_SOURCE_REF_BODY_CHARS}]*\d[{_SOURCE_REF_BODY_CHARS}]*)\s*[\]］】]\s*(?:</sup>)?',
+    flags=re.IGNORECASE,
+)
+_SUP_SOURCE_REF_RE = re.compile(
+    rf'<sup>\s*([{_SOURCE_REF_BODY_CHARS}]*\d[{_SOURCE_REF_BODY_CHARS}]*)\s*</sup>',
+    flags=re.IGNORECASE,
+)
+_HASH_SOURCE_REF_RE = re.compile(r'#R(\d+)\b', flags=re.IGNORECASE)
+
+
+@dataclass
+class ReferenceChunk:
+    chunk_id: str
+    citation_key: str
+    source_id: int
+    source_filename: str
+    text: str
+    title_path: str
+    context_before: str
+    context_after: str
+    paragraph_index: int
+    source_ref_ids: list[str]
+    score: float = 0.0
+
+
+def _split_reference_paragraphs(text: str) -> list[str]:
+    paragraphs = [p.strip() for p in re.split(r'\n{2,}', text or "") if p.strip()]
+    if paragraphs:
+        return paragraphs
+    stripped = (text or "").strip()
+    return [stripped] if stripped else []
+
+
+def _split_sentence_fragments(paragraph: str, paragraph_index: int) -> list[dict]:
+    fragments: list[dict] = []
+    start = -1
+    sentence_index = 0
+
+    def push(end: int) -> None:
+        nonlocal start, sentence_index
+        if start < 0:
+            return
+        text = re.sub(r'\s+', ' ', paragraph[start:end]).strip()
+        if text:
+            fragments.append({
+                "text": text,
+                "paragraph_index": paragraph_index,
+                "sentence_index": sentence_index,
+                "start": start,
+                "end": end,
+            })
+            sentence_index += 1
+        start = -1
+
+    for idx, char in enumerate(paragraph):
+        if start < 0 and not char.isspace():
+            start = idx
+        if start < 0:
+            continue
+
+        next_char = paragraph[idx + 1] if idx + 1 < len(paragraph) else ""
+        is_cjk_terminator = char in "。！？!?；;"
+        is_english_period = char == "." and (not next_char or next_char.isspace())
+        is_line_break = char == "\n"
+        if is_cjk_terminator or is_english_period or is_line_break:
+            push(idx + 1)
+
+    push(len(paragraph))
+    return fragments
+
+
+def _sentence_context(sentences: list[dict], target_index: int, before_count: int = 2, after_count: int = 2) -> tuple[str, str]:
+    context_before = "\n".join(
+        s["text"] for s in sentences[max(0, target_index - before_count):target_index]
+    ).strip()
+    context_after = "\n".join(
+        s["text"] for s in sentences[target_index + 1:target_index + 1 + after_count]
+    ).strip()
+    return context_before, context_after
+
+
+def _normalize_search_text(text: str) -> str:
+    text = re.sub(
+        r'\^?(?:<sup>)?[\[［【](?:R\d+-C\d+|Q?\d+|\d+\s*[-–—]\s*\d+)(?:\s*[、,，]\s*(?:R\d+-C\d+|Q?\d+|\d+\s*[-–—]\s*\d+))*[\]］】](?:</sup>)?',
+        ' ',
+        text or "",
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(r'[^\w\u4e00-\u9fff]+', ' ', text, flags=re.UNICODE)
+    return re.sub(r'\s+', ' ', text).strip().lower()
+
+
+def _search_tokens(text: str) -> set[str]:
+    normalized = _normalize_search_text(text)
+    tokens = {token for token in normalized.split() if len(token) >= 2}
+    compact = re.sub(r'\s+', '', normalized)
+    for idx in range(max(0, len(compact) - 1)):
+        tokens.add(compact[idx:idx + 2])
+    return tokens
+
+
+def _overlap_score(query: str, candidate: str) -> float:
+    query_tokens = _search_tokens(query)
+    if not query_tokens:
+        return 0.0
+    candidate_tokens = _search_tokens(candidate)
+    if not candidate_tokens:
+        return 0.0
+    score = 0.0
+    for token in query_tokens:
+        if token in candidate_tokens:
+            score += 2.0 if len(token) > 2 else 1.0
+    return score / max(1.0, len(candidate_tokens) ** 0.5)
+
+
+def _split_long_unit(text: str, max_chars: int = 1200) -> list[str]:
+    text = text.strip()
+    if len(text) <= max_chars:
+        return [text] if text else []
+    pieces: list[str] = []
+    current = ""
+    for sentence in re.split(r'(?<=[。！？!?；;])\s*', text):
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        if current and len(current) + len(sentence) > max_chars:
+            pieces.append(current)
+            current = sentence
+        else:
+            current = f"{current}{sentence}" if current else sentence
+    if current:
+        pieces.append(current)
+    if pieces:
+        return pieces
+    return [text[idx:idx + max_chars].strip() for idx in range(0, len(text), max_chars) if text[idx:idx + max_chars].strip()]
+
+
+def _split_reference_units(text: str) -> list[str]:
+    units = [p.strip() for p in re.split(r'\n{2,}', text or "") if p.strip()]
+    if len(units) <= 1 and "\n" in (text or ""):
+        units = [p.strip() for p in (text or "").splitlines() if p.strip()]
+    expanded: list[str] = []
+    for unit in units:
+        expanded.extend(_split_long_unit(unit))
+    return expanded
+
+
+def _looks_like_title(text: str) -> bool:
+    compact = re.sub(r'\s+', '', text.strip())
+    if not compact or len(compact) > 60:
+        return False
+    if re.fullmatch(r'\d+', compact):
+        return False
+    if re.match(r'^(#{1,6}|第[一二三四五六七八九十\d]+[章节部分篇]|[一二三四五六七八九十]+[、.]|\d+(?:\.\d+){0,3}\s*)', compact):
+        return True
+    if compact.endswith(("指南", "共识", "推荐", "诊断", "治疗", "随访", "评估")) and len(compact) <= 30:
+        return True
+    return False
+
+
+def _build_reference_chunks(ref_inputs: list[ReferenceInput], target_chars: int = 900) -> list[ReferenceChunk]:
+    chunks: list[ReferenceChunk] = []
+    for ref in ref_inputs:
+        units = _split_reference_units(ref.text)
+        title_stack: list[str] = []
+        buffer: list[str] = []
+        buffer_start = 0
+        buffer_title = ""
+
+        def flush(next_unit: str = "") -> None:
+            nonlocal buffer, buffer_start, buffer_title
+            body = "\n".join(buffer).strip()
+            if not body:
+                buffer = []
+                return
+            chunk_number = sum(1 for chunk in chunks if chunk.source_id == ref.id) + 1
+            chunk_id = f"R{ref.id}-C{chunk_number:03d}"
+            source_ref_ids = _extract_source_ref_ids(body)
+            citation_key = f"{ref.id}-{source_ref_ids[-1]}" if source_ref_ids else str(ref.id)
+            previous_text = chunks[-1].text if chunks and chunks[-1].source_id == ref.id else ""
+            chunks.append(ReferenceChunk(
+                chunk_id=chunk_id,
+                citation_key=citation_key,
+                source_id=ref.id,
+                source_filename=ref.filename,
+                text=body,
+                title_path=buffer_title,
+                context_before=previous_text[-600:].strip(),
+                context_after=next_unit[:600].strip(),
+                paragraph_index=buffer_start,
+                source_ref_ids=source_ref_ids,
+            ))
+            buffer = []
+
+        for idx, unit in enumerate(units):
+            if _looks_like_title(unit):
+                if buffer:
+                    flush(unit)
+                cleaned_title = re.sub(r'^#+\s*', '', unit).strip()
+                title_stack = [*title_stack[-2:], cleaned_title]
+                continue
+
+            if not buffer:
+                buffer_start = idx
+                buffer_title = " / ".join(title_stack)
+            current_len = len("\n".join(buffer))
+            if buffer and current_len + len(unit) > target_chars:
+                flush(unit)
+                buffer_start = idx
+                buffer_title = " / ".join(title_stack)
+            buffer.append(unit)
+
+        flush()
+    return chunks
+
+
+def _chunk_priority_multiplier(filename: str) -> float:
+    multiplier = 1.0
+    if re.search(r'指南|共识|guideline|consensus|nccn|csco', filename, flags=re.IGNORECASE):
+        multiplier += 0.2
+    years = [int(year) for year in re.findall(r'20\d{2}', filename)]
+    if years:
+        multiplier += min(0.2, max(0, max(years) - 2020) * 0.025)
+    return multiplier
+
+
+def _select_reference_chunks(
+    ref_inputs: list[ReferenceInput],
+    query: str,
+    max_total_chars: int = 60000,
+    max_chunks: int = 80,
+) -> list[ReferenceChunk]:
+    chunks = _build_reference_chunks(ref_inputs)
+    if not chunks:
+        return []
+
+    scored: list[ReferenceChunk] = []
+    for chunk in chunks:
+        searchable = f"{chunk.title_path}\n{chunk.text}"
+        chunk.score = _overlap_score(query, searchable) * _chunk_priority_multiplier(chunk.source_filename)
+        if chunk.score > 0:
+            scored.append(chunk)
+
+    if not scored:
+        scored = chunks[:max_chunks]
+    else:
+        scored.sort(key=lambda chunk: chunk.score, reverse=True)
+
+    selected: list[ReferenceChunk] = []
+    total = 0
+    for chunk in scored:
+        if len(selected) >= max_chunks:
+            break
+        if total + len(chunk.text) > max_total_chars and selected:
+            break
+        selected.append(chunk)
+        total += len(chunk.text)
+
+    return sorted(selected, key=lambda chunk: (chunk.source_id, chunk.paragraph_index, chunk.chunk_id))
+
+
+def _format_reference_chunks(chunks: list[ReferenceChunk], priority_source_ids: Optional[set[int]] = None) -> str:
+    if not chunks:
+        return "（无参考文献）"
+    priority_source_ids = priority_source_ids or set()
+    blocks = []
+    for chunk in chunks:
+        marker = "（重点指南）" if chunk.source_id in priority_source_ids else ""
+        title = f"\n标题路径：{chunk.title_path}" if chunk.title_path else ""
+        source_refs = f"\n源内参考文献号：{', '.join(chunk.source_ref_ids)}" if chunk.source_ref_ids else ""
+        available_keys = (
+            [f"{chunk.source_id}-{source_ref_id}" for source_ref_id in chunk.source_ref_ids]
+            if chunk.source_ref_ids
+            else [chunk.citation_key]
+        )
+        available = f"\n可用引用标记：{'、'.join(f'[{key}]' for key in available_keys)}"
+        blocks.append(
+            f"引用标记：[{chunk.citation_key}]{available}\n参考数据源 {chunk.source_id}：{chunk.source_filename}{marker}{title}{source_refs}\n{chunk.text}"
+        )
+    return "\n\n---\n\n".join(blocks)
+
+
+def _anchors_from_reference_chunks(chunks: list[ReferenceChunk]) -> list[ReferenceAnchor]:
+    anchors: list[ReferenceAnchor] = []
+    for chunk in chunks:
+        anchors.append(ReferenceAnchor(
+            citation_key=chunk.citation_key,
+            source_id=chunk.source_id,
+            source_filename=chunk.source_filename,
+            source_ref_id=",".join(chunk.source_ref_ids),
+            chunk_id=chunk.chunk_id,
+            title_path=chunk.title_path,
+            quote=chunk.text,
+            context_before=chunk.context_before,
+            context_after=chunk.context_after,
+            paragraph_index=chunk.paragraph_index,
+        ))
+        if chunk.citation_key != chunk.chunk_id:
+            anchors.append(ReferenceAnchor(
+                citation_key=chunk.chunk_id,
+                source_id=chunk.source_id,
+                source_filename=chunk.source_filename,
+                source_ref_id=",".join(chunk.source_ref_ids),
+                chunk_id=chunk.chunk_id,
+                title_path=chunk.title_path,
+                quote=chunk.text,
+                context_before=chunk.context_before,
+                context_after=chunk.context_after,
+                paragraph_index=chunk.paragraph_index,
+            ))
+    return anchors
+
+
+def _rewrite_internal_chunk_citations(text: str, chunks: list[ReferenceChunk]) -> str:
+    chunk_to_citation = {
+        chunk.chunk_id.upper(): chunk.citation_key
+        for chunk in chunks
+        if chunk.citation_key and chunk.citation_key != chunk.chunk_id
+    }
+    if not text or not chunk_to_citation:
+        return text
+
+    def replace_token(match: re.Match) -> str:
+        token = re.sub(r'\s+', '', match.group(0)).replace("–", "-").replace("—", "-").upper()
+        if token in chunk_to_citation:
+            return chunk_to_citation[token]
+        fallback = re.match(r'R(\d+)-C\d+', token, flags=re.IGNORECASE)
+        return fallback.group(1) if fallback else match.group(0)
+
+    return re.sub(r'R\d+\s*[-–—]\s*C\d+', replace_token, text, flags=re.IGNORECASE)
+
+
+def _rewrite_internal_chunk_citation_list(items: list, chunks: list[ReferenceChunk]) -> list:
+    return [
+        _rewrite_internal_chunk_citations(str(item), chunks)
+        for item in (items or [])
+    ]
+
+
+def _expand_source_ref_ids(raw: str) -> list[str]:
+    ref_ids: list[str] = []
+    parts = re.split(r'[,，、;；]\s*', raw)
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        range_match = re.fullmatch(r'(\d+)\s*[-–—]\s*(\d+)', part)
+        if range_match:
+            start, end = int(range_match.group(1)), int(range_match.group(2))
+            if start <= end and end - start <= 50:
+                ref_ids.extend(str(i) for i in range(start, end + 1))
+            continue
+        if part.isdigit():
+            ref_ids.append(str(int(part)))
+
+    deduped = []
+    seen = set()
+    for ref_id in ref_ids:
+        if ref_id not in seen:
+            deduped.append(ref_id)
+            seen.add(ref_id)
+    return deduped
+
+
+def _iter_source_ref_matches(text: str) -> list[tuple[int, list[str]]]:
+    matches: list[tuple[int, list[str]]] = []
+    for pattern in (_INLINE_SOURCE_REF_RE, _SUP_SOURCE_REF_RE):
+        for match in pattern.finditer(text or ""):
+            ref_ids = _expand_source_ref_ids(match.group(1))
+            if ref_ids:
+                matches.append((match.start(), ref_ids))
+    for match in _HASH_SOURCE_REF_RE.finditer(text or ""):
+        matches.append((match.start(), [str(int(match.group(1)))]))
+    return sorted(matches, key=lambda item: item[0])
+
+
+def _extract_source_ref_ids(text: str) -> list[str]:
+    ref_ids: list[str] = []
+    for _, ids in _iter_source_ref_matches(text):
+        ref_ids.extend(ids)
+    return list(dict.fromkeys(ref_ids))
+
+
+def _extract_reference_anchors(ref_inputs: list[ReferenceInput]) -> list[ReferenceAnchor]:
+    anchors: list[ReferenceAnchor] = []
+    seen = set()
+    for ref in ref_inputs:
+        paragraphs = _split_reference_paragraphs(ref.text)
+        sentence_groups = [
+            _split_sentence_fragments(paragraph, idx)
+            for idx, paragraph in enumerate(paragraphs)
+        ]
+        all_sentences = [sentence for group in sentence_groups for sentence in group]
+        for idx, paragraph in enumerate(paragraphs):
+            for marker_start, source_ref_ids in _iter_source_ref_matches(paragraph):
+                paragraph_sentences = sentence_groups[idx] if idx < len(sentence_groups) else []
+                local_sentence = next(
+                    (
+                        sentence for sentence in paragraph_sentences
+                        if sentence["start"] <= marker_start < sentence["end"]
+                    ),
+                    paragraph_sentences[0] if paragraph_sentences else None,
+                )
+                sentence_index = all_sentences.index(local_sentence) if local_sentence in all_sentences else -1
+                if sentence_index >= 0:
+                    context_before, context_after = _sentence_context(all_sentences, sentence_index)
+                else:
+                    context_before, context_after = "", ""
+                compact_quote = local_sentence["text"] if local_sentence else re.sub(r'\s+', ' ', paragraph).strip()
+                for source_ref_id in source_ref_ids:
+                    citation_key = f"{ref.id}-{source_ref_id}"
+                    if citation_key in seen:
+                        continue
+                    seen.add(citation_key)
+                    anchors.append(ReferenceAnchor(
+                        citation_key=citation_key,
+                        source_id=ref.id,
+                        source_filename=ref.filename,
+                        source_ref_id=source_ref_id,
+                        quote=compact_quote,
+                        context_before=context_before,
+                        context_after=context_after,
+                        paragraph_index=idx,
+                    ))
+    return anchors
+
+
 def _extract_relevant_chunks(
     ref_inputs: list,
     section: str,
@@ -133,7 +565,7 @@ def _extract_relevant_chunks(
         # 无关键词匹配时，每篇取前 2000 字符
         blocks = []
         for ref in ref_inputs:
-            blocks.append(f"[{ref.id}] {ref.filename}\n{ref.text[:2000]}")
+            blocks.append(f"### 参考数据源 {ref.id}：{ref.filename}\n{ref.text[:2000]}")
         return "\n\n---\n\n".join(blocks)
 
     # 按文献编号分组输出
@@ -144,10 +576,65 @@ def _extract_relevant_chunks(
     ref_map = {r.id: r.filename for r in ref_inputs}
     blocks = []
     for ref_id in sorted(by_ref.keys()):
-        header = f"[{ref_id}] {ref_map[ref_id]}"
+        header = f"### 参考数据源 {ref_id}：{ref_map[ref_id]}"
         body = "\n\n".join(by_ref[ref_id])
         blocks.append(f"{header}\n{body}")
     return "\n\n---\n\n".join(blocks)
+
+
+async def generate_ai_integration_answer(
+    req: AiIntegrationRequest,
+    text_generator=generate_text,
+) -> AiIntegrationResponse:
+    original_content = req.original_content.strip() or "（未选择原词条内容）"
+    priority_ids = set(req.priority_reference_ids or [])
+    reference_chunks = _select_reference_chunks(
+        req.reference_inputs,
+        f"{req.disease} {req.user_request} {req.original_content[:2000]}",
+        max_total_chars=80000,
+        max_chunks=100,
+    )
+    reference_text = (
+        "（未选择参考文献）"
+        if not req.reference_inputs
+        else _format_reference_chunks(reference_chunks, priority_ids)
+    )
+    reference_anchors = [
+        *_extract_reference_anchors(req.reference_inputs),
+        *_anchors_from_reference_chunks(reference_chunks),
+    ]
+    references_used = [f"[{ref.id}] {ref.filename}" for ref in req.reference_inputs]
+    disease_label = req.disease.strip() or "当前词条"
+
+    prompt = f"""请围绕【{disease_label}】回答用户的问题或完成用户要求。
+
+## 用户问题或要求
+{req.user_request.strip()}
+
+## 原词条内容
+{original_content}
+
+## 已选择参考文献
+{reference_text}
+
+## 回答要求
+- 优先以重点指南为准；若重点指南与其他资料冲突，说明冲突并采用重点指南结论。
+- 只使用上方提供的原词条内容和参考文献，不要引入未提供的数据或指南。
+- 如证据不足，明确说明“现有材料不足以判断”，并说明还需要哪类资料。
+- 涉及事实性结论时必须标注来源。引用参考资料时必须使用每个片段列出的“引用标记”，例如[3-22]；如果片段没有源内文献号，引用标记会是[1]、[2]这类参考数据源号。不要使用其他未列出的标记。
+- 直接回答用户问题，使用 Markdown，语言专业、清晰、便于医学编辑继续使用。"""
+
+    answer = await text_generator(
+        prompt,
+        SYSTEM_PROMPT,
+        context="ai_integration",
+    )
+
+    return AiIntegrationResponse(
+        answer=_rewrite_internal_chunk_citations(answer.strip(), reference_chunks),
+        references_used=references_used,
+        reference_anchors=reference_anchors,
+    )
 
 
 async def generate_section_draft(req: GenerationRequest) -> GeneratedDraft:
@@ -156,7 +643,15 @@ async def generate_section_draft(req: GenerationRequest) -> GeneratedDraft:
     original_content = req.original_content if req.original_content else "（该章节暂无内容）"
     context_preview = req.article_context[:5000] if req.article_context else ""
 
-    ref_doc_text = _extract_relevant_chunks(req.reference_inputs, req.section, req.gap_description)
+    reference_chunks = _select_reference_chunks(
+        req.reference_inputs,
+        f"{req.section} {req.gap_description}",
+    )
+    ref_doc_text = _format_reference_chunks(reference_chunks)
+    reference_anchors = [
+        *_extract_reference_anchors(req.reference_inputs),
+        *_anchors_from_reference_chunks(reference_chunks),
+    ]
 
     prompt = f"""请为【{req.disease}】的【{req.section}】章节撰写/完善内容。
 
@@ -173,7 +668,8 @@ async def generate_section_draft(req: GenerationRequest) -> GeneratedDraft:
 - **最小改动原则**：仅针对"改进要求"中指出的问题进行修订和补充，原文中已合格的内容必须原样保留，禁止大篇幅改写。只有当原文框架结构存在明显缺陷时才可大幅调整。
 - **边界意识**：参考"词条其他章节内容"了解上下文，本章节中不要重复其他章节已有的内容。若需引用其他章节内容，使用"详见「XXX」章节"引导。
 - **深度优先**：在本章节范围内把问题彻底解决，内容要完整、具体、可操作，不要泛泛而谈。
-- 每个事实性陈述必须跟随引用标记，如"推荐剂量为10mg/日[1]"
+- 每个事实性陈述必须跟随引用标记。引用参考数据源时必须使用每个片段列出的“引用标记”，如[1-3]、[3-22]；同一句可写作[1-3、3-22]
+- 只使用参考片段明确列出的“引用标记”；如果片段列出的引用标记是[1]、[2]这类参考数据源号，说明该片段没有源内文献号，可以直接使用该引用标记；只有Q&A可写作[Q1]、[Q2]
 - 仅使用提供的参考文献和Q&A，不得引入未提供的数据
 - 多来源时优先采用文件名含"指南"、年份较新的来源
 - 在 generated_content 末尾添加"参考文献"小节，列出引用的文献编号和名称
@@ -184,7 +680,7 @@ async def generate_section_draft(req: GenerationRequest) -> GeneratedDraft:
 ## 相关临床Q&A参考（引用时使用[Q编号]）
 {qa_text}
 
-## 参考文献（引用时使用[文献序号]，如[1]、[2]）
+## 参考数据源（引用时必须使用每个片段列出的“引用标记”）
 {ref_doc_text}
 
 ## 输出要求
@@ -192,7 +688,7 @@ async def generate_section_draft(req: GenerationRequest) -> GeneratedDraft:
 {{
   "generated_content": "完整的改进后章节内容（Markdown格式，结构清晰，使用小标题和列表）",
   "key_changes": ["主要改动点1", "主要改动点2", "主要改动点3"],
-  "references_used": ["引用的参考文献和Q&A编号，如[1][Q1][Q3]等"]
+  "references_used": ["引用的来源编号，如[1-3][3-22][Q1]等"]
 }}"""
 
     data = await generate_json(
@@ -202,9 +698,10 @@ async def generate_section_draft(req: GenerationRequest) -> GeneratedDraft:
     return GeneratedDraft(
         section=req.section,
         original_content=req.original_content or "",
-        generated_content=data["generated_content"],
+        generated_content=_rewrite_internal_chunk_citations(data["generated_content"], reference_chunks),
         key_changes=data.get("key_changes", []),
-        references_used=data.get("references_used", [])
+        references_used=_rewrite_internal_chunk_citation_list(data.get("references_used", []), reference_chunks),
+        reference_anchors=reference_anchors,
     )
 
 
@@ -220,9 +717,16 @@ async def generate_multi_section_draft(req: BatchGenerationRequest) -> BatchGene
     qa_text = format_qa_references(relevant_qa)
     context_preview = req.article_context[:5000] if req.article_context else ""
 
-    ref_doc_text = _extract_relevant_chunks(
-        req.reference_inputs, all_sections, all_descriptions, max_total_chars=80000,
+    reference_chunks = _select_reference_chunks(
+        req.reference_inputs,
+        combined_keywords,
+        max_total_chars=80000,
     )
+    ref_doc_text = _format_reference_chunks(reference_chunks)
+    reference_anchors = [
+        *_extract_reference_anchors(req.reference_inputs),
+        *_anchors_from_reference_chunks(reference_chunks),
+    ]
 
     # 构建每个章节的任务描述
     section_blocks = []
@@ -245,7 +749,7 @@ async def generate_multi_section_draft(req: BatchGenerationRequest) -> BatchGene
       "section": "{item.section}",
       "generated_content": "章节{i}改进后的完整内容（Markdown格式）",
       "key_changes": ["改动点1", "改动点2"],
-      "references_used": ["[1]", "[Q1]"]
+      "references_used": ["[1-3]", "[Q1]"]
     }}""")
     output_example = ",\n".join(output_items)
 
@@ -269,7 +773,8 @@ async def generate_multi_section_draft(req: BatchGenerationRequest) -> BatchGene
 - **最小改动原则**：仅针对各章节"改进要求"中指出的问题进行修订和补充，原文合格部分必须原样保留
 - **先规划后执行**：先确定每项内容应放在哪个章节、各章节间如何分工衔接，再逐章节生成
 - **跨章节去重**：如果两个章节的改进要求涉及相同内容（如某种药物），只在一个章节详细展开，另一个简要引用
-- 每个事实性陈述必须跟随引用标记，如"推荐剂量为10mg/日[1]"
+- 每个事实性陈述必须跟随引用标记。引用参考数据源时必须使用每个片段列出的“引用标记”，如[1-3]、[3-22]；同一句可写作[1-3、3-22]
+- 只使用参考片段明确列出的“引用标记”；如果片段列出的引用标记是[1]、[2]这类参考数据源号，说明该片段没有源内文献号，可以直接使用该引用标记；只有Q&A可写作[Q1]、[Q2]
 - 仅使用提供的参考文献和Q&A，不得引入未提供的数据
 - 多来源时优先采用文件名含"指南"、年份较新的来源
 - 每个章节的 generated_content 末尾添加"参考文献"小节
@@ -280,7 +785,7 @@ async def generate_multi_section_draft(req: BatchGenerationRequest) -> BatchGene
 ## 相关临床Q&A参考（引用时使用[Q编号]）
 {qa_text}
 
-## 参考文献（引用时使用[文献序号]，如[1]、[2]）
+## 参考数据源（引用时必须使用每个片段列出的“引用标记”）
 {ref_doc_text}
 
 ## 输出要求
@@ -310,9 +815,10 @@ async def generate_multi_section_draft(req: BatchGenerationRequest) -> BatchGene
         drafts.append(GeneratedDraft(
             section=section_name,
             original_content=original_content,
-            generated_content=draft_data.get("generated_content", ""),
+            generated_content=_rewrite_internal_chunk_citations(draft_data.get("generated_content", ""), reference_chunks),
             key_changes=draft_data.get("key_changes", []),
-            references_used=draft_data.get("references_used", []),
+            references_used=_rewrite_internal_chunk_citation_list(draft_data.get("references_used", []), reference_chunks),
+            reference_anchors=reference_anchors,
         ))
 
     return BatchGeneratedDraft(

@@ -10,7 +10,7 @@ class ArticleSection(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex[:8])
     heading: str
     content: str
-    word_count: int       # Chinese character count (each char ≈ 1 word)
+    word_count: int       # visible non-whitespace character count
     level: int            # 1/2/3
     image_count: int = 0  # number of [图片] markers in this section
     table_count: int = 0  # number of [表格] markers in this section
@@ -18,7 +18,7 @@ class ArticleSection(BaseModel):
 
 class ParsedArticle(BaseModel):
     sections: List[ArticleSection]
-    total_words: int   # sum of section word_counts (Chinese chars, refs excluded)
+    total_words: int   # sum of section word_counts (summary sections excluded)
 
 
 class IssueAnchor(BaseModel):
@@ -240,9 +240,22 @@ class FullAnalysisResult(BaseModel):
 # === Generation ===
 
 class ReferenceInput(BaseModel):
-    id: int          # 1-based，用作引用编号 [1], [2]
+    id: int          # 1-based，用作参考数据源编号；引用写作时组合为 [数据源号-源内文献号]
     filename: str    # 文件名（常含年份/指南名，供模型判断权威性）
     text: str
+
+
+class ReferenceAnchor(BaseModel):
+    citation_key: str
+    source_id: int
+    source_filename: str
+    source_ref_id: str
+    chunk_id: str = ""
+    title_path: str = ""
+    quote: str = ""
+    context_before: str = ""
+    context_after: str = ""
+    paragraph_index: int = 0
 
 
 class GenerationRequest(BaseModel):
@@ -261,6 +274,7 @@ class GeneratedDraft(BaseModel):
     generated_content: str
     key_changes: List[str]
     references_used: List[str]
+    reference_anchors: List[ReferenceAnchor] = []
 
 
 class BatchSectionItem(BaseModel):
@@ -281,3 +295,17 @@ class BatchGeneratedDraft(BaseModel):
     """联合生成的结果：每个章节一个 GeneratedDraft + 跨章节协调说明"""
     drafts: List[GeneratedDraft]
     coordination_notes: str = ""
+
+
+class AiIntegrationRequest(BaseModel):
+    disease: str = ""
+    user_request: str
+    original_content: str = ""
+    reference_inputs: List[ReferenceInput] = []
+    priority_reference_ids: List[int] = []
+
+
+class AiIntegrationResponse(BaseModel):
+    answer: str
+    references_used: List[str] = []
+    reference_anchors: List[ReferenceAnchor] = []

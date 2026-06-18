@@ -1,18 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { SessionRecord, Step } from '../types'
+import { ReferenceAnchor, SessionRecord, Step } from '../types'
+import {
+  buildReferenceAnchorsFromDocs,
+  createCitationResolver,
+  linkifyCitationMarkers,
+} from '../utils/citations'
 import { filterHistorySessions, isOwnHistorySession } from '../utils/historyFilters'
 
 const STEP_LABELS: Record<number, string> = {
   1: '上传数据', 2: '参考文献审核', 3: '内容解析',
-  4: '内容质量审评', 5: '用户需求分析', 6: '审核与迭代计划', 7: '生成稿件',
+  4: '内容质量评审', 5: '用户需求分析', 6: '审核与迭代计划', 7: '生成稿件', 8: 'AI整合',
 }
 
 const STEP_ICONS: Record<number, string> = {
   1: 'cloud_upload', 2: 'library_books', 3: 'psychology',
-  4: 'fact_check', 5: 'group', 6: 'edit_note', 7: 'auto_awesome',
+  4: 'fact_check', 5: 'group', 6: 'edit_note', 7: 'auto_awesome', 8: 'hub',
 }
+
+const TOTAL_STEPS = 8
 
 interface Props {
   sessions: SessionRecord[]
@@ -42,10 +50,38 @@ function getSessionUrl(id: string) {
   return `${window.location.origin}${window.location.pathname}?session=${encodeURIComponent(id)}`
 }
 
+function HistoryCitationPanel({
+  anchor,
+  onClose,
+}: {
+  anchor: ReferenceAnchor
+  onClose: () => void
+}) {
+  return (
+    <aside className="citation-panel" aria-label="引用定位">
+      <div className="citation-panel-header">
+        <div>
+          <div className="citation-panel-title">[{anchor.citation_key}]</div>
+          <div className="citation-panel-source">参考数据源 {anchor.source_id}：{anchor.source_filename}</div>
+        </div>
+        <button type="button" className="btn-m3-icon" onClick={onClose} aria-label="关闭引用定位">
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
+        </button>
+      </div>
+      <div className="citation-context">
+        {anchor.context_before && <p className="citation-context-muted">{anchor.context_before}</p>}
+        <p className="citation-context-quote">{anchor.quote}</p>
+        {anchor.context_after && <p className="citation-context-muted">{anchor.context_after}</p>}
+      </div>
+    </aside>
+  )
+}
+
 export default function HistoryView({ sessions, currentUserId, isAdmin, loading, onClose, onDelete, onClone, onResume }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [tab, setTab] = useState<'analysis' | 'drafts'>('analysis')
   const [expandedDraft, setExpandedDraft] = useState<string | null>(null)
+  const [activeCitationKey, setActiveCitationKey] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [onlyMine, setOnlyMine] = useState(false)
   const filteredSessions = useMemo(
@@ -84,6 +120,49 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
   }
 
   const selected = sorted.find(s => s.id === selectedId) ?? null
+  const expandedDraftRecord = selected?.draftHistory.find(record => record.id === expandedDraft) ?? null
+  const referenceAnchors = useMemo(() => {
+    const merged = new Map<string, ReferenceAnchor>()
+    for (const anchor of buildReferenceAnchorsFromDocs(selected?.referenceDocs ?? [])) {
+      merged.set(anchor.citation_key, anchor)
+    }
+    for (const anchor of expandedDraftRecord?.draft.reference_anchors ?? []) {
+      merged.set(anchor.citation_key, anchor)
+    }
+    return Array.from(merged.values())
+  }, [expandedDraftRecord?.draft.reference_anchors, selected?.referenceDocs])
+  const citationKeySet = useMemo(
+    () => new Set(referenceAnchors.map(anchor => anchor.citation_key)),
+    [referenceAnchors],
+  )
+  const activeCitation = referenceAnchors.find(anchor => anchor.citation_key === activeCitationKey) ?? null
+  const resolveCitation = useMemo(
+    () => createCitationResolver(referenceAnchors),
+    [referenceAnchors],
+  )
+  const markdownComponents = useMemo<Components>(() => ({
+    a({ href, children }) {
+      if (href?.startsWith('#citation-')) {
+        const citationKey = href.slice('#citation-'.length)
+        return (
+          <button
+            type="button"
+            className={`citation-link${citationKey === activeCitationKey ? ' active' : ''}`}
+            onClick={() => setActiveCitationKey(citationKey)}
+          >
+            {children}
+          </button>
+        )
+      }
+      return <a href={href}>{children}</a>
+    },
+  }), [activeCitationKey])
+  const renderedExpandedDraftContent = useMemo(
+    () => expandedDraftRecord
+      ? linkifyCitationMarkers(expandedDraftRecord.editedContent, resolveCitation)
+      : '',
+    [expandedDraftRecord?.editedContent, resolveCitation],
+  )
 
   useEffect(() => {
     if (selectedId && !sorted.some(s => s.id === selectedId)) {
@@ -91,6 +170,16 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
       setExpandedDraft(null)
     }
   }, [selectedId, sorted])
+
+  useEffect(() => {
+    setActiveCitationKey(null)
+  }, [selectedId, expandedDraft])
+
+  useEffect(() => {
+    if (activeCitationKey && !citationKeySet.has(activeCitationKey)) {
+      setActiveCitationKey(null)
+    }
+  }, [activeCitationKey, citationKeySet])
 
   const handleSelect = (id: string) => {
     setSelectedId(prev => prev === id ? null : id)
@@ -220,7 +309,7 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
                     <div style={{ flex: 1 }}>
                       {s.currentStep && (
                         <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
-                          步骤 {s.currentStep}/7
+                          步骤 {s.currentStep}/{TOTAL_STEPS}
                         </span>
                       )}
                     </div>
@@ -312,7 +401,7 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
                       {/* Step indicator */}
                       {selected.currentStep && (
                         <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
-                          {([1,2,3,4,5,6,7] as number[]).map(n => (
+                          {Array.from({ length: TOTAL_STEPS }, (_, index) => index + 1).map(n => (
                             <div key={n} style={{
                               padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
                               display: 'flex', alignItems: 'center', gap: 4,
@@ -392,7 +481,7 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
                                     <div style={{ marginBottom: 20 }}>
                                       <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 10, color: 'var(--m3-on-surface)' }}>
                                         <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: -3, marginRight: 6 }}>fact_check</span>
-                                        内容质量审评 · 共 {allIssues.length} 个问题
+                                        内容质量评审 · 共 {allIssues.length} 个问题
                                       </div>
                                       <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                                         {[['高', high, 'var(--dui-danger)', 'var(--dui-danger-container)'], ['中', med, 'var(--dui-warning)', 'var(--dui-warning-container)'], ['低', low, 'var(--dui-primary)', 'var(--dui-primary-container)']].map(([label, count, color, bg]) => (
@@ -546,8 +635,18 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
                                       ))}
                                     </div>
                                   )}
-                                  <div className="md" style={{ fontSize: 13, lineHeight: 1.7 }}>
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{record.editedContent}</ReactMarkdown>
+                                  <div className={`draft-preview-shell${activeCitation && record.id === expandedDraft ? ' has-citation-panel' : ''}`}>
+                                    <div className="md" style={{ fontSize: 13, lineHeight: 1.7 }}>
+                                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                                        {record.id === expandedDraft ? renderedExpandedDraftContent : record.editedContent}
+                                      </ReactMarkdown>
+                                    </div>
+                                    {activeCitation && record.id === expandedDraft && (
+                                      <HistoryCitationPanel
+                                        anchor={activeCitation}
+                                        onClose={() => setActiveCitationKey(null)}
+                                      />
+                                    )}
                                   </div>
                                 </div>
                               )}

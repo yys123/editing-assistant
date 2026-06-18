@@ -3,7 +3,14 @@ from unittest.mock import patch
 
 from services import standards
 from services import analyzer
-from models import ArticleSection, SectionIssue
+from models import (
+    ArticleSection,
+    GapAnalysis,
+    NeedCoverage,
+    SectionAnalysis,
+    SectionIssue,
+    SectionNeedsGap,
+)
 
 
 class QualityStandardSelectionTests(unittest.TestCase):
@@ -164,6 +171,62 @@ class ReferenceBlockTests(unittest.TestCase):
         self.assertIn("第一篇：" + "甲" * 500, combined)
         self.assertIn("第二篇：" + "乙" * 500, combined)
         self.assertIn("第三篇：" + "丙" * 500, combined)
+
+
+class IterationPlanConfirmedOnlyTests(unittest.IsolatedAsyncioTestCase):
+    async def test_ai_only_findings_do_not_generate_plan_or_call_llm(self):
+        section_analyses = [
+            SectionAnalysis(
+                section_id="s1",
+                section_heading="诊断",
+                issues=[
+                    SectionIssue(
+                        issue_type="missing_content",
+                        description="AI识别但未确认的问题。",
+                        severity="high",
+                        status="ai",
+                    ),
+                    SectionIssue(
+                        issue_type="accuracy",
+                        description="已驳回的问题。",
+                        severity="high",
+                        status="rejected",
+                    ),
+                ],
+            )
+        ]
+        gap_analysis = GapAnalysis(
+            section_gaps=[
+                SectionNeedsGap(
+                    section_id="s1",
+                    section_heading="诊断",
+                    need_coverages=[
+                        NeedCoverage(
+                            topic="未确认需求",
+                            coverage_level="missing",
+                            status="ai",
+                            qa_frequency=120,
+                        ),
+                        NeedCoverage(
+                            topic="已驳回需求",
+                            coverage_level="partial",
+                            status="rejected",
+                            qa_frequency=80,
+                        ),
+                    ],
+                )
+            ]
+        )
+
+        with patch.object(analyzer, "generate_json") as mock_generate_json:
+            result = await analyzer.generate_plan_from_gap(
+                "测试疾病",
+                section_analyses,
+                gap_analysis,
+            )
+
+        self.assertEqual(result, [])
+        mock_generate_json.assert_not_called()
 
 
 class SectionAnalysisEmptyRecheckTests(unittest.IsolatedAsyncioTestCase):

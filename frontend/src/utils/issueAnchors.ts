@@ -137,7 +137,17 @@ function resolveAnchorLine(anchor: LocatableIssueAnchor, sectionContent: string)
     }
   }
 
-  return anchor
+  const lastLine = Math.max(lines.length - 1, 0)
+  const lineStart = Math.min(Math.max(anchor.line_start, 0), lastLine)
+  const lineEnd = typeof anchor.line_end === 'number'
+    ? Math.min(Math.max(anchor.line_end, lineStart), lastLine)
+    : lineStart
+
+  return {
+    ...anchor,
+    line_start: lineStart,
+    line_end: lineEnd,
+  }
 }
 
 function issueContextText(issue: SectionIssue) {

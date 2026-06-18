@@ -4,6 +4,39 @@ from unittest.mock import patch
 from services import section_parser
 
 
+class SectionParserWordCountTests(unittest.TestCase):
+    def test_count_chinese_words_matches_word_like_counting(self):
+        text = "儿童ADHD 10%^[1-3]\n[图片] 图1\n| --- | --- |\n治疗和随访。"
+
+        self.assertEqual(section_parser.count_chinese_words(text), 13)
+        self.assertEqual(section_parser.count_chinese_words("高钾血症[¹³⁻¹⁴] CKD患者"), 7)
+
+    def test_structured_parser_demotes_long_arabic_list_marker_to_body(self):
+        text = (
+            "[H1] 诊断\n"
+            "[H2] 三、 诊断\n"
+            "[H3] 1) 盆底肌力测定是相对客观的阴道内张力检测方法，法国国家卫生诊断论证局（AN-AES）推出的会阴肌肉测试标准（GRRUG）受到业界的公认，它将测试盆底的肌力分成 6 个等级（0~V 级）。\n"
+            "[H3] 2、 Glazer 评估法\n"
+            "Glazer 评估法正文"
+        )
+
+        result = section_parser._parse_structured_markers(text)
+        headings = [s.heading for s in result.sections]
+
+        self.assertNotIn("1) 盆底肌力测定是相对客观的阴道内张力检测方法，法国国家卫生诊断论证局（AN-AES）推出的会阴肌肉测试标准（GRRUG）受到业界的公认，它将测试盆底的肌力分成 6 个等级（0~V 级）。", headings)
+        diagnosis = next(s for s in result.sections if s.heading == "三、 诊断")
+        self.assertIn("1) 盆底肌力测定是相对客观", diagnosis.content)
+        self.assertIn("2、 Glazer 评估法", headings)
+
+    def test_structured_parser_counts_headings_in_section_word_count(self):
+        text = "[H1] 诊断\n诊断正文。"
+
+        result = section_parser._parse_structured_markers(text)
+
+        self.assertEqual(result.sections[0].word_count, section_parser.count_chinese_words("诊断诊断正文。"))
+        self.assertEqual(result.total_words, result.sections[0].word_count)
+
+
 class SectionParserLongContentTests(unittest.IsolatedAsyncioTestCase):
     async def test_parse_article_sections_preserves_structured_tail_after_legacy_limit(self):
         long_body = "甲" * 81000

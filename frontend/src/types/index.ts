@@ -80,7 +80,7 @@ export interface GapItem {
   priority: 'P0' | 'P1' | 'P2'
   section: string
   description: string
-  source: string
+  source: 'quality_eval' | 'user_needs' | 'both' | 'manual' | string
   qa_frequency?: number
 }
 
@@ -102,6 +102,20 @@ export interface GeneratedDraft {
   generated_content: string
   key_changes: string[]
   references_used: string[]
+  reference_anchors?: ReferenceAnchor[]
+}
+
+export interface ReferenceAnchor {
+  citation_key: string
+  source_id: number
+  source_filename: string
+  source_ref_id: string
+  chunk_id?: string
+  title_path?: string
+  quote: string
+  context_before: string
+  context_after: string
+  paragraph_index: number
 }
 
 export interface DraftRecord {
@@ -116,6 +130,19 @@ export interface DraftRecord {
 export interface BatchGeneratedDraft {
   drafts: GeneratedDraft[]
   coordination_notes: string
+}
+
+export interface AiIntegrationRecord {
+  id: string
+  request: string
+  answer: string
+  referencesUsed: string[]
+  referenceAnchors?: ReferenceAnchor[]
+  selectedReferences: string[]
+  priorityReferences: string[]
+  originalScope: 'all' | 'sections' | 'none'
+  selectedSectionIds: string[]
+  createdAt: string
 }
 
 // === New 7-step workflow types ===
@@ -239,7 +266,7 @@ export interface StandardsOverride {
   refEvalText?: string
 }
 
-export type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7
+export type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
 export type ArticleEntryType = 'disease' | 'non_disease' | 'tumor'
 
 export interface User {
@@ -273,6 +300,7 @@ export interface SessionRecord {
   referenceDocs?: ReferenceDoc[]
   refEvalResult?: RefEvalResult | null
   draftHistory: DraftRecord[]
+  aiIntegrationHistory?: AiIntegrationRecord[]
   // Legacy field
   plan?: IterationPlan | null
   // Ownership

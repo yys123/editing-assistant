@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArticleEntryType, QAItem, ReferenceDoc, StandardsOverride } from '../types'
-import { apiFetch, safeJson, chunkedUpload } from '../api'
+import {
+  chunkedUpload,
+  fetchEntryDetail,
+  fetchGuideDetail,
+  guideDetailToReferenceDoc,
+  searchEntries,
+  searchGuides,
+  type EntryDetail,
+  type EntrySearchItem,
+  type GuideSearchItem,
+} from '../api'
 import { articleContentToStructuredMarkers } from '../utils/articleStructure'
 
 interface Props {
@@ -206,6 +216,9 @@ function htmlToSafeEditorHtml(html: string) {
     if (cardType) {
       return `<div class="rich-editor-keypoint-card" data-keypoint-card="${cardType}">${children}</div>`
     }
+    if (node.classList.contains('rich-editor-module-heading')) {
+      return `<p class="rich-editor-module-heading">${children}</p>`
+    }
     if (isSourceExpertModuleHeading(node)) {
       const heading = node.querySelector('h1,h2,h3')
       const headingHtml = heading
@@ -346,6 +359,33 @@ function normalizeModuleHeading(text: string) {
     .replace(/字段$/, '')
 }
 
+function normalizeEntryTitleText(text: string) {
+  return normalizeModuleHeading(text).replace(/[：:。；;，,]+$/g, '')
+}
+
+function entryDetailDisplayName(detail: EntryDetail, entry: EntrySearchItem) {
+  const detailName = (detail.name || '').trim()
+  if (detailName && detailName !== `词条-${detail.id}`) return detailName
+  return entry.name.trim()
+}
+
+function isEntryTitleText(text: string, entryName: string) {
+  const title = normalizeEntryTitleText(text)
+  const name = normalizeEntryTitleText(entryName)
+  return Boolean(title && name && title === name)
+}
+
+function stripLeadingEntryTitleFromText(text: string, entryName: string) {
+  const normalized = text.replace(/\r\n?/g, '\n').trim()
+  if (!normalized || !entryName.trim()) return normalized
+  const lines = normalized.split('\n')
+  const firstContentIndex = lines.findIndex(line => line.trim())
+  if (firstContentIndex < 0) return normalized
+  if (!isEntryTitleText(lines[firstContentIndex], entryName)) return normalized
+  lines.splice(firstContentIndex, 1)
+  return normalizeEditorText(lines.join('\n'))
+}
+
 function isModuleElement(node: Node) {
   if (!(node instanceof HTMLElement)) return false
   return node.classList.contains('rich-editor-module-heading')
@@ -427,6 +467,41 @@ function isStructuredContentHeading(line: string) {
   const text = line.trim()
   if (!text) return false
   return /^(?:[一二三四五六七八九十百]+、|[（(][一二三四五六七八九十百\d]+[）)]|\d+[、.])\S+/.test(text)
+}
+
+function isEntryFieldHeadingCandidate(node: HTMLElement) {
+  if (!/^H[12]$/.test(node.tagName)) return false
+  const text = cleanElementText(node)
+  if (!text || text.length > 40) return false
+  return !isStructuredContentHeading(text)
+}
+
+function replaceElementTag(element: HTMLElement, tagName: string) {
+  const replacement = document.createElement(tagName)
+  Array.from(element.attributes).forEach(attr => replacement.setAttribute(attr.name, attr.value))
+  while (element.firstChild) replacement.appendChild(element.firstChild)
+  element.replaceWith(replacement)
+  return replacement
+}
+
+function normalizeEntryLibraryEditorHtml(html: string, entryName: string) {
+  if (!html.trim()) return ''
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const firstContentNode = Array.from(doc.body.childNodes).find(node => {
+    return node instanceof HTMLElement ? cleanElementText(node) : Boolean((node.textContent || '').trim())
+  })
+
+  if (firstContentNode instanceof HTMLElement && isEntryTitleText(cleanElementText(firstContentNode), entryName)) {
+    firstContentNode.remove()
+  }
+
+  doc.body.querySelectorAll('h1,h2').forEach(node => {
+    if (!(node instanceof HTMLElement) || !isEntryFieldHeadingCandidate(node)) return
+    const heading = replaceElementTag(node, 'p')
+    heading.classList.add('rich-editor-module-heading')
+  })
+
+  return doc.body.innerHTML
 }
 
 function isKeyPointBlockBoundary(line: string) {
@@ -729,6 +804,13 @@ function editorHtmlToPlainText(html: string) {
   return normalizeEditorText(Array.from(doc.body.childNodes).map(node => nodeToPlainText(node, state)).join(''))
 }
 
+function editorHtmlToStructuredText(html: string) {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const state: NumberingState = { sectionCounters: {}, orderedCounters: {} }
+  const structured = normalizeEditorText(Array.from(doc.body.childNodes).map(node => nodeToStructuredText(node, state)).join(''))
+  return articleContentToStructuredMarkers(structured.includes('[H1]') ? structured : editorHtmlToPlainText(html))
+}
+
 function prependTextToElement(element: HTMLElement, text: string) {
   element.insertBefore(document.createTextNode(text), element.firstChild)
 }
@@ -1006,12 +1088,34 @@ export default function StepUpload({
   const [pdfProgress, setPdfProgress] = useState(0)
   const [showStandardsPanel, setShowStandardsPanel] = useState(true)
   const [standardsLoading, setStandardsLoading] = useState(false)
+  const [entryPanelOpen, setEntryPanelOpen] = useState(false)
+  const [entryKeyword, setEntryKeyword] = useState('')
+  const [entryResults, setEntryResults] = useState<EntrySearchItem[]>([])
+  const [entryLoading, setEntryLoading] = useState(false)
+  const [entryDetailLoadingId, setEntryDetailLoadingId] = useState<number | null>(null)
+  const [entryError, setEntryError] = useState('')
+  const [guidePanelOpen, setGuidePanelOpen] = useState(false)
+  const [guideKeyword, setGuideKeyword] = useState('')
+  const [guideResults, setGuideResults] = useState<GuideSearchItem[]>([])
+  const [guideLoading, setGuideLoading] = useState(false)
+  const [guideDetailLoadingId, setGuideDetailLoadingId] = useState<number | null>(null)
+  const [guideError, setGuideError] = useState('')
+  const [viewingReference, setViewingReference] = useState<{ doc: ReferenceDoc; index: number } | null>(null)
 
   const articleInputRef = useRef<HTMLInputElement>(null)
   const qaInputRef = useRef<HTMLInputElement>(null)
   const pdfInputRef = useRef<HTMLInputElement>(null)
   const qualityStdInputRef = useRef<HTMLInputElement>(null)
   const contentSpecInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!viewingReference) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setViewingReference(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [viewingReference])
 
   const loadFromFile = async (file: File) => {
     setArticleError('')
@@ -1091,6 +1195,101 @@ export default function StepUpload({
       // silently fail
     } finally {
       setStandardsLoading(false)
+    }
+  }
+
+  const runEntrySearch = async () => {
+    const keyword = entryKeyword.trim()
+    if (!keyword) {
+      setEntryError('请输入词条名称')
+      setEntryResults([])
+      return
+    }
+    setEntryLoading(true)
+    setEntryError('')
+    try {
+      const data = await searchEntries(keyword)
+      setEntryResults(data.items)
+      if (data.items.length === 0) {
+        setEntryError('未检索到词条')
+      }
+    } catch (e: any) {
+      setEntryResults([])
+      setEntryError(e.message || '词条检索失败')
+    } finally {
+      setEntryLoading(false)
+    }
+  }
+
+  const pasteEntryContent = async (entry: EntrySearchItem) => {
+    setEntryDetailLoadingId(entry.id)
+    setEntryError('')
+    try {
+      const detail = await fetchEntryDetail(entry.id)
+      const entryName = entryDetailDisplayName(detail, entry)
+      const content = detail.content || ''
+      if (!content.trim()) {
+        throw new Error('词条详情内容为空')
+      }
+      const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(content)
+      const entryContent = looksLikeHtml ? content : stripLeadingEntryTitleFromText(content, entryName)
+      const richHtml = looksLikeHtml ? htmlToSafeEditorHtml(entryContent) : textToEditorHtml(entryContent)
+      const numberingRecoveredHtml = richHtml && hasRecoveredNumbering(richHtml)
+        ? recoverNumberingInEditorHtml(richHtml)
+        : richHtml
+      const normalizedHtml = normalizeEntryLibraryEditorHtml(numberingRecoveredHtml, entryName)
+      const plainText = editorHtmlToPlainText(normalizedHtml)
+      setArticleContent(plainText)
+      setArticleParseContent(editorHtmlToStructuredText(normalizedHtml))
+      setArticleRichHtml(normalizedHtml)
+      setDisease(entryName)
+      setArticleTab('text')
+    } catch (e: any) {
+      setEntryError(e.message || '词条详情获取失败')
+    } finally {
+      setEntryDetailLoadingId(null)
+    }
+  }
+
+  const runGuideSearch = async () => {
+    const keyword = guideKeyword.trim()
+    if (!keyword) {
+      setGuideError('请输入指南名称')
+      setGuideResults([])
+      return
+    }
+    setGuideLoading(true)
+    setGuideError('')
+    try {
+      const data = await searchGuides(keyword)
+      setGuideResults(data.items)
+      if (data.items.length === 0) {
+        setGuideError('未检索到指南')
+      }
+    } catch (e: any) {
+      setGuideResults([])
+      setGuideError(e.message || '指南检索失败')
+    } finally {
+      setGuideLoading(false)
+    }
+  }
+
+  const addGuideSource = async (guide: GuideSearchItem) => {
+    setGuideDetailLoadingId(guide.id)
+    setGuideError('')
+    try {
+      const detail = await fetchGuideDetail(guide.id)
+      const detailTitle = detail.title?.trim()
+      const fallbackTitle = `指南-${guide.id}`
+      const doc = guideDetailToReferenceDoc({
+        ...detail,
+        title: detailTitle && detailTitle !== fallbackTitle ? detailTitle : guide.title,
+      })
+      setReferenceDocs([...referenceDocs, doc])
+    } catch (e: any) {
+      setGuideError(e.message || '指南详情获取失败')
+    } finally {
+      setGuideDetailLoadingId(null)
     }
   }
 
@@ -1237,7 +1436,7 @@ export default function StepUpload({
             </div>
 
             {/* Tabs */}
-            <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '0.5px solid var(--dui-divider)' }}>
+            <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: '0.5px solid var(--dui-divider)', alignItems: 'center' }}>
               {(['file', 'text'] as ArticleTab[]).map(t => (
                 <button
                   key={t}
@@ -1261,7 +1460,80 @@ export default function StepUpload({
                   {{ file: '文件上传', text: '直接粘贴' }[t]}
                 </button>
               ))}
+              <button
+                type="button"
+                className="btn-m3-outline"
+                style={{ marginLeft: 'auto', marginBottom: 6, fontSize: 12, padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                onClick={() => {
+                  setEntryPanelOpen(!entryPanelOpen)
+                  setEntryError('')
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>database_search</span>
+                词条库粘贴
+              </button>
             </div>
+
+            {entryPanelOpen && (
+              <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, border: '0.5px solid var(--dui-divider)', background: 'var(--m3-surface-container-low)' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    className="m3-input"
+                    value={entryKeyword}
+                    placeholder="输入词条名称"
+                    onChange={e => setEntryKeyword(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') runEntrySearch()
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-m3-outline"
+                    disabled={entryLoading}
+                    onClick={runEntrySearch}
+                    style={{ minWidth: 72 }}
+                  >
+                    {entryLoading ? '检索中' : '检索'}
+                  </button>
+                </div>
+                {entryError && (
+                  <div style={{ marginTop: 10, fontSize: 12, color: 'var(--m3-error)' }}>
+                    {entryError}
+                  </div>
+                )}
+                {entryResults.length > 0 && (
+                  <div style={{ marginTop: 10, border: '0.5px solid var(--dui-divider)', borderRadius: 8, overflow: 'hidden', background: 'var(--dui-surface)' }}>
+                    {entryResults.map((entry, index) => (
+                      <div
+                        key={entry.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '10px 12px',
+                          borderTop: index === 0 ? 'none' : '0.5px solid var(--dui-divider)',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-primary)' }}>article</span>
+                        <div style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--m3-on-surface)', overflowWrap: 'anywhere' }}>
+                          {entry.name}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-m3-outline"
+                          disabled={entryDetailLoadingId !== null}
+                          onClick={() => pasteEntryContent(entry)}
+                          style={{ fontSize: 12, padding: '4px 10px' }}
+                        >
+                          {entryDetailLoadingId === entry.id ? '粘贴中' : '粘贴'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {articleTab === 'file' && (
               <div>
@@ -1400,14 +1672,116 @@ export default function StepUpload({
 
           {/* Reference data sources */}
           <div className="section-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 22, color: 'var(--m3-tertiary)' }}>menu_book</span>
-              <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--m3-on-surface)' }}>参考数据源</span>
-              <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', background: 'var(--m3-surface-container-low)', padding: '2px 8px', borderRadius: 4 }}>可选</span>
+            <div className="reference-source-head">
+              <div className="reference-source-title">
+                <span className="reference-source-title-icon material-symbols-outlined">menu_book</span>
+                <div>
+                  <div className="reference-source-title-row">
+                    <span>参考数据源</span>
+                    <span className="reference-source-optional">可选</span>
+                  </div>
+                  <p>上传本地文件，或从指南数据库检索后追加为参考资料</p>
+                </div>
+              </div>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 14 }}>
-              上传参考文件（指南、综述等），PDF/Word 将完整解析；后续环节按场景截取或筛选使用
-            </p>
+
+            <div className="reference-source-action-row">
+              <button
+                type="button"
+                className={`guide-library-toggle ${guidePanelOpen ? 'active' : ''}`}
+                onClick={() => {
+                  setGuidePanelOpen(!guidePanelOpen)
+                  setGuideError('')
+                }}
+              >
+                <span className="material-symbols-outlined">database_search</span>
+                对接指南数据库
+              </button>
+              <div className="reference-source-upload-note">
+                <span className="material-symbols-outlined">upload_file</span>
+                <div>
+                  <strong>本地参考文件</strong>
+                  <span>PDF/Word 将完整解析；后续环节按场景截取或筛选使用</span>
+                </div>
+              </div>
+            </div>
+
+            {guidePanelOpen && (
+              <div className="guide-library-panel">
+                <div className="guide-library-visual" aria-hidden="true">
+                  <span className="material-symbols-outlined">auto_stories</span>
+                  <div className="guide-library-bars">
+                    <i />
+                    <i />
+                    <i />
+                  </div>
+                </div>
+                <div className="guide-library-content">
+                  <div className="guide-library-kicker">
+                    <span className="material-symbols-outlined">verified</span>
+                    线上指南库
+                  </div>
+                  <div className="guide-library-search">
+                    <span className="material-symbols-outlined">search</span>
+                    <input
+                      value={guideKeyword}
+                      placeholder="输入指南名称，请尽可能准确、完整输入"
+                      onChange={e => setGuideKeyword(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') runGuideSearch()
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="guide-library-search-btn"
+                    disabled={guideLoading}
+                    onClick={runGuideSearch}
+                  >
+                    <span className="material-symbols-outlined">{guideLoading ? 'hourglass_top' : 'travel_explore'}</span>
+                    {guideLoading ? '检索中' : '检索'}
+                  </button>
+                  {guideError && (
+                    <div className="guide-library-error">
+                      <span className="material-symbols-outlined">error</span>
+                      <span>{guideError}</span>
+                    </div>
+                  )}
+                  {guideResults.length > 0 && (
+                    <div className="guide-library-results">
+                      <div className="guide-library-results-head">
+                        <span>{guideResults.length} 条匹配指南</span>
+                        <span>选择后将加入参考数据源</span>
+                      </div>
+                      {guideResults.map((guide, index) => (
+                        <div className="guide-library-result" key={guide.id}>
+                          <div className="guide-library-result-rank">{String(index + 1).padStart(2, '0')}</div>
+                          <span className="guide-library-result-icon material-symbols-outlined">article</span>
+                          <div className="guide-library-result-title">
+                            {guide.title}
+                          </div>
+                          <button
+                            type="button"
+                            className="guide-library-add-btn"
+                            disabled={guideDetailLoadingId !== null}
+                            onClick={() => addGuideSource(guide)}
+                          >
+                            <span className="material-symbols-outlined">{guideDetailLoadingId === guide.id ? 'hourglass_top' : 'add'}</span>
+                            {guideDetailLoadingId === guide.id ? '添加中' : '添加'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!guideError && guideResults.length === 0 && (
+                    <div className="guide-library-empty">
+                      <span className="material-symbols-outlined">tips_and_updates</span>
+                      支持按指南标题关键词检索
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="pdf-grid">
               {/* Add card */}
@@ -1457,6 +1831,17 @@ export default function StepUpload({
                   <div className="reference-source-meta">
                     {doc.char_count.toLocaleString()} 字符
                   </div>
+                  <div style={{ paddingLeft: 38 }}>
+                    <button
+                      type="button"
+                      className="btn-m3-outline"
+                      onClick={() => setViewingReference({ doc, index: i })}
+                      style={{ fontSize: 12, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 15 }}>visibility</span>
+                      查看全文
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1469,6 +1854,46 @@ export default function StepUpload({
           </div>
         </div>
       </div>
+
+      {viewingReference && (
+        <div className="modal-overlay" onClick={() => setViewingReference(null)}>
+          <div
+            className="modal-card"
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: 'min(1000px, calc(100vw - 32px))',
+              maxHeight: 'calc(100vh - 48px)',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: 0,
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '16px 20px', borderBottom: '1px solid var(--m3-outline-variant)' }}>
+              <div style={{ minWidth: 0 }}>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 500, color: 'var(--m3-on-surface)' }}>
+                  参考数据源 {viewingReference.index + 1}
+                </h3>
+                <div style={{ marginTop: 5, fontSize: 12, color: 'var(--m3-on-surface-variant)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {viewingReference.doc.filename} · {viewingReference.doc.char_count.toLocaleString()} 字符
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingReference(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, flexShrink: 0 }}
+                title="关闭"
+                aria-label="关闭全文查看"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--m3-on-surface-variant)' }}>close</span>
+              </button>
+            </div>
+            <div style={{ padding: 20, overflow: 'auto', minHeight: 320 }}>
+              <pre style={{ margin: 0, padding: 14, borderRadius: 8, background: 'var(--m3-surface-container-low)', color: 'var(--m3-on-surface)', fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{viewingReference.doc.text.trim() || '暂无可查看的解析文本'}</pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -7,6 +7,7 @@ from services.analyzer import (
     _analyze_section_with_reference_block,
     _build_section_issue,
     _build_reference_blocks,
+    _drop_false_abbreviation_full_name_issues,
     _drop_unlocated_required_anchor_issues,
     _restore_missing_guideline_evidence,
     _verify_section_issues,
@@ -144,6 +145,24 @@ class IssueAnchorTests(unittest.TestCase):
         filtered = _drop_unlocated_required_anchor_issues([issue])
 
         self.assertEqual(filtered, [issue])
+
+    def test_drops_false_abbreviation_full_name_issue_when_anchor_is_already_expanded(self):
+        content = (
+            "如不同程度的压力性尿失禁（stress urinary incontinence，SUI）"
+            "和（或）盆腔器官脱垂（pelvic organ prolapse，POP）。"
+        )
+        issue = SectionIssue(
+            issue_type="style",
+            description="英文缩写首次出现时未给出中文全称，如“SUI”或“POP”在定义中首次出现时未提供全称。",
+            severity="low",
+            examples=[content],
+            anchors=[IssueAnchor(quote=content)],
+        )
+
+        _attach_issue_anchors([issue], content)
+        filtered = _drop_false_abbreviation_full_name_issues([issue])
+
+        self.assertEqual(filtered, [])
 
 
 class QualityPromptTests(unittest.IsolatedAsyncioTestCase):

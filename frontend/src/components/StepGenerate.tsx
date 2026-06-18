@@ -1,8 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
+import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { QAItem, GapItem, GeneratedDraft, DraftRecord, ReferenceDoc, ParsedArticle, BatchGeneratedDraft } from '../types'
+import { QAItem, GapItem, GeneratedDraft, DraftRecord, ReferenceDoc, ParsedArticle, BatchGeneratedDraft, ReferenceAnchor } from '../types'
 import { apiFetch } from '../api'
+import { getGenerationOriginalContent } from '../utils/generationScope'
+import { extractSectionContent } from '../utils/sectionContent'
+import {
+  buildReferenceAnchorsFromDocs,
+  createCitationResolver,
+  linkifyCitationMarkers,
+  splitCitationTokens,
+  type CitationResolver,
+} from '../utils/citations'
 
 interface Props {
   disease: string
@@ -17,48 +28,6 @@ interface Props {
   onAddDraft: (record: DraftRecord) => void
   onUpdateDraft: (id: string, editedContent: string) => void
   onBack: () => void
-}
-
-/**
- * Extract the content of the section (and its children) matching the gap section path.
- */
-export function extractSectionContent(parsedArticle: ParsedArticle | null | undefined, gapSection: string): string {
-  if (!parsedArticle) return ''
-  const parts = gapSection.split(' > ').map(s => s.trim())
-  const sections = parsedArticle.sections
-  const leafHeading = parts[parts.length - 1]
-
-  let targetIdx = -1
-  if (parts.length === 1) {
-    targetIdx = sections.findIndex(s => s.heading === leafHeading)
-  } else {
-    const parentHeading = parts[parts.length - 2]
-    for (let i = 0; i < sections.length; i++) {
-      if (sections[i].heading !== leafHeading) continue
-      for (let j = i - 1; j >= 0; j--) {
-        if (sections[j].level < sections[i].level) {
-          if (sections[j].heading === parentHeading) targetIdx = i
-          break
-        }
-      }
-      if (targetIdx >= 0) break
-    }
-    if (targetIdx < 0) targetIdx = sections.findIndex(s => s.heading === leafHeading)
-  }
-
-  if (targetIdx < 0) return ''
-
-  const target = sections[targetIdx]
-  let combined = target.content
-
-  for (let i = targetIdx + 1; i < sections.length; i++) {
-    if (sections[i].level <= target.level) break
-    const prefix = '#'.repeat(sections[i].level - target.level + 1)
-    combined += `\n\n${prefix} ${sections[i].heading}`
-    if (sections[i].content.trim()) combined += '\n' + sections[i].content
-  }
-
-  return combined
 }
 
 /**
@@ -85,9 +54,9 @@ function formatReferences(content: string): string {
 
   const heading = headingLine.startsWith('#') ? headingLine : `### ${headingLine.replace(/\*+/g, '').trim()}`
 
-  const refMarker = /\[(?:Q?\d+(?:-\d+)?)\]/
+  const refMarker = /\[(?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+)(?:[、,，]\s*(?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+))*\]/i
   const bodyOneLine = body.replace(/\n/g, ' ').replace(/\s+/g, ' ')
-  const parts = bodyOneLine.split(/(\[(?:Q?\d+(?:-\d+)?)\])/).filter(Boolean)
+  const parts = bodyOneLine.split(/(\[(?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+)(?:[、,，]\s*(?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+))*\])/i).filter(Boolean)
 
   const entries: string[] = []
   for (let i = 0; i < parts.length; i++) {
@@ -108,6 +77,259 @@ function formatReferences(content: string): string {
   return before + heading + '\n\n' + formattedBody + '\n'
 }
 
+function renderTextWithCitationButtons({
+  text,
+  resolveCitation,
+  activeCitationKey,
+  onCitationClick,
+}: {
+  text: string
+  resolveCitation: CitationResolver
+  activeCitationKey: string | null
+  onCitationClick: (key: string) => void
+}) {
+  const groupRe = /\^?(?:<sup>)?[\[［【]((?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+)(?:\s*[、,，]\s*(?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+))*)[\]］】](?:<\/sup>)?/gi
+  const nodes: ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = groupRe.exec(text)) !== null) {
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index))
+    const tokens = splitCitationTokens(match[1])
+    const links = tokens.map(resolveCitation)
+    if (links.some(Boolean)) {
+      tokens.forEach((token, index) => {
+        if (index > 0) nodes.push('、')
+        const link = links[index]
+        if (link) {
+          nodes.push(
+            <button
+              key={`${match?.index}-${token}-${index}`}
+              type="button"
+              className={`citation-link${link.key === activeCitationKey ? ' active' : ''}`}
+              onClick={() => onCitationClick(link.key)}
+            >
+              [{link.label}]
+            </button>,
+          )
+        } else {
+          nodes.push(`[${token}]`)
+        }
+      })
+    } else {
+      nodes.push(`[${tokens.join('、')}]`)
+    }
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex))
+  return nodes
+}
+
+function CitationEvidencePanel({
+  anchor,
+  onClose,
+}: {
+  anchor: ReferenceAnchor
+  onClose: () => void
+}) {
+  return (
+    <aside className="citation-panel" aria-label="引用定位">
+      <div className="citation-panel-header">
+        <div>
+          <div className="citation-panel-title">[{anchor.citation_key}]</div>
+          <div className="citation-panel-source">参考数据源 {anchor.source_id}：{anchor.source_filename}</div>
+          {anchor.title_path && <div className="citation-panel-source">{anchor.title_path}</div>}
+        </div>
+        <button type="button" className="btn-m3-icon" onClick={onClose} aria-label="关闭引用定位">
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
+        </button>
+      </div>
+      <div className="citation-context">
+        {anchor.context_before && <p className="citation-context-muted">{anchor.context_before}</p>}
+        <p className="citation-context-quote">{anchor.quote}</p>
+        {anchor.context_after && <p className="citation-context-muted">{anchor.context_after}</p>}
+      </div>
+    </aside>
+  )
+}
+
+type DiffPart = {
+  type: 'same' | 'added' | 'removed'
+  value: string
+}
+
+const MAX_WORD_DIFF_TOKENS = 3000
+const MAX_LINE_DIFF_TOKENS = 1200
+const MAX_DIFF_CELLS = 4_000_000
+
+function tokenizeWords(text: string): string[] {
+  const tokens: string[] = []
+  let current = ''
+  let currentKind: 'latin' | 'space' | 'other' | null = null
+
+  const flush = () => {
+    if (current) tokens.push(current)
+    current = ''
+    currentKind = null
+  }
+
+  for (const char of text) {
+    const codePoint = char.codePointAt(0) || 0
+    const isCjk =
+      (codePoint >= 0x3400 && codePoint <= 0x9fff) ||
+      (codePoint >= 0xf900 && codePoint <= 0xfaff)
+    if (isCjk) {
+      flush()
+      tokens.push(char)
+      continue
+    }
+
+    const kind = /\s/.test(char)
+      ? 'space'
+      : /[A-Za-z0-9_]/.test(char)
+        ? 'latin'
+        : 'other'
+    if (kind !== currentKind || kind === 'other') flush()
+    current += char
+    currentKind = kind
+  }
+  flush()
+  return tokens
+}
+
+function tokenizeLines(text: string): string[] {
+  return text.match(/[^\n]*\n|[^\n]+/g) || []
+}
+
+function diffTokenParts(oldTokens: string[], newTokens: string[], maxTokens: number): DiffPart[] | null {
+  if (oldTokens.length + newTokens.length > maxTokens) return null
+  const width = newTokens.length + 1
+  const cells = (oldTokens.length + 1) * width
+  if (cells > MAX_DIFF_CELLS) return null
+
+  const table = new Uint32Array(cells)
+  for (let i = oldTokens.length - 1; i >= 0; i--) {
+    for (let j = newTokens.length - 1; j >= 0; j--) {
+      const idx = i * width + j
+      table[idx] = oldTokens[i] === newTokens[j]
+        ? table[(i + 1) * width + j + 1] + 1
+        : Math.max(table[(i + 1) * width + j], table[i * width + j + 1])
+    }
+  }
+
+  const parts: DiffPart[] = []
+  const push = (type: DiffPart['type'], value: string) => {
+    const last = parts[parts.length - 1]
+    if (last?.type === type) last.value += value
+    else parts.push({ type, value })
+  }
+
+  let i = 0
+  let j = 0
+  while (i < oldTokens.length && j < newTokens.length) {
+    if (oldTokens[i] === newTokens[j]) {
+      push('same', oldTokens[i])
+      i++
+      j++
+    } else if (table[(i + 1) * width + j] >= table[i * width + j + 1]) {
+      push('removed', oldTokens[i++])
+    } else {
+      push('added', newTokens[j++])
+    }
+  }
+  while (i < oldTokens.length) push('removed', oldTokens[i++])
+  while (j < newTokens.length) push('added', newTokens[j++])
+  return parts
+}
+
+function diffTextParts(oldText: string, newText: string): DiffPart[] {
+  return diffTokenParts(tokenizeWords(oldText), tokenizeWords(newText), MAX_WORD_DIFF_TOKENS)
+    || diffTokenParts(tokenizeLines(oldText), tokenizeLines(newText), MAX_LINE_DIFF_TOKENS)
+    || [
+      { type: 'removed', value: oldText },
+      { type: 'added', value: newText },
+    ]
+}
+
+function DiffPaneContent({
+  parts,
+  side,
+  resolveCitation,
+  activeCitationKey,
+  onCitationClick,
+}: {
+  parts: DiffPart[]
+  side: 'original' | 'generated'
+  resolveCitation?: CitationResolver
+  activeCitationKey?: string | null
+  onCitationClick?: (key: string) => void
+}) {
+  const visibleParts = parts.filter(part => side === 'original' ? part.type !== 'added' : part.type !== 'removed')
+  if (!visibleParts.some(part => part.value.trim())) return <span>-</span>
+
+  return (
+    <>
+      {visibleParts.map((part, index) => {
+        const children = side === 'generated' && resolveCitation && onCitationClick
+          ? renderTextWithCitationButtons({
+            text: part.value,
+            resolveCitation,
+            activeCitationKey: activeCitationKey ?? null,
+            onCitationClick,
+          })
+          : part.value
+        return (
+          <span
+            key={index}
+            className={part.type === 'added' ? 'diff-token-added' : part.type === 'removed' ? 'diff-token-removed' : undefined}
+          >
+            {children}
+          </span>
+        )
+      })}
+    </>
+  )
+}
+
+function CompareDiffView({
+  original,
+  generated,
+  resolveCitation,
+  activeCitationKey,
+  onCitationClick,
+}: {
+  original: string
+  generated: string
+  resolveCitation: CitationResolver
+  activeCitationKey: string | null
+  onCitationClick: (key: string) => void
+}) {
+  const parts = useMemo(() => diffTextParts(original, generated), [original, generated])
+
+  return (
+    <div className="diff-container">
+      <div className="diff-panel">
+        <div className="diff-panel-header original">原词条内容</div>
+        <div className="diff-content diff-text-content">
+          <DiffPaneContent parts={parts} side="original" />
+        </div>
+      </div>
+      <div className="diff-panel">
+        <div className="diff-panel-header generated">AI 生成稿件</div>
+        <div className="diff-content diff-text-content">
+          <DiffPaneContent
+            parts={parts}
+            side="generated"
+            resolveCitation={resolveCitation}
+            activeCitationKey={activeCitationKey}
+            onCitationClick={onCitationClick}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function formatTime(iso: string) {
   const d = new Date(iso)
   return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -122,6 +344,7 @@ export default function StepGenerate({
   const [generatingLabel, setGeneratingLabel] = useState('')
   const [activeId, setActiveId] = useState<string | null>(null)
   const [view, setView] = useState<'diff' | 'edit' | 'preview'>('diff')
+  const [activeCitationKey, setActiveCitationKey] = useState<string | null>(null)
   // 联合生成协调说明
   const [coordinationNotes, setCoordinationNotes] = useState('')
 
@@ -129,6 +352,62 @@ export default function StepGenerate({
   const isBatchRunning = batchProgress?.running ?? false
 
   const activeRecord = draftHistory.find(r => r.id === activeId) ?? draftHistory[draftHistory.length - 1] ?? null
+  const referenceAnchors = useMemo(() => {
+    const merged = new Map<string, ReferenceAnchor>()
+    for (const anchor of buildReferenceAnchorsFromDocs(referenceDocs)) {
+      merged.set(anchor.citation_key, anchor)
+    }
+    for (const anchor of activeRecord?.draft.reference_anchors ?? []) {
+      merged.set(anchor.citation_key, anchor)
+    }
+    return Array.from(merged.values())
+  }, [activeRecord?.draft.reference_anchors, referenceDocs])
+  const citationKeySet = useMemo(
+    () => new Set(referenceAnchors.map(anchor => anchor.citation_key)),
+    [referenceAnchors],
+  )
+  const activeCitation = referenceAnchors.find(anchor => anchor.citation_key === activeCitationKey) ?? null
+  const resolveCitation = useMemo<CitationResolver>(
+    () => createCitationResolver(referenceAnchors),
+    [referenceAnchors],
+  )
+  const handleCitationClick = (citationKey: string) => {
+    setActiveCitationKey(citationKey)
+  }
+  const markdownComponents = useMemo<Components>(() => ({
+    a({ href, children }) {
+      if (href?.startsWith('#citation-')) {
+        const citationKey = href.slice('#citation-'.length)
+        const isActive = citationKey === activeCitationKey
+        return (
+          <button
+            type="button"
+            className={`citation-link${isActive ? ' active' : ''}`}
+            onClick={() => {
+              handleCitationClick(citationKey)
+            }}
+          >
+            {children}
+          </button>
+        )
+      }
+      return <a href={href}>{children}</a>
+    },
+  }), [activeCitationKey])
+  const renderedDraftContent = useMemo(
+    () => activeRecord ? linkifyCitationMarkers(formatReferences(activeRecord.editedContent), resolveCitation) : '',
+    [activeRecord?.editedContent, resolveCitation],
+  )
+
+  useEffect(() => {
+    setActiveCitationKey(null)
+  }, [activeRecord?.id])
+
+  useEffect(() => {
+    if (activeCitationKey && !citationKeySet.has(activeCitationKey)) {
+      setActiveCitationKey(null)
+    }
+  }, [activeCitationKey, citationKeySet])
 
   // --- Single section generation ---
   const generate = async (gap: GapItem) => {
@@ -144,7 +423,7 @@ export default function StepGenerate({
           disease,
           section: gap.section,
           gap_description: gap.description,
-          original_content: sectionContent || articleContent,
+          original_content: getGenerationOriginalContent(sectionContent, articleContent),
           qa_references: qaItems.slice(0, 50),
           article_context: articleContent.slice(0, 6000),
           reference_inputs: referenceDocs.map((d, i) => ({
@@ -371,6 +650,7 @@ export default function StepGenerate({
   }
 
   const { gap, draft } = activeRecord
+  const originalContent = draft.original_content || extractSectionContent(parsedArticle, gap.section)
 
   return (
     <div>
@@ -517,23 +797,20 @@ export default function StepGenerate({
           </div>
 
           {view === 'diff' && (
-            <div className="diff-container">
-              <div className="diff-panel">
-                <div className="diff-panel-header original">原词条内容</div>
-                <div className="diff-content md">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {draft.original_content || '（该章节暂无内容）'}
-                  </ReactMarkdown>
-                </div>
-              </div>
-              <div className="diff-panel">
-                <div className="diff-panel-header generated">AI 生成稿件</div>
-                <div className="diff-content md">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {formatReferences(activeRecord.editedContent)}
-                  </ReactMarkdown>
-                </div>
-              </div>
+            <div className={`draft-preview-shell${activeCitation ? ' has-citation-panel' : ''}`}>
+              <CompareDiffView
+                original={originalContent || '（该章节暂无内容）'}
+                generated={formatReferences(activeRecord.editedContent)}
+                resolveCitation={resolveCitation}
+                activeCitationKey={activeCitationKey}
+                onCitationClick={handleCitationClick}
+              />
+              {activeCitation && (
+                <CitationEvidencePanel
+                  anchor={activeCitation}
+                  onClose={() => setActiveCitationKey(null)}
+                />
+              )}
             </div>
           )}
 
@@ -549,10 +826,18 @@ export default function StepGenerate({
           )}
 
           {view === 'preview' && (
-            <div className="diff-content md" style={{ maxHeight: 'none', minHeight: 300 }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {formatReferences(activeRecord.editedContent)}
-              </ReactMarkdown>
+            <div className={`draft-preview-shell${activeCitation ? ' has-citation-panel' : ''}`}>
+              <div className="diff-content md draft-preview-content" style={{ maxHeight: 'none', minHeight: 300 }}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {renderedDraftContent}
+                </ReactMarkdown>
+              </div>
+              {activeCitation && (
+                <CitationEvidencePanel
+                  anchor={activeCitation}
+                  onClose={() => setActiveCitationKey(null)}
+                />
+              )}
             </div>
           )}
         </div>
