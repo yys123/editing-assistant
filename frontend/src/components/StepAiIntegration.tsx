@@ -9,6 +9,7 @@ import {
   buildReferenceAnchorsFromDocs,
   createCitationResolver,
   linkifyCitationMarkers,
+  mergeReferenceAnchors,
   splitCitationTokens,
 } from '../utils/citations'
 
@@ -147,10 +148,6 @@ export default function StepAiIntegration({
   )
   const referenceAnchors = useMemo(() => {
     if (!activeRecord) return []
-    const merged = new Map<string, ReferenceAnchor>()
-    for (const anchor of activeRecord.referenceAnchors ?? []) {
-      merged.set(anchor.citation_key, anchor)
-    }
     const selectedSourceIds = new Set<number>()
     referenceDocs.forEach((doc, index) => {
       if (activeRecordSelectedRefSet.has(doc.filename)) selectedSourceIds.add(index + 1)
@@ -158,19 +155,17 @@ export default function StepAiIntegration({
     const sourceAnchors = buildSourceAnchors(referenceDocs, activeRecordSelectedRefSet, activeRecord.answer)
     const internalAnchors = buildReferenceAnchorsFromDocs(referenceDocs)
       .filter(anchor => selectedSourceIds.has(anchor.source_id))
-    for (const anchor of sourceAnchors) {
-      if (!merged.has(anchor.citation_key)) merged.set(anchor.citation_key, anchor)
-    }
-    for (const anchor of internalAnchors) {
-      if (!merged.has(anchor.citation_key)) merged.set(anchor.citation_key, anchor)
-    }
-    return Array.from(merged.values())
+    return mergeReferenceAnchors(
+      activeRecord.referenceAnchors ?? [],
+      sourceAnchors,
+      internalAnchors,
+    )
   }, [activeRecord, activeRecordSelectedRefSet, referenceDocs])
   const citationKeySet = useMemo(
-    () => new Set(referenceAnchors.map(anchor => anchor.citation_key)),
+    () => new Set(referenceAnchors.map(anchor => anchor.anchor_key ?? anchor.citation_key)),
     [referenceAnchors],
   )
-  const activeCitation = referenceAnchors.find(anchor => anchor.citation_key === activeCitationKey) ?? null
+  const activeCitation = referenceAnchors.find(anchor => (anchor.anchor_key ?? anchor.citation_key) === activeCitationKey) ?? null
   const resolveCitation = useMemo(
     () => createCitationResolver(referenceAnchors),
     [referenceAnchors],

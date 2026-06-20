@@ -220,8 +220,8 @@ def count_chinese_words(text: str) -> int:
     """
     # Remove structural markers injected by parse_html_structured
     clean = re.sub(r"\[H\d\]|\[图片\]|\[表格\]|\[图注\]|\[表格标题\]|\[图片内容\]", "", text)
-    # Remove reference superscript markers, e.g. ^[2,3] ^[1-5]
-    clean = re.sub(r"\^\[\d[\d,，\-~～至]*\]", "", clean)
+    # Remove reference superscript markers, e.g. [2,3] [1-5], plus legacy ^[N].
+    clean = re.sub(r"\^?\[\d[\d,，\-~～至–—]*\]", "", clean)
     # Remove bracketed citation markers copied from rich text, e.g. [¹³⁻¹⁴], [8]
     clean = re.sub(r"[［\[][⁰¹²³⁴⁵⁶⁷⁸⁹⁻,，\-~～至]+[］\]]", "", clean)
     clean = re.sub(r"[［\[]\d[\d,，\-~～至]*[］\]]", "", clean)
@@ -291,8 +291,8 @@ def _count_cjk(text: str) -> int:
 
 
 def _extract_refs(text: str) -> List[str]:
-    """Extract all ^[N] reference markers."""
-    return re.findall(r'\^\[\d+(?:[,，\-~～至\d]*)\]', text)
+    """Extract all [N] reference markers, including legacy ^[N] markers."""
+    return re.findall(r'\^?\[\d+(?:[,，\-~～至–—\d]*)\]', text)
 
 
 def _count_table_rows(text: str) -> int:
@@ -476,16 +476,16 @@ def _build_structured_prompt(structured_text: str, framework_summary: str) -> st
 - [图片] 图片说明（例如「图 1 儿童 ADHD 诊治流程」）
 - [图片内容] 紧跟在 [图片] 下方，为该图的视觉内容提取文字（Gemini 视觉分析）
 - [表格] 表格说明（来自 figcaption，例如「表 1 儿童 ADHD 不同年龄段表现」）
-- [表格标题] 表格标题（来自 HTML <caption> 标签，含表格内嵌标题及 ^[N] 引用）
+- [表格标题] 表格标题（来自 HTML <caption> 标签，含表格内嵌标题及 [N] 引用）
 - Markdown 表格行（|...| 格式）
-- ^[N] 或 ^[N-M] 为参考文献上标角标（如 ^[2,3]、^[1-5]），是引用标注，不属于正文内容
+- [N] 或 [N-M] 为参考文献上标角标（如 [2,3]、[1-5]；旧数据可能为 ^[N]），是引用标注，不属于正文内容
 - 其余文字为正文段落
 
 ⚠️ 内容复制要求（最高优先级）：
 - content 字段必须**原文逐字复制**，严禁总结、改写、翻译或替换任何词语
 - 中文词语不得替换为英文（如"和"不得改为"and"，"包括"不得改为"include"）
 - **严禁纠正原文任何错误**：错别字、拼写错误、医学术语错误（如"ADHA"即使疑似有误也须原样保留，不得自行改为"ADHD"）——发现并保留这些错误正是后续审核环节的职责
-- ^[N] 参考文献角标原样保留，不得删除或移动
+- [N] 参考文献角标原样保留，不得删除或移动；旧数据中的 ^[N] 也原样保留
 - **Markdown 表格须完整保留**：原文中的 `| col | col |` 表格行及其分隔行 `|---|---|` 须**原封不动**复制到 content 中，不得重新排列、合并、删减任何行或列
 
 ## 词条内容框架（参考标准）
@@ -507,7 +507,7 @@ def _build_structured_prompt(structured_text: str, framework_summary: str) -> st
 3. 更细的子项 → level=3
 4. [H1] 标题行 → level=1 章节，直接输出（不跳过）
 5. 若词条开头有无标题的引言段落，作为「概述」章节，level=1
-6. content 字段：**原文逐字复制**该章节直属的正文内容（不含子章节内容）；保留 [图片]、[表格]、[表格标题]、[图片内容] 标记及 ^[N] 角标，不得修改、删除或翻译任何词语
+6. content 字段：**原文逐字复制**该章节直属的正文内容（不含子章节内容）；保留 [图片]、[表格]、[表格标题]、[图片内容] 标记及 [N] 角标，不得修改、删除或翻译任何词语
 7. image_count：该章节 content 中 [图片] 标记的数量
 8. table_count：该章节 content 中 [表格] 或 [表格标题] 标记的数量（二者均计入）
 9. 忽略纯导航性文字（「点击查看」「跳转至」等）
@@ -550,7 +550,7 @@ def _build_plain_prompt(text: str, framework_summary: str) -> str:
 - content 字段必须**原文逐字复制**，严禁总结、改写、翻译或替换任何词语
 - 中文词语不得替换为英文（如"和"不得改为"and"，"包括"不得改为"include"）
 - **严禁纠正原文任何错误**：错别字、拼写错误、医学术语错误（如"ADHA"即使疑似有误也须原样保留，不得自行改为"ADHD"）——发现并保留这些错误正是后续审核环节的职责
-- ^[N] 参考文献角标原样保留，不得删除或移动
+- [N] 参考文献角标原样保留，不得删除或移动；旧数据中的 ^[N] 也原样保留
 - **Markdown 表格须完整保留**：原文中的 `| col | col |` 表格行及其分隔行 `|---|---|` 须**原封不动**复制到 content 中，不得重新排列、合并、删减任何行或列
 
 ## 解析规则
@@ -559,11 +559,11 @@ def _build_plain_prompt(text: str, framework_summary: str) -> str:
    一级字段（基础知识/诊断/鉴别诊断/治疗/控制目标/预后/预防）→ level=1，其下子级 → level=2，更细子项 → level=3
 2. 如果词条标题与框架略有不同（如「临床特征」对应「临床表现」），按实际标题记录，但按框架逻辑判断 level
 3. 忽略导航性文字（「点击查看」「跳转至」等）
-4. content 字段**原文逐字复制**该章节直属的正文内容（不含子章节内容），保留 ^[N] 角标
+4. content 字段**原文逐字复制**该章节直属的正文内容（不含子章节内容），保留 [N] 角标
 5. 若词条开头有无标题的引言段落，作为「概述」章节，level=1
 6. 参考文献及其后内容不作为章节输出
 7. image_count / table_count 统计该章节内的图片和表格数量
-8. 文中 ^[N] 或 ^[N-M] 为参考文献上标角标（如 ^[2,3]、^[1-5]），属于引用标注，不属于正文内容，解析时忽略
+8. 文中 [N] 或 [N-M] 为参考文献上标角标（如 [2,3]、[1-5]；旧数据可能为 ^[N]），属于引用标注，不属于正文内容，解析时忽略
 
 请以 JSON 格式输出：
 {{

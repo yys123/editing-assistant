@@ -39,9 +39,21 @@ def _script_text(text: str, script: str) -> str:
     return f"{marker}({compact})"
 
 
-def _is_reference_sup_text(text: str) -> bool:
+def _normalize_reference_sup_text(text: str) -> str:
     compact = re.sub(r"\s+", "", text)
-    return bool(re.fullmatch(r"\d+(?:[,，\-~～至]\d+)*", compact))
+    if (
+        len(compact) >= 2
+        and compact[0] in "[［【"
+        and compact[-1] in "]］】"
+    ):
+        compact = compact[1:-1]
+    if not re.fullmatch(r"\d+(?:[,，、;；\-~～至–—]\d+)*", compact):
+        return ""
+    return re.sub(r"[，、;；]", ",", compact)
+
+
+def _is_reference_sup_text(text: str) -> bool:
+    return bool(_normalize_reference_sup_text(text))
 
 
 def _nearest_text_before(tag: Tag) -> str:
@@ -91,9 +103,9 @@ def _looks_like_reference_sup(tag: Tag) -> bool:
 
 
 def _extract_text_with_refs(tag: Tag) -> str:
-    """Recursively extract text, converting literature-sup elements to ^[N] notation.
+    """Recursively extract text, converting literature-sup elements to [N] notation.
 
-    <sup class="literature-sup">2,3</sup> → ^[2,3]
+    <sup class="literature-sup">2,3</sup> → [2,3]
 
     All other elements are traversed normally.  Whitespace is normalised.
     """
@@ -104,12 +116,12 @@ def _extract_text_with_refs(tag: Tag) -> str:
         elif isinstance(child, Tag):
             classes = child.get("class") or []
             if child.name == "sup" and "literature-sup" in classes:
-                ref = child.get_text(strip=True)
+                ref = _normalize_reference_sup_text(child.get_text(" ", strip=True))
                 if ref:
-                    parts.append(f"^[{ref}]")
+                    parts.append(f"[{ref}]")
             elif child.name == "sup" and _looks_like_reference_sup(child):
-                ref = re.sub(r"\s+", "", child.get_text(" ", strip=True))
-                parts.append(f"^[{ref}]")
+                ref = _normalize_reference_sup_text(child.get_text(" ", strip=True))
+                parts.append(f"[{ref}]")
             elif child.name in {"sup", "sub"}:
                 parts.append(_script_text(child.get_text(" ", strip=True), child.name))
             else:
@@ -509,10 +521,8 @@ def parse_txt_structured(text: str) -> str:
 
         # ── Tab-delimited line → markdown table row ─────────────────────────
         if '\t' in stripped:
-            # Convert [N] / [N-M] ref markers to ^[N] notation instead of
-            # stripping them — reference citations in table cells must be kept.
-            cells = [_REF_RE.sub(lambda m: "^" + m.group(0), c).strip()
-                     for c in stripped.split('\t')]
+            # Keep [N] / [N-M] reference citations in table cells.
+            cells = [c.strip() for c in stripped.split('\t')]
             cells = [c for c in cells if c]
             if cells:
                 output.append('| ' + ' | '.join(cells) + ' |')
@@ -560,8 +570,8 @@ def parse_txt_structured(text: str) -> str:
                 # Fall through to heading detection below
             else:
                 # Emit as table content (non-tab continuation or footnote).
-                # Use ref-converted text so [N] citations are preserved as ^[N].
-                clean_with_refs = _REF_RE.sub(lambda m: "^" + m.group(0), stripped).strip()
+                # Keep [N] citations in table continuation text.
+                clean_with_refs = stripped.strip()
                 if len(clean_with_refs) > 1:
                     output.append(clean_with_refs)
                 prev_was_empty = False
@@ -641,7 +651,7 @@ def _table_to_markdown(table_tag: Tag) -> str:
     positions are filled with an empty string so every row has the same column
     count and the Markdown table stays properly aligned.
 
-    If the table has a <caption> element, its text (including ^[N] ref markers)
+    If the table has a <caption> element, its text (including [N] ref markers)
     is prepended as a [表格标题] line.
     """
     rows = table_tag.find_all("tr")

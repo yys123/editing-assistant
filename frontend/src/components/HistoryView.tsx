@@ -7,6 +7,7 @@ import {
   buildReferenceAnchorsFromDocs,
   createCitationResolver,
   linkifyCitationMarkers,
+  mergeReferenceAnchors,
 } from '../utils/citations'
 import { filterHistorySessions, isOwnHistorySession } from '../utils/historyFilters'
 
@@ -122,20 +123,16 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
   const selected = sorted.find(s => s.id === selectedId) ?? null
   const expandedDraftRecord = selected?.draftHistory.find(record => record.id === expandedDraft) ?? null
   const referenceAnchors = useMemo(() => {
-    const merged = new Map<string, ReferenceAnchor>()
-    for (const anchor of buildReferenceAnchorsFromDocs(selected?.referenceDocs ?? [])) {
-      merged.set(anchor.citation_key, anchor)
-    }
-    for (const anchor of expandedDraftRecord?.draft.reference_anchors ?? []) {
-      merged.set(anchor.citation_key, anchor)
-    }
-    return Array.from(merged.values())
+    return mergeReferenceAnchors(
+      buildReferenceAnchorsFromDocs(selected?.referenceDocs ?? []),
+      expandedDraftRecord?.draft.reference_anchors ?? [],
+    )
   }, [expandedDraftRecord?.draft.reference_anchors, selected?.referenceDocs])
   const citationKeySet = useMemo(
-    () => new Set(referenceAnchors.map(anchor => anchor.citation_key)),
+    () => new Set(referenceAnchors.map(anchor => anchor.anchor_key ?? anchor.citation_key)),
     [referenceAnchors],
   )
-  const activeCitation = referenceAnchors.find(anchor => anchor.citation_key === activeCitationKey) ?? null
+  const activeCitation = referenceAnchors.find(anchor => (anchor.anchor_key ?? anchor.citation_key) === activeCitationKey) ?? null
   const resolveCitation = useMemo(
     () => createCitationResolver(referenceAnchors),
     [referenceAnchors],

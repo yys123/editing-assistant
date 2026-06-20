@@ -11,6 +11,7 @@ import {
   buildReferenceAnchorsFromDocs,
   createCitationResolver,
   linkifyCitationMarkers,
+  mergeReferenceAnchors,
   splitCitationTokens,
   type CitationResolver,
 } from '../utils/citations'
@@ -96,7 +97,7 @@ function renderTextWithCitationButtons({
   while ((match = groupRe.exec(text)) !== null) {
     if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index))
     const tokens = splitCitationTokens(match[1])
-    const links = tokens.map(resolveCitation)
+    const links = tokens.map(token => resolveCitation(token, text))
     if (links.some(Boolean)) {
       tokens.forEach((token, index) => {
         if (index > 0) nodes.push('、')
@@ -353,20 +354,16 @@ export default function StepGenerate({
 
   const activeRecord = draftHistory.find(r => r.id === activeId) ?? draftHistory[draftHistory.length - 1] ?? null
   const referenceAnchors = useMemo(() => {
-    const merged = new Map<string, ReferenceAnchor>()
-    for (const anchor of buildReferenceAnchorsFromDocs(referenceDocs)) {
-      merged.set(anchor.citation_key, anchor)
-    }
-    for (const anchor of activeRecord?.draft.reference_anchors ?? []) {
-      merged.set(anchor.citation_key, anchor)
-    }
-    return Array.from(merged.values())
+    return mergeReferenceAnchors(
+      buildReferenceAnchorsFromDocs(referenceDocs),
+      activeRecord?.draft.reference_anchors ?? [],
+    )
   }, [activeRecord?.draft.reference_anchors, referenceDocs])
   const citationKeySet = useMemo(
-    () => new Set(referenceAnchors.map(anchor => anchor.citation_key)),
+    () => new Set(referenceAnchors.map(anchor => anchor.anchor_key ?? anchor.citation_key)),
     [referenceAnchors],
   )
-  const activeCitation = referenceAnchors.find(anchor => anchor.citation_key === activeCitationKey) ?? null
+  const activeCitation = referenceAnchors.find(anchor => (anchor.anchor_key ?? anchor.citation_key) === activeCitationKey) ?? null
   const resolveCitation = useMemo<CitationResolver>(
     () => createCitationResolver(referenceAnchors),
     [referenceAnchors],

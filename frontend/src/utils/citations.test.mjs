@@ -4,6 +4,7 @@ import {
   buildReferenceAnchorsFromDocs,
   createCitationResolver,
   linkifyCitationMarkers,
+  mergeReferenceAnchors,
 } from './citations.ts'
 
 const anchors = buildReferenceAnchorsFromDocs([
@@ -63,7 +64,14 @@ const linked = linkifyCitationMarkers('推荐治疗方案[1-3、1-5、2-6]，未
 
 assert.equal(
   linked,
-  '推荐治疗方案[[1-3]](#citation-1-3)、[[1-5]](#citation-1-5)、[[2-6]](#citation-2-6)，未定位[9]。',
+  '推荐治疗方案[[1-3](#citation-1-3)、[1-5](#citation-1-5)、[2-6](#citation-2-6)]，未定位[9]。',
+)
+
+assert.equal(
+  linkifyCitationMarkers('推荐治疗方案[1-3][2-6]。', (token) => (
+    citationKeys.has(token) ? { key: token, label: token } : null
+  )),
+  '推荐治疗方案[[1-3](#citation-1-3)、[2-6](#citation-2-6)]。',
 )
 
 const enDashResolver = createCitationResolver([
@@ -116,6 +124,25 @@ assert.equal(
   '诱导缓解治疗可使用药物A[[1-3]](#citation-R1-C001)。',
 )
 
+const multiRefChunkResolver = createCitationResolver([
+  {
+    citation_key: 'R4-C001',
+    source_id: 4,
+    source_filename: '高钾血症管理规范.pdf',
+    source_ref_id: '3,32,33',
+    chunk_id: 'R4-C001',
+    title_path: '慢性肾脏病急性高钾血症的治疗',
+    quote: '在等待准备透析时推荐口服环硅酸锆钠散等降钾措施。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 0,
+  },
+])
+assert.equal(
+  linkifyCitationMarkers('可联合口服环硅酸锆钠等降钾措施[R4-C001]。', multiRefChunkResolver),
+  '可联合口服环硅酸锆钠等降钾措施[[4-3、4-32、4-33]](#citation-R4-C001)。',
+)
+
 const sourceOnlyChunkResolver = createCitationResolver([
   {
     citation_key: 'R3-C055',
@@ -133,6 +160,85 @@ const sourceOnlyChunkResolver = createCitationResolver([
 assert.equal(
   linkifyCitationMarkers('根本原因是失衡[R3-C055]。', sourceOnlyChunkResolver),
   '根本原因是失衡[[3]](#citation-R3-C055)。',
+)
+
+const repeatedCitationAnchors = mergeReferenceAnchors([
+  {
+    citation_key: '1-47',
+    source_id: 1,
+    source_filename: '高钾血症指南.pdf',
+    source_ref_id: '47',
+    quote: '10%葡萄糖液500 mL加10 IU普通胰岛素静脉滴注，持续1小时以上，可在30~60分钟内起效[47]。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 0,
+  },
+  {
+    citation_key: '1-47',
+    source_id: 1,
+    source_filename: '高钾血症指南.pdf',
+    source_ref_id: '47',
+    quote: '如果患者合并代谢性酸中毒，可静脉注射碳酸氢钠，通过H+-Na+交换促进钾离子进入细胞内[47]。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 1,
+  },
+  {
+    citation_key: '1-47',
+    source_id: 1,
+    source_filename: '高钾血症指南.pdf',
+    source_ref_id: '47',
+    quote: 'β-肾上腺素能受体兴奋剂可使钾离子转移至细胞内，通常30 min内起效[47]。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 2,
+  },
+])
+const repeatedCitationResolver = createCitationResolver(repeatedCitationAnchors)
+assert.deepEqual(
+  repeatedCitationAnchors.map(anchor => anchor.anchor_key),
+  ['1-47~1', '1-47~2', '1-47~3'],
+)
+assert.equal(
+  linkifyCitationMarkers('高糖+胰岛素可在30~60分钟内起效[1-47]。碳酸氢钠适用于合并代谢性酸中毒的患者[1-47]。', repeatedCitationResolver),
+  '高糖+胰岛素可在30~60分钟内起效[[1-47]](#citation-1-47~1)。碳酸氢钠适用于合并代谢性酸中毒的患者[[1-47]](#citation-1-47~2)。',
+)
+
+const bareSourceRefResolver = createCitationResolver([
+  {
+    citation_key: '1-146',
+    source_id: 1,
+    source_filename: '流程图指南.pdf',
+    source_ref_id: '146',
+    quote: '图4 急性高钾血症处理流程图[146]。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 0,
+  },
+  {
+    citation_key: '1-147',
+    source_id: 1,
+    source_filename: '流程图指南.pdf',
+    source_ref_id: '147',
+    quote: '图4 急性高钾血症处理流程图续[147]。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 1,
+  },
+  {
+    citation_key: '1-149',
+    source_id: 1,
+    source_filename: '流程图指南.pdf',
+    source_ref_id: '149',
+    quote: '急性高钾血症处理流程图补充说明[149]。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 2,
+  },
+])
+assert.equal(
+  linkifyCitationMarkers('急性高钾血症处理流程图[146-147]、[149]。', bareSourceRefResolver),
+  '急性高钾血症处理流程图[[146](#citation-1-146)、[147](#citation-1-147)、[149](#citation-1-149)]。',
 )
 
 console.log('citation tests passed')

@@ -130,7 +130,7 @@ class GuideDataSourceTests(unittest.IsolatedAsyncioTestCase):
             {
                 "id": 12,
                 "title": "指南标题",
-                "content": "<p>这里是指南详情内容</p>",
+                "content": "这里是指南详情内容",
             },
         )
         self.assertEqual(
@@ -167,9 +167,43 @@ class GuideDataSourceTests(unittest.IsolatedAsyncioTestCase):
             {
                 "id": 12,
                 "title": "嵌套字段指南",
-                "content": "<h1>嵌套详情内容</h1>",
+                "content": "[H1] 嵌套详情内容",
             },
         )
+
+    async def test_get_guide_detail_normalizes_html_content(self):
+        FakeAsyncClient.responses = [
+            FakeGuideResponse({
+                "code": "success",
+                "message": "成功",
+                "data": {
+                    "title": "CKD指南",
+                    "htmlContent": (
+                        "<section>"
+                        "<h2>治疗</h2>"
+                        "<p>对于预防CKD患者低钾血症和高钾血症反复发作具有重要意义"
+                        '<sup class="sup">[<a class="xref bibr" target="_blank" rid="R64" href="javascript:void(0)">64</a>,'
+                        '<a class="xref bibr" target="_blank" rid="R65" href="javascript:void(0)">65</a>,'
+                        '<a class="xref bibr" target="_blank" rid="R66" href="javascript:void(0)">66</a>]</sup>。'
+                        "</p>"
+                        "</section>"
+                    ),
+                },
+            })
+        ]
+
+        with (
+            patch.object(article.httpx, "AsyncClient", FakeAsyncClient),
+            patch.object(article.time, "time", return_value=1700000000.123),
+            patch.object(article.secrets, "randbelow", side_effect=[1, 2, 3, 4, 5, 6, 7, 8]),
+        ):
+            result = await article.get_guide_detail(12)
+
+        self.assertEqual(result["title"], "CKD指南")
+        self.assertIn("[H2] 治疗", result["content"])
+        self.assertIn("具有重要意义[64,65,66]。", result["content"])
+        self.assertNotIn("<sup", result["content"])
+        self.assertNotIn("<a ", result["content"])
 
     async def test_guide_api_requires_credentials(self):
         with patch.object(

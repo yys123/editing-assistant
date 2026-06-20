@@ -115,7 +115,7 @@ function looksLikeReferenceSup(node: HTMLElement) {
 }
 
 function referenceSupText(node: HTMLElement) {
-  return `^[${(node.textContent || '').replace(/\s+/g, '')}]`
+  return `[${(node.textContent || '').replace(/\s+/g, '')}]`
 }
 
 function normalizeEditorText(text: string) {

@@ -107,6 +107,7 @@ export interface GeneratedDraft {
 
 export interface ReferenceAnchor {
   citation_key: string
+  anchor_key?: string
   source_id: number
   source_filename: string
   source_ref_id: string

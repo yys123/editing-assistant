@@ -488,6 +488,13 @@ def _entry_detail_content(data: dict) -> str:
     return _find_entry_module_html(data)
 
 
+def _normalize_guide_detail_content(content: str) -> str:
+    if not _looks_like_html(content):
+        return content.strip()
+    structured = parse_html_structured(content)
+    return structured.strip() or content.strip()
+
+
 def _guide_string_field_summary(value, prefix: str = "data", limit: int = 20) -> list:
     fields = []
     if isinstance(value, dict):
@@ -543,6 +550,7 @@ async def get_guide_detail(guide_id: int):
         )
     title = _first_guide_text_field(data, GUIDE_DETAIL_TITLE_KEYS) or f"指南-{guide_id}"
     title = title.strip()
+    content = _normalize_guide_detail_content(content)
     return {"id": guide_id, "title": title, "content": content}
 
 

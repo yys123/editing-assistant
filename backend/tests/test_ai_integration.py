@@ -37,7 +37,7 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("内部片段ID", calls[0]["prompt"])
         self.assertNotIn("R1-C001", calls[0]["prompt"])
         self.assertIn("引用标记：[1]", calls[0]["prompt"])
-        self.assertIn("引用参考资料时必须使用每个片段列出的“引用标记”", calls[0]["prompt"])
+        self.assertIn("引用参考资料时必须使用每条证据列出的“引用标记”", calls[0]["prompt"])
         self.assertIn("优先以重点指南为准", calls[0]["prompt"])
 
     async def test_ai_integration_uses_source_ref_citation_keys_with_stable_chunk_anchors(self):
@@ -68,7 +68,7 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("内部片段ID", calls[0])
         self.assertNotIn("R3-C001", calls[0])
         self.assertIn("引用标记：[3-22]", calls[0])
-        self.assertIn("引用参考资料时必须使用每个片段列出的“引用标记”", calls[0])
+        self.assertIn("引用参考资料时必须使用每条证据列出的“引用标记”", calls[0])
         self.assertEqual(result.answer, "应认为是危急症，需紧急处理[3-22]。")
         by_key = {anchor.citation_key: anchor for anchor in result.reference_anchors}
         self.assertIn("3-22", by_key)

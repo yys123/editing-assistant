@@ -3,9 +3,11 @@ from unittest.mock import patch
 
 from models import GenerationRequest, ReferenceInput
 from services.generator import (
+    _anchors_from_reference_chunks,
     _build_reference_chunks,
     _extract_reference_anchors,
     _format_reference_chunks,
+    _rewrite_internal_chunk_citations,
     generate_section_draft,
 )
 
@@ -99,8 +101,126 @@ class GeneratorCitationTests(unittest.IsolatedAsyncioTestCase):
 
         formatted = _format_reference_chunks(chunks)
 
+        self.assertIn("引用标记：[1-3、1-5]", formatted)
         self.assertIn("可用引用标记：[1-3]、[1-5]", formatted)
         self.assertIn("源内参考文献号：3, 5", formatted)
+
+    def test_multi_source_ref_chunk_rewrites_internal_id_to_all_source_ref_keys(self):
+        chunks = _build_reference_chunks([
+            ReferenceInput(
+                id=4,
+                filename="高钾血症管理规范.pdf",
+                text='在等待准备透析时推荐口服环硅酸锆钠散等降钾措施 <sup class="literature-sup">[3,32,33]</sup>。',
+            )
+        ])
+
+        formatted = _format_reference_chunks(chunks)
+        rewritten = _rewrite_internal_chunk_citations("可联合口服环硅酸锆钠等降钾措施[R4-C001]。", chunks)
+
+        self.assertEqual(chunks[0].source_ref_ids, ["3", "32", "33"])
+        self.assertIn("引用标记：[4-3、4-32、4-33]", formatted)
+        self.assertIn("可用引用标记：[4-3]、[4-32]、[4-33]", formatted)
+        self.assertEqual(rewritten, "可联合口服环硅酸锆钠等降钾措施[4-3、4-32、4-33]。")
+
+    def test_chunk_reference_anchors_highlight_only_sentence_with_source_refs(self):
+        chunks = _build_reference_chunks([
+            ReferenceInput(
+                id=4,
+                filename="高钾血症管理规范.pdf",
+                text=(
+                    "血钾升高时应先评估严重程度。"
+                    '在等待准备透析时推荐口服环硅酸锆钠散等降钾措施 <sup class="literature-sup">[3,32,33]</sup>。'
+                    "后续应复查血钾并评估心电图。"
+                    "必要时调整长期治疗方案。"
+                ),
+            )
+        ])
+
+        anchors = _anchors_from_reference_chunks(chunks)
+        by_key = {anchor.citation_key: anchor for anchor in anchors}
+
+        self.assertEqual(
+            by_key["4-33"].quote,
+            '在等待准备透析时推荐口服环硅酸锆钠散等降钾措施 <sup class="literature-sup">[3,32,33]</sup>。',
+        )
+        self.assertEqual(by_key["4-33"].context_before, "血钾升高时应先评估严重程度。")
+        self.assertEqual(by_key["4-33"].context_after, "后续应复查血钾并评估心电图。\n必要时调整长期治疗方案。")
+        self.assertEqual(by_key["R4-C001"].quote, by_key["4-33"].quote)
+
+    def test_chunk_reference_anchors_include_every_source_ref_key(self):
+        chunks = _build_reference_chunks([
+            ReferenceInput(
+                id=1,
+                filename="高钾血症指南.pdf",
+                text="高钾血症定义为血清钾离子浓度>5.0 mmol/L[156,157]。",
+            )
+        ])
+
+        anchors = _anchors_from_reference_chunks(chunks)
+        by_key = {anchor.citation_key: anchor for anchor in anchors}
+
+        self.assertIn("1-156", by_key)
+        self.assertIn("1-157", by_key)
+        self.assertEqual(by_key["1-156"].quote, by_key["1-157"].quote)
+        self.assertEqual(by_key["1-156"].chunk_id, "R1-C001")
+
+    def test_chunk_reference_anchors_keep_repeated_source_ref_occurrences(self):
+        chunks = _build_reference_chunks([
+            ReferenceInput(
+                id=1,
+                filename="高钾血症指南.pdf",
+                text=(
+                    "高糖加胰岛素可促进钾离子进入细胞内[47]。"
+                    "碳酸氢钠适用于合并代谢性酸中毒的患者[47]。"
+                    "β受体激动剂可使钾离子转移至细胞内[47]。"
+                ),
+            )
+        ])
+
+        anchors = [anchor for anchor in _anchors_from_reference_chunks(chunks) if anchor.citation_key == "1-47"]
+
+        self.assertEqual(len(anchors), 3)
+        self.assertEqual(anchors[0].quote, "高糖加胰岛素可促进钾离子进入细胞内[47]。")
+        self.assertEqual(anchors[1].quote, "碳酸氢钠适用于合并代谢性酸中毒的患者[47]。")
+        self.assertEqual(anchors[2].quote, "β受体激动剂可使钾离子转移至细胞内[47]。")
+
+    def test_format_reference_chunks_uses_sentence_level_citation_blocks(self):
+        chunks = _build_reference_chunks([
+            ReferenceInput(
+                id=1,
+                filename="高钾血症指南.pdf",
+                text=(
+                    "急性高钾血症的治疗目的在于迅速将血钾浓度降至安全水平[45]。"
+                    "静脉钙剂可迅速对抗高钾对心肌的毒性[46]。"
+                ),
+            )
+        ])
+
+        formatted = _format_reference_chunks(chunks)
+
+        self.assertIn("证据1｜引用标记：[1-45]", formatted)
+        self.assertIn("原文句子：急性高钾血症的治疗目的在于迅速将血钾浓度降至安全水平[45]。", formatted)
+        self.assertIn("证据2｜引用标记：[1-46]", formatted)
+        self.assertIn("原文句子：静脉钙剂可迅速对抗高钾对心肌的毒性[46]。", formatted)
+        self.assertNotIn("引用标记：[1-45、1-46]\n参考数据源", formatted)
+
+    def test_format_reference_chunks_does_not_make_uncited_neighbor_sentences_source_only_evidence(self):
+        chunks = _build_reference_chunks([
+            ReferenceInput(
+                id=1,
+                filename="高钾血症指南.pdf",
+                text=(
+                    "高钾血症定义为血清钾离子浓度>5.0 mmol/L[156]。"
+                    "该定义需要结合临床表现综合判断。"
+                ),
+            )
+        ])
+
+        formatted = _format_reference_chunks(chunks)
+
+        self.assertIn("证据1｜引用标记：[1-156]", formatted)
+        self.assertIn("上下文2｜无源内参考文献号，不能单独作为引用依据", formatted)
+        self.assertNotIn("证据2｜引用标记：[1]", formatted)
 
     def test_reference_chunks_fall_back_to_source_id_when_no_source_ref_marker_exists(self):
         refs = [
@@ -148,10 +268,10 @@ class GeneratorCitationTests(unittest.IsolatedAsyncioTestCase):
             draft = await generate_section_draft(req)
 
         self.assertEqual(captured["context"], "draft_generation")
-        self.assertIn("引用时必须使用每个片段列出的“引用标记”", captured["prompt"])
+        self.assertIn("引用时必须使用每条证据列出的“引用标记”", captured["prompt"])
         self.assertNotIn("内部片段ID", captured["prompt"])
         self.assertNotIn("R1-C001", captured["prompt"])
-        self.assertIn("引用标记：[1-5]", captured["prompt"])
+        self.assertIn("引用标记：[1-3、1-5]", captured["prompt"])
         self.assertIn("参考数据源 1：指南A.pdf", captured["prompt"])
         self.assertEqual(draft.generated_content, "推荐治疗方案[1-3、1-5]。")
         anchor_keys = [anchor.citation_key for anchor in draft.reference_anchors]
@@ -196,7 +316,7 @@ class GeneratorCitationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("内部片段ID", captured["prompt"])
         self.assertNotIn("R1-C001", captured["prompt"])
         self.assertIn("引用标记：[1-3]", captured["prompt"])
-        self.assertIn("引用时必须使用每个片段列出的“引用标记”", captured["prompt"])
+        self.assertIn("引用时必须使用每条证据列出的“引用标记”", captured["prompt"])
         self.assertEqual(draft.generated_content, "诱导缓解治疗可使用药物A[1-3]。")
         by_key = {anchor.citation_key: anchor for anchor in draft.reference_anchors}
         self.assertIn("1-3", by_key)

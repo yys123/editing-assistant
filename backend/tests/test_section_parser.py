@@ -11,6 +11,11 @@ class SectionParserWordCountTests(unittest.TestCase):
         self.assertEqual(section_parser.count_chinese_words(text), 13)
         self.assertEqual(section_parser.count_chinese_words("高钾血症[¹³⁻¹⁴] CKD患者"), 7)
 
+    def test_extract_refs_accepts_new_and_legacy_markers(self):
+        text = "新格式[3,18]和旧格式^[4-6]都要保留，结构标记[H1]不是引用。"
+
+        self.assertEqual(section_parser._extract_refs(text), ["[3,18]", "^[4-6]"])
+
     def test_structured_parser_demotes_long_arabic_list_marker_to_body(self):
         text = (
             "[H1] 诊断\n"

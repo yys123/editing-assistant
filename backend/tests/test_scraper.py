@@ -58,7 +58,25 @@ class HtmlStructuredParserTests(unittest.TestCase):
 
         structured = parse_html_structured(html)
 
-        self.assertIn("治疗选择有限性^[315]，但大多数患者可获益。", structured)
+        self.assertIn("治疗选择有限性[315]，但大多数患者可获益。", structured)
+
+    def test_converts_xref_superscript_citation_to_ref_marker(self):
+        html = """
+        <section class="page_disease-section">
+          <div>
+            <h2>治疗</h2>
+            <div class="ck-content">
+              <p>对于预防CKD患者低钾血症和高钾血症反复发作具有重要意义<sup class="sup">[<a class="xref bibr" target="_blank" rid="R64" href="javascript:void(0)">64</a>,<a class="xref bibr" target="_blank" rid="R65" href="javascript:void(0)">65</a>,<a class="xref bibr" target="_blank" rid="R66" href="javascript:void(0)">66</a>]</sup>。</p>
+            </div>
+          </div>
+        </section>
+        """
+
+        structured = parse_html_structured(html)
+
+        self.assertIn("具有重要意义[64,65,66]。", structured)
+        self.assertNotIn("<sup", structured)
+        self.assertNotIn("<a ", structured)
 
 
 if __name__ == "__main__":
