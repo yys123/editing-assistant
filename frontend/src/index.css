@@ -2246,12 +2246,126 @@ body {
   margin: 10px 0 !important;
 }
 
+.ai-history-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ai-history-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dui-text);
+}
+.ai-history-subtitle {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--dui-text-sub);
+}
+.ai-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ai-history-item {
+  border: 0.5px solid var(--dui-divider);
+  border-radius: 8px;
+  background: var(--dui-surface);
+  overflow: hidden;
+}
+.ai-history-item.expanded {
+  border-color: rgba(119, 83, 255, 0.35);
+  box-shadow: var(--dui-shadow-s1);
+}
+.ai-history-item-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--dui-surface);
+}
+.ai-history-item.expanded .ai-history-item-header {
+  background: var(--dui-primary-container);
+}
+.ai-history-question {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--dui-text);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.ai-history-chevron {
+  flex-shrink: 0;
+  color: var(--dui-text-sub);
+}
+.ai-history-item.expanded .ai-history-chevron {
+  color: var(--dui-primary);
+}
+.ai-history-question-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.ai-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.ai-history-meta {
+  font-size: 12px;
+  color: var(--dui-text-sub);
+  white-space: nowrap;
+}
+.ai-history-delete:hover {
+  color: var(--dui-danger);
+  background: var(--dui-danger-container);
+}
+.ai-history-answer {
+  padding: 12px;
+  border-top: 0.5px solid var(--dui-divider);
+  background: var(--dui-surface);
+}
+.ai-history-reference-list {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.ai-history-reference {
+  padding: 3px 10px;
+  background: var(--dui-surface-soft);
+  color: var(--dui-text-sub);
+  border-radius: var(--dui-radius-pill);
+  font-size: 12px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 980px) {
   .draft-preview-shell.has-citation-panel {
     grid-template-columns: minmax(0, 1fr);
   }
   .citation-panel {
     position: static;
+  }
+  .ai-history-item-header {
+    align-items: flex-start;
+  }
+  .ai-history-actions {
+    align-items: flex-end;
+    flex-direction: column;
   }
 }
 

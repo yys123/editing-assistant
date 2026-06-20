@@ -12,6 +12,7 @@ import {
   mergeReferenceAnchors,
   splitCitationTokens,
 } from '../utils/citations'
+import { getNextAiIntegrationActiveId } from '../utils/aiIntegrationHistory'
 
 interface Props {
   disease: string
@@ -20,6 +21,7 @@ interface Props {
   referenceDocs?: ReferenceDoc[]
   history: AiIntegrationRecord[]
   onAddRecord: (record: AiIntegrationRecord) => void
+  onDeleteRecord: (id: string) => void
 }
 
 type OriginalScope = 'all' | 'sections' | 'none'
@@ -113,7 +115,7 @@ function AiCitationPanel({
 }
 
 export default function StepAiIntegration({
-  disease, articleContent, parsedArticle, referenceDocs = [], history, onAddRecord,
+  disease, articleContent, parsedArticle, referenceDocs = [], history, onAddRecord, onDeleteRecord,
 }: Props) {
   const [userRequest, setUserRequest] = useState('')
   const [selectedRefs, setSelectedRefs] = useState<string[]>(() => referenceDocs.map(d => d.filename))
@@ -141,7 +143,7 @@ export default function StepAiIntegration({
 
   const selectedRefSet = useMemo(() => new Set(selectedRefs), [selectedRefs])
   const priorityRefSet = useMemo(() => new Set(priorityRefs), [priorityRefs])
-  const activeRecord = history.find(r => r.id === activeId) ?? history[history.length - 1] ?? null
+  const activeRecord = activeId ? history.find(r => r.id === activeId) ?? null : null
   const activeRecordSelectedRefSet = useMemo(
     () => new Set(activeRecord?.selectedReferences ?? []),
     [activeRecord?.selectedReferences],
@@ -233,6 +235,16 @@ export default function StepAiIntegration({
 
   const toggleSection = (id: string) => {
     setSelectedSectionIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id])
+  }
+
+  const deleteRecord = (id: string) => {
+    const nextActiveId = getNextAiIntegrationActiveId(history, id, activeId)
+    onDeleteRecord(id)
+    setActiveId(nextActiveId)
+  }
+
+  const toggleRecord = (id: string) => {
+    setActiveId(prev => prev === id ? null : id)
   }
 
   const runIntegration = async () => {
@@ -468,53 +480,76 @@ export default function StepAiIntegration({
         )}
       </div>
 
-      {activeRecord && (
+      {history.length > 0 && (
         <div className="section-card">
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-            {history.map(record => (
-              <button
-                key={record.id}
-                onClick={() => setActiveId(record.id)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 999,
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: record.id === activeRecord.id ? 'linear-gradient(135deg, var(--dui-primary), var(--dui-primary-soft))' : 'var(--dui-surface-soft)',
-                  color: record.id === activeRecord.id ? 'white' : 'var(--m3-on-surface)',
-                  fontSize: 12,
-                  fontWeight: 500,
-                }}
-              >
-                {formatTime(record.createdAt)}
-              </button>
-            ))}
-          </div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)', marginBottom: 8 }}>
-            {activeRecord.request}
-          </div>
-          <div className={`draft-preview-shell${activeCitation ? ' has-citation-panel' : ''}`}>
-            <div className="diff-content md draft-preview-content" style={{ maxHeight: 'none', minHeight: 160 }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {renderedAnswer}
-              </ReactMarkdown>
+          <div className="ai-history-section-header">
+            <div>
+              <div className="ai-history-title">问答记录</div>
+              <div className="ai-history-subtitle">{history.length} 条记录，点击问题展开查看回答</div>
             </div>
-            {activeCitation && (
-              <AiCitationPanel
-                anchor={activeCitation}
-                onClose={() => setActiveCitationKey(null)}
-              />
-            )}
           </div>
-          {activeRecord.referencesUsed.length > 0 && (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
-              {activeRecord.referencesUsed.map((ref, index) => (
-                <span key={`${ref}-${index}`} style={{ padding: '3px 10px', background: 'var(--dui-surface-soft)', color: 'var(--dui-text-sub)', borderRadius: 999, fontSize: 12 }}>
-                  {ref}
-                </span>
-              ))}
-            </div>
-          )}
+
+          <div className="ai-history-list">
+            {[...history].reverse().map(record => {
+              const expanded = activeRecord?.id === record.id
+              return (
+                <article key={record.id} className={`ai-history-item${expanded ? ' expanded' : ''}`}>
+                  <div className="ai-history-item-header">
+                    <button
+                      type="button"
+                      className="ai-history-question"
+                      onClick={() => toggleRecord(record.id)}
+                      aria-expanded={expanded}
+                    >
+                      <span className="material-symbols-outlined ai-history-chevron" style={{ fontSize: 18 }}>
+                        {expanded ? 'expand_less' : 'expand_more'}
+                      </span>
+                      <span className="ai-history-question-text">{record.request}</span>
+                    </button>
+                    <div className="ai-history-actions">
+                      <span className="ai-history-meta">{formatTime(record.createdAt)}</span>
+                      <button
+                        type="button"
+                        className="btn-m3-icon ai-history-delete"
+                        onClick={() => deleteRecord(record.id)}
+                        aria-label="删除问答记录"
+                        title="删除问答记录"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {expanded && (
+                    <div className="ai-history-answer">
+                      <div className={`draft-preview-shell${activeCitation ? ' has-citation-panel' : ''}`}>
+                        <div className="diff-content md draft-preview-content" style={{ maxHeight: 'none', minHeight: 160 }}>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                            {renderedAnswer}
+                          </ReactMarkdown>
+                        </div>
+                        {activeCitation && (
+                          <AiCitationPanel
+                            anchor={activeCitation}
+                            onClose={() => setActiveCitationKey(null)}
+                          />
+                        )}
+                      </div>
+                      {record.referencesUsed.length > 0 && (
+                        <div className="ai-history-reference-list">
+                          {record.referencesUsed.map((ref, index) => (
+                            <span key={`${ref}-${index}`} className="ai-history-reference">
+                              {ref}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </article>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>

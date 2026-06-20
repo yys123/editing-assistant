@@ -395,6 +395,10 @@ function AppContent() {
     setAiIntegrationHistory(prev => [...prev, record])
   }
 
+  const deleteAiIntegrationRecord = (id: string) => {
+    setAiIntegrationHistory(prev => prev.filter(record => record.id !== id))
+  }
+
   // ── Navigation ───────────────────────────────────────────────────────────────
   const goToStep = (s: Step) => {
     if (s === 6 && !gapAnalysis) {
@@ -1025,6 +1029,7 @@ function AppContent() {
               referenceDocs={referenceDocs}
               history={aiIntegrationHistory}
               onAddRecord={addAiIntegrationRecord}
+              onDeleteRecord={deleteAiIntegrationRecord}
             />
           )}
         </main>
