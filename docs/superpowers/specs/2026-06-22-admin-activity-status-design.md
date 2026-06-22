@@ -79,9 +79,9 @@ The middleware should ignore low-signal endpoints:
 
 - `/health`
 - `/healthz`
-- `/api/admin/activity`
+- `/api/admin/...`
 
-Ignoring the activity endpoint prevents an administrator refreshing the panel from making themselves appear as running work.
+Ignoring admin endpoints prevents an administrator opening or refreshing the panel from making themselves appear as active user work.
 
 ### Admin Endpoint
 

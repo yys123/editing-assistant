@@ -1,12 +1,45 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from auth import decode_token
 from config import settings
 from routers import article, qa, analyze, generate, history, standards, auth, admin, utd
 from services.admin_runtime import get_effective_text_config
+from services import admin_activity
 from services.utd_monitor.crawler import init_monitor_service, shutdown_monitor_service
 import db
 
 app = FastAPI(title="Editing Assistant API", version="1.0.0")
+
+
+def _should_track_activity(path: str) -> bool:
+    return path not in {"/health", "/healthz"} and not path.startswith("/api/admin")
+
+
+def _activity_user_from_request(request: Request):
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    try:
+        payload = decode_token(auth_header[7:])
+        return db.get_user_by_id(payload["sub"])
+    except Exception:
+        return None
+
+
+@app.middleware("http")
+async def track_admin_activity(request: Request, call_next):
+    request_id = None
+    path = request.url.path
+    if _should_track_activity(path):
+        user = _activity_user_from_request(request)
+        if user:
+            request_id = admin_activity.start_request(user, request.method, path)
+    try:
+        return await call_next(request)
+    finally:
+        if request_id:
+            admin_activity.finish_request(request_id)
+
 
 @app.on_event("startup")
 def startup():

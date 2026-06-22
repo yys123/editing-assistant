@@ -63,6 +63,37 @@ interface AiRequestPayload {
   raw_json: string
 }
 
+interface ActivityRunningRequest {
+  id: string
+  user_id: string
+  email: string
+  display_name: string
+  method: string
+  path: string
+  started_at: string
+  elapsed_seconds: number
+}
+
+interface ActivityUser {
+  user_id: string
+  email: string
+  display_name: string
+  last_activity_at: string
+  last_method: string
+  last_path: string
+  seconds_since_activity: number
+  running_requests: ActivityRunningRequest[]
+}
+
+interface ActivitySnapshot {
+  generated_at: string
+  active_window_seconds: number
+  active_users: ActivityUser[]
+  running_requests: ActivityRunningRequest[]
+  active_user_count: number
+  running_count: number
+}
+
 interface Props {
   onClose: () => void
 }
@@ -85,6 +116,24 @@ const EMPTY_CONFIG: RuntimeConfig = {
   gemini_context_window_tokens: 1000000,
 }
 
+function formatDuration(seconds: number | null | undefined) {
+  const safeSeconds = Math.max(0, Math.floor(seconds ?? 0))
+  if (safeSeconds < 60) return `${safeSeconds}秒`
+  const minutes = Math.floor(safeSeconds / 60)
+  const restSeconds = safeSeconds % 60
+  if (minutes < 60) return restSeconds ? `${minutes}分${restSeconds}秒` : `${minutes}分`
+  const hours = Math.floor(minutes / 60)
+  const restMinutes = minutes % 60
+  return restMinutes ? `${hours}小时${restMinutes}分` : `${hours}小时`
+}
+
+function formatDateTime(value: string) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleString()
+}
+
 export default function AdminSettingsModal({ onClose }: Props) {
   const [config, setConfig] = useState<RuntimeConfig>(EMPTY_CONFIG)
   const [loading, setLoading] = useState(true)
@@ -98,6 +147,9 @@ export default function AdminSettingsModal({ onClose }: Props) {
   const [aiRequestLoading, setAiRequestLoading] = useState(false)
   const [aiRequestError, setAiRequestError] = useState('')
   const [aiRequestTab, setAiRequestTab] = useState<'prompt' | 'raw'>('prompt')
+  const [activity, setActivity] = useState<ActivitySnapshot | null>(null)
+  const [activityLoading, setActivityLoading] = useState(true)
+  const [activityError, setActivityError] = useState('')
 
   const loadAiLogs = async () => {
     const r = await apiFetch('/api/admin/ai-call-logs?limit=20')
@@ -105,6 +157,21 @@ export default function AdminSettingsModal({ onClose }: Props) {
     if (!r.ok) throw new Error(data.detail || '读取 AI 调用日志失败')
     setAiLogs(Array.isArray(data.items) ? data.items : [])
     setAiSummary(data.summary ?? null)
+  }
+
+  const loadActivity = async () => {
+    setActivityLoading(true)
+    setActivityError('')
+    try {
+      const r = await apiFetch('/api/admin/activity')
+      const data = await safeJson(r)
+      if (!r.ok) throw new Error(data.detail || '读取运行状态失败')
+      setActivity(data)
+    } catch (e: any) {
+      setActivityError(e.message || '读取运行状态失败')
+    } finally {
+      setActivityLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -117,7 +184,7 @@ export default function AdminSettingsModal({ onClose }: Props) {
       .then(data => {
         setConfig({ ...EMPTY_CONFIG, ...data.defaults, ...data.config })
         setHasApiKey(!!data.has_deepseek_api_key)
-        return loadAiLogs()
+        return Promise.all([loadAiLogs(), loadActivity()])
       })
       .catch((e: Error) => setError(e.message || '读取管理员配置失败'))
       .finally(() => setLoading(false))
@@ -294,6 +361,96 @@ export default function AdminSettingsModal({ onClose }: Props) {
                 {success}
               </div>
             )}
+
+            <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--m3-outline-variant)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--m3-on-surface)' }}>运行状态</h4>
+                <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
+                  {activity?.generated_at ? `最后刷新：${formatDateTime(activity.generated_at)}` : ''}
+                </div>
+                <button type="button" className="btn-m3-outline" style={{ marginLeft: 'auto', fontSize: 12, padding: '4px 10px' }} onClick={loadActivity} disabled={activityLoading}>
+                  {activityLoading && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
+                  刷新
+                </button>
+              </div>
+              {activityError && (
+                <div style={{ padding: '10px 14px', background: 'var(--m3-error-container)', color: 'var(--m3-error)', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
+                  {activityError}
+                </div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 12 }}>
+                <div style={{ padding: 10, borderRadius: 8, background: 'var(--m3-surface-container-low)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>最近在线</div>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>{activity?.active_user_count ?? 0}</div>
+                </div>
+                <div style={{ padding: 10, borderRadius: 8, background: 'var(--m3-surface-container-low)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>运行中请求</div>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>{activity?.running_count ?? 0}</div>
+                </div>
+                <div style={{ padding: 10, borderRadius: 8, background: 'var(--m3-surface-container-low)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>在线窗口</div>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>{formatDuration(activity?.active_window_seconds ?? 300)}</div>
+                </div>
+              </div>
+              <div style={{ maxHeight: 220, overflow: 'auto', border: '1px solid var(--m3-outline-variant)', borderRadius: 10 }}>
+                <table style={{ minWidth: 760, width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--m3-surface-container-low)' }}>
+                      <th style={{ textAlign: 'left', padding: 8 }}>用户</th>
+                      <th style={{ textAlign: 'left', padding: 8 }}>状态</th>
+                      <th style={{ textAlign: 'left', padding: 8 }}>最近活动</th>
+                      <th style={{ textAlign: 'left', padding: 8 }}>当前请求</th>
+                      <th style={{ textAlign: 'right', padding: 8 }}>已运行</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activityLoading && !activity ? (
+                      <tr>
+                        <td colSpan={5} style={{ padding: 14, textAlign: 'center', color: 'var(--m3-on-surface-variant)' }}>
+                          <div className="spinner" style={{ margin: '0 auto' }} />
+                        </td>
+                      </tr>
+                    ) : (activity?.active_users?.length ?? 0) === 0 ? (
+                      <tr>
+                        <td colSpan={5} style={{ padding: 14, textAlign: 'center', color: 'var(--m3-on-surface-variant)' }}>暂无最近活动或运行中的请求</td>
+                      </tr>
+                    ) : activity?.active_users.map(item => {
+                      const running = Array.isArray(item.running_requests) ? item.running_requests : []
+                      const primaryRequest = running[0]
+                      return (
+                        <tr key={item.user_id} style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
+                          <td style={{ padding: 8, minWidth: 160 }}>
+                            <div style={{ fontWeight: 500, color: 'var(--m3-on-surface)' }}>{item.display_name || item.email || item.user_id}</div>
+                            {item.display_name && item.email && (
+                              <div style={{ marginTop: 2, color: 'var(--m3-on-surface-variant)' }}>{item.email}</div>
+                            )}
+                          </td>
+                          <td style={{ padding: 8, color: running.length > 0 ? 'var(--m3-tertiary)' : 'var(--m3-on-surface-variant)', whiteSpace: 'nowrap' }}>
+                            {running.length > 0 ? `运行中（${running.length}）` : '最近在线'}
+                          </td>
+                          <td style={{ padding: 8, whiteSpace: 'nowrap' }}>
+                            {formatDateTime(item.last_activity_at)}
+                            <div style={{ marginTop: 2, color: 'var(--m3-on-surface-variant)' }}>
+                              {item.last_method} {item.last_path}
+                            </div>
+                          </td>
+                          <td style={{ padding: 8, maxWidth: 260 }}>
+                            {running.length === 0 ? '—' : running.map(req => (
+                              <code key={req.id} title={`${req.method} ${req.path}`} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2 }}>
+                                {req.method} {req.path}
+                              </code>
+                            ))}
+                          </td>
+                          <td style={{ padding: 8, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            {primaryRequest ? formatDuration(primaryRequest.elapsed_seconds) : '—'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
             <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--m3-outline-variant)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>

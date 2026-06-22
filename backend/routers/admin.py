@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from auth import get_current_user
 from services.admin_runtime import get_admin_runtime_payload, save_runtime_config
+from services import admin_activity
 from services.ai_audit import REQUEST_LOG_DIR
 import db
 
@@ -124,6 +125,12 @@ def get_ai_call_logs(limit: int = 100, user: dict = Depends(get_current_user)):
         "summary": db.summarize_ai_call_logs(),
         "items": [_sanitize_ai_call_log(log) for log in db.list_ai_call_logs(limit)],
     }
+
+
+@router.get("/activity")
+def get_activity(user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    return admin_activity.snapshot()
 
 
 @router.get("/ai-call-logs/{log_id}/request-payload")

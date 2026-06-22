@@ -17,7 +17,7 @@
   - Provides `record_activity`, `start_request`, `finish_request`, and `snapshot`.
 - Modify `backend/main.py`
   - Adds best-effort activity middleware.
-  - Ignores health checks and `/api/admin/activity`.
+  - Ignores health checks and `/api/admin/...`.
 - Modify `backend/routers/admin.py`
   - Adds `GET /api/admin/activity` guarded by `_require_admin`.
 - Modify `backend/tests/test_admin_features.py`
@@ -120,6 +120,7 @@ Add small tests for a helper such as `_should_track_activity(path)` so ignored p
 ```python
 self.assertFalse(main._should_track_activity("/health"))
 self.assertFalse(main._should_track_activity("/api/admin/activity"))
+self.assertFalse(main._should_track_activity("/api/admin/runtime-config"))
 self.assertTrue(main._should_track_activity("/api/history"))
 ```
 

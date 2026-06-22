@@ -2,6 +2,7 @@ import json
 import inspect
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -10,8 +11,10 @@ from fastapi import HTTPException
 
 import auth
 import db
+import main
 from routers import admin
 from routers import history
+from services import admin_activity
 from services import admin_runtime
 
 
@@ -93,6 +96,96 @@ class AiCallLogDbTests(unittest.TestCase):
                 logs = db.list_ai_call_logs(1)
 
         self.assertEqual(logs[0]["request_log_path"], "/tmp/request.json")
+
+
+class AdminActivityTrackerTests(unittest.TestCase):
+    def test_activity_tracker_lists_recent_users(self):
+        tracker = admin_activity.ActivityTracker()
+        now = datetime(2026, 6, 22, 10, 0, tzinfo=timezone.utc)
+
+        tracker.record_activity(
+            {"id": "u1", "email": "a@example.com", "display_name": "A"},
+            "GET",
+            "/api/history",
+            now,
+        )
+        snap = tracker.snapshot(now=now, active_window_seconds=300)
+
+        self.assertEqual(snap["active_user_count"], 1)
+        self.assertEqual(snap["running_count"], 0)
+        self.assertEqual(snap["active_users"][0]["email"], "a@example.com")
+        self.assertEqual(snap["active_users"][0]["display_name"], "A")
+        self.assertEqual(snap["active_users"][0]["last_path"], "/api/history")
+
+    def test_running_request_keeps_user_visible_outside_activity_window(self):
+        tracker = admin_activity.ActivityTracker()
+        started = datetime(2026, 6, 22, 10, 0, tzinfo=timezone.utc)
+        now = started + timedelta(minutes=10)
+
+        request_id = tracker.start_request(
+            {"id": "u1", "email": "a@example.com", "display_name": "A"},
+            "POST",
+            "/api/generate/draft",
+            started,
+        )
+        snap = tracker.snapshot(now=now, active_window_seconds=300)
+
+        self.assertEqual(snap["active_user_count"], 1)
+        self.assertEqual(snap["running_count"], 1)
+        self.assertEqual(snap["active_users"][0]["running_requests"][0]["id"], request_id)
+        self.assertEqual(snap["active_users"][0]["running_requests"][0]["elapsed_seconds"], 600)
+
+    def test_finish_request_removes_running_request(self):
+        tracker = admin_activity.ActivityTracker()
+        now = datetime(2026, 6, 22, 10, 0, tzinfo=timezone.utc)
+
+        request_id = tracker.start_request(
+            {"id": "u1", "email": "a@example.com", "display_name": ""},
+            "POST",
+            "/api/analyze/full",
+            now,
+        )
+        tracker.finish_request(request_id)
+        snap = tracker.snapshot(now=now, active_window_seconds=300)
+
+        self.assertEqual(snap["running_count"], 0)
+        self.assertEqual(snap["active_users"][0]["running_requests"], [])
+
+
+class AdminActivityEndpointTests(unittest.TestCase):
+    def test_admin_activity_rejects_non_admin(self):
+        with self.assertRaises(HTTPException) as ctx:
+            admin.get_activity(user={"is_admin": False})
+
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_admin_activity_returns_snapshot_for_admin(self):
+        snapshot = {
+            "generated_at": "2026-06-22T10:00:00.000Z",
+            "active_window_seconds": 300,
+            "active_users": [],
+            "running_requests": [],
+            "active_user_count": 0,
+            "running_count": 0,
+        }
+
+        with patch.object(admin.admin_activity, "snapshot", return_value=snapshot) as mock_snapshot:
+            result = admin.get_activity(user={"is_admin": True})
+
+        self.assertEqual(result, snapshot)
+        mock_snapshot.assert_called_once_with()
+
+
+class AdminActivityMiddlewareTests(unittest.TestCase):
+    def test_should_track_activity_ignores_low_signal_paths(self):
+        self.assertFalse(main._should_track_activity("/health"))
+        self.assertFalse(main._should_track_activity("/healthz"))
+        self.assertFalse(main._should_track_activity("/api/admin/activity"))
+        self.assertFalse(main._should_track_activity("/api/admin/runtime-config"))
+
+    def test_should_track_activity_tracks_normal_api_paths(self):
+        self.assertTrue(main._should_track_activity("/api/history"))
+        self.assertTrue(main._should_track_activity("/api/generate/draft"))
 
 
 class AdminAiRequestPayloadTests(unittest.TestCase):
