@@ -205,6 +205,35 @@ class GuideDataSourceTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("<sup", result["content"])
         self.assertNotIn("<a ", result["content"])
 
+    async def test_get_guide_detail_preserves_preface_before_first_heading(self):
+        FakeAsyncClient.responses = [
+            FakeGuideResponse({
+                "code": "success",
+                "message": "成功",
+                "data": {
+                    "title": "中国视神经脊髓炎谱系疾病诊断与治疗指南（2025版）",
+                    "htmlContent": (
+                        "<article>"
+                        "<p><strong>中国视神经脊髓炎谱系疾病诊断与治疗指南（2025版）</strong></p>"
+                        "<p>中华医学会神经病学分会神经免疫学组</p>"
+                        "<p>中华神经科杂志, 2025,58(07): 687-703.</p>"
+                        "<p>视神经脊髓炎谱系疾病（neuromyelitis optica spectrum disorders，NMOSD）是一种以视神经和脊髓受累为主的中枢神经系统自身免疫性炎性疾病。</p>"
+                        "<h2>一、流行病学特征</h2>"
+                        "<p>NMOSD的病因不完全明确。</p>"
+                        "</article>"
+                    ),
+                },
+            })
+        ]
+
+        with patch.object(article.httpx, "AsyncClient", FakeAsyncClient):
+            result = await article.get_guide_detail(77028)
+
+        self.assertTrue(result["content"].startswith("中国视神经脊髓炎谱系疾病诊断与治疗指南（2025版）"))
+        self.assertIn("中华医学会神经病学分会神经免疫学组", result["content"])
+        self.assertIn("视神经脊髓炎谱系疾病（neuromyelitis optica spectrum disorders，NMOSD）", result["content"])
+        self.assertIn("[H2] 一、流行病学特征", result["content"])
+
     async def test_guide_api_requires_credentials(self):
         with patch.object(
             article,

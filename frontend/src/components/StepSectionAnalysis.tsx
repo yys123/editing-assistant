@@ -7,6 +7,12 @@ import {
 } from '../utils/sectionAnalysisCompatibility'
 import { getIssueLocatorAnchors, LocatableIssueAnchor } from '../utils/issueAnchors'
 import { countChineseWords } from '../utils/sectionContent'
+import {
+  DEFAULT_REVIEW_FULLSCREEN_FONT_SIZE,
+  REVIEW_FULLSCREEN_FONT_SIZES,
+  ReviewFullscreenFontSize,
+  getReviewFullscreenFontScale,
+} from '../utils/reviewFullscreenFont'
 
 interface Props {
   disease: string
@@ -213,6 +219,7 @@ export default function StepSectionAnalysis({
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [activeAnchor, setActiveAnchor] = useState<{ groupId: string; issueId: string; anchorIndex: number; lineStart: number; lineEnd: number } | null>(null)
   const [fullscreenGroupId, setFullscreenGroupId] = useState<string | null>(null)
+  const [reviewFontSize, setReviewFontSize] = useState<ReviewFullscreenFontSize>(DEFAULT_REVIEW_FULLSCREEN_FONT_SIZE)
   const sourceLineRefs = React.useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
@@ -462,6 +469,51 @@ export default function StepSectionAnalysis({
   }, [dimStats, visibleAnalyses, parsedArticle.total_words])
 
   const fullscreenGroup = fullscreenGroupId ? groups.find(g => g.representative.id === fullscreenGroupId) ?? null : null
+  const reviewFontScale = getReviewFullscreenFontScale(reviewFontSize)
+  const renderFontSizeControl = (ariaLabel: string) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+      <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>字体</span>
+      <div
+        role="group"
+        aria-label={ariaLabel}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: 2,
+          borderRadius: 6,
+          background: 'var(--m3-surface-container-low)',
+          border: '0.5px solid var(--dui-divider)',
+        }}
+      >
+        {REVIEW_FULLSCREEN_FONT_SIZES.map(option => {
+          const active = reviewFontSize === option.value
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setReviewFontSize(option.value)}
+              aria-pressed={active}
+              style={{
+                minWidth: 32,
+                height: 26,
+                padding: '0 10px',
+                border: 'none',
+                borderRadius: 4,
+                background: active ? 'var(--dui-surface)' : 'transparent',
+                color: active ? 'var(--m3-primary)' : 'var(--m3-on-surface-variant)',
+                boxShadow: active ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                fontSize: 12,
+                fontWeight: active ? 600 : 500,
+                cursor: 'pointer',
+              }}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 
   return (
     <div>
@@ -532,8 +584,18 @@ export default function StepSectionAnalysis({
       )}
 
       {/* Section detail */}
-      <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)' }}>
-        章节详情
+      <div style={{
+        marginBottom: 8,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        flexWrap: 'wrap',
+      }}>
+        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)' }}>
+          章节详情
+        </span>
+        {renderFontSizeControl('评审内容字体大小')}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
         {groups.map((group, i) => {
@@ -801,7 +863,7 @@ export default function StepSectionAnalysis({
                     <div style={{
                       padding: '10px 12px',
                       flex: 1, minHeight: 0, overflowY: 'auto',
-                      fontSize: 12, lineHeight: 1.9, color: 'var(--gray-700)',
+                      fontSize: reviewFontScale.body, lineHeight: reviewFontScale.lineHeight, color: 'var(--gray-700)',
                     }}>
                       {group.combinedContent.split('\n').map((line, li) => {
                         const isActiveLine = activeAnchor?.groupId === group.representative.id
@@ -812,12 +874,12 @@ export default function StepSectionAnalysis({
                           sourceLineRefs.current[`main:${group.representative.id}:${li}`] = node
                         }
                         if (line.startsWith('### ')) return (
-                          <div ref={lineRef} key={li} style={{ ...lineBaseStyle, fontWeight: 500, color: 'var(--gray-800)', marginTop: 8, marginBottom: 2, fontSize: 12 }}>
+                          <div ref={lineRef} key={li} style={{ ...lineBaseStyle, fontWeight: 500, color: 'var(--gray-800)', marginTop: 8, marginBottom: 2, fontSize: reviewFontScale.sourceSubheading }}>
                             {line.slice(4)}
                           </div>
                         )
                         if (line.startsWith('## ')) return (
-                          <div ref={lineRef} key={li} style={{ ...lineBaseStyle, fontWeight: 500, color: 'var(--gray-900)', marginTop: 10, marginBottom: 3, fontSize: 13, borderBottom: '0.5px solid var(--dui-divider)', paddingBottom: 2 }}>
+                          <div ref={lineRef} key={li} style={{ ...lineBaseStyle, fontWeight: 500, color: 'var(--gray-900)', marginTop: 10, marginBottom: 3, fontSize: reviewFontScale.sourceHeading, borderBottom: '0.5px solid var(--dui-divider)', paddingBottom: 2 }}>
                             {line.slice(3)}
                           </div>
                         )
@@ -840,20 +902,20 @@ export default function StepSectionAnalysis({
 
                     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                       {isAnalysing && (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 16px', gap: 10, color: 'var(--gray-400)', fontSize: 13 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 16px', gap: 10, color: 'var(--gray-400)', fontSize: reviewFontScale.body }}>
                           <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
                           AI 正在审核此章节…
                         </div>
                       )}
 
                       {hasError && (
-                        <div style={{ fontSize: 12, color: 'var(--red)', padding: '12px 14px' }}>
+                        <div style={{ fontSize: reviewFontScale.supportingText, color: 'var(--red)', padding: '12px 14px' }}>
                           {errors[group.representative.id]}
                         </div>
                       )}
 
                       {!isAnalysing && !hasError && issues.length === 0 && (
-                        <div style={{ fontSize: 12, color: 'var(--gray-400)', padding: '16px 14px' }}>
+                        <div style={{ fontSize: reviewFontScale.supportingText, color: 'var(--gray-400)', padding: '16px 14px' }}>
                           本章节未发现问题
                         </div>
                       )}
@@ -955,11 +1017,11 @@ export default function StepSectionAnalysis({
                                     className="textarea"
                                     value={issue.description}
                                     onChange={e => updateIssue(group.representative.id, issue.id, { description: e.target.value })}
-                                    style={{ minHeight: 56, fontSize: 12, marginTop: 2, marginBottom: 4 }}
+                                    style={{ minHeight: 56, fontSize: reviewFontScale.issueBody, marginTop: 2, marginBottom: 4 }}
                                     autoFocus
                                   />
                                 ) : (
-                                  <div style={{ fontSize: 12, color: isRejected ? 'var(--gray-400)' : 'var(--gray-800)', lineHeight: 1.7,
+                                  <div style={{ fontSize: reviewFontScale.issueBody, color: isRejected ? 'var(--gray-400)' : 'var(--gray-800)', lineHeight: reviewFontScale.issueLineHeight,
                                     textDecoration: isRejected ? 'line-through' : 'none' }}>
                                     {issue.description}
                                   </div>
@@ -996,7 +1058,7 @@ export default function StepSectionAnalysis({
                                   <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', gap: 3 }}>
                                     {issue.examples.map((ex, ei) => (
                                       <div key={ei} style={{
-                                        fontSize: 12, color: 'var(--gray-600)', lineHeight: 1.6,
+                                        fontSize: reviewFontScale.supportingText, color: 'var(--gray-600)', lineHeight: 1.6,
                                         background: 'var(--gray-50)', borderRadius: 3, padding: '3px 7px',
                                         borderLeft: `2px solid ${isRejected ? 'var(--gray-300)' : sevColor}`,
                                       }}>
@@ -1014,7 +1076,7 @@ export default function StepSectionAnalysis({
                                   }}>
                                     {guidelineEvidence.length === 0 && (
                                       <div style={{
-                                        fontSize: 12,
+                                        fontSize: reviewFontScale.supportingText,
                                         color: isRejected ? 'var(--gray-400)' : 'var(--dui-warning)',
                                         lineHeight: 1.65,
                                         background: isRejected ? 'var(--gray-50)' : 'var(--dui-warning-container)',
@@ -1028,7 +1090,7 @@ export default function StepSectionAnalysis({
                                     )}
                                     {guidelineEvidence.map((evidence, ei) => (
                                       <div key={ei} style={{
-                                        fontSize: 12,
+                                        fontSize: reviewFontScale.supportingText,
                                         color: isRejected ? 'var(--gray-400)' : 'var(--gray-700)',
                                         lineHeight: 1.65,
                                         background: isRejected ? 'var(--gray-50)' : 'var(--dui-primary-container)',
@@ -1063,7 +1125,7 @@ export default function StepSectionAnalysis({
                           padding: '6px 10px',
                           background: 'var(--blue-light)',
                           borderRadius: 4,
-                          fontSize: 12,
+                          fontSize: reviewFontScale.supportingText,
                           color: 'var(--gray-600)',
                           lineHeight: 1.7,
                           borderLeft: '3px solid var(--dui-primary)',
@@ -1113,18 +1175,20 @@ export default function StepSectionAnalysis({
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
+                flexWrap: 'wrap',
                 gap: 12,
                 padding: '12px 16px',
                 borderBottom: '0.5px solid var(--dui-divider)',
                 background: 'var(--m3-surface-container-lowest)',
               }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--m3-primary)' }}>fullscreen</span>
-                <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ minWidth: 220, flex: '1 1 260px' }}>
                   <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--m3-on-surface)' }}>{group.representative.heading}</div>
                   <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>
                     {getAnalysisGroupWordCount(group)} 字 · {isAnalysing ? '分析中' : hasError ? '分析失败' : isStale ? '旧审评结果' : `${issues.length} 个有效问题`}
                   </div>
                 </div>
+                {renderFontSizeControl('全屏内容字体大小')}
                 <button
                   className="btn-m3-outline"
                   style={{ padding: '5px 12px', fontSize: 12 }}
@@ -1137,9 +1201,10 @@ export default function StepSectionAnalysis({
 
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))',
                 minHeight: 0,
                 flex: 1,
+                overflow: 'hidden',
               }}>
                 <div style={{ borderRight: '0.5px solid var(--dui-divider)', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
                   <div style={{
@@ -1157,8 +1222,8 @@ export default function StepSectionAnalysis({
                     flex: 1,
                     minHeight: 0,
                     overflowY: 'auto',
-                    fontSize: 13,
-                    lineHeight: 1.9,
+                    fontSize: reviewFontScale.body,
+                    lineHeight: reviewFontScale.lineHeight,
                     color: 'var(--gray-700)',
                   }}>
                     {group.combinedContent.split('\n').map((line, li) => {
@@ -1170,12 +1235,12 @@ export default function StepSectionAnalysis({
                         sourceLineRefs.current[`fullscreen:${group.representative.id}:${li}`] = node
                       }
                       if (line.startsWith('### ')) return (
-                        <div ref={lineRef} key={li} style={{ ...lineBaseStyle, fontWeight: 600, color: 'var(--gray-800)', marginTop: 10, marginBottom: 3, fontSize: 13 }}>
+                        <div ref={lineRef} key={li} style={{ ...lineBaseStyle, fontWeight: 600, color: 'var(--gray-800)', marginTop: 10, marginBottom: 3, fontSize: reviewFontScale.sourceSubheading }}>
                           {line.slice(4)}
                         </div>
                       )
                       if (line.startsWith('## ')) return (
-                        <div ref={lineRef} key={li} style={{ ...lineBaseStyle, fontWeight: 600, color: 'var(--gray-900)', marginTop: 12, marginBottom: 4, fontSize: 14, borderBottom: '0.5px solid var(--dui-divider)', paddingBottom: 3 }}>
+                        <div ref={lineRef} key={li} style={{ ...lineBaseStyle, fontWeight: 600, color: 'var(--gray-900)', marginTop: 12, marginBottom: 4, fontSize: reviewFontScale.sourceHeading, borderBottom: '0.5px solid var(--dui-divider)', paddingBottom: 3 }}>
                           {line.slice(3)}
                         </div>
                       )
@@ -1198,14 +1263,14 @@ export default function StepSectionAnalysis({
                   </div>
                   <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 12px' }}>
                     {isAnalysing && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '36px 16px', gap: 10, color: 'var(--gray-400)', fontSize: 13 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '36px 16px', gap: 10, color: 'var(--gray-400)', fontSize: reviewFontScale.body }}>
                         <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
                         AI 正在审核此章节…
                       </div>
                     )}
-                    {hasError && <div style={{ fontSize: 12, color: 'var(--red)', padding: '8px 2px' }}>{errors[group.representative.id]}</div>}
+                    {hasError && <div style={{ fontSize: reviewFontScale.supportingText, color: 'var(--red)', padding: '8px 2px' }}>{errors[group.representative.id]}</div>}
                     {!isAnalysing && !hasError && allIssues.length === 0 && (
-                      <div style={{ fontSize: 13, color: 'var(--gray-400)', padding: '16px 4px' }}>本章节未发现问题</div>
+                      <div style={{ fontSize: reviewFontScale.body, color: 'var(--gray-400)', padding: '16px 4px' }}>本章节未发现问题</div>
                     )}
                     {!isAnalysing && !hasError && allIssues.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1278,7 +1343,7 @@ export default function StepSectionAnalysis({
                                   )}
                                 </div>
                               </div>
-                              <div style={{ fontSize: 13, color: isRejected ? 'var(--gray-400)' : 'var(--gray-800)', lineHeight: 1.75, textDecoration: isRejected ? 'line-through' : 'none' }}>
+                              <div style={{ fontSize: reviewFontScale.issueBody, color: isRejected ? 'var(--gray-400)' : 'var(--gray-800)', lineHeight: reviewFontScale.issueLineHeight, textDecoration: isRejected ? 'line-through' : 'none' }}>
                                 {issue.description}
                               </div>
                               {locatableAnchors.length > 1 && (
@@ -1312,7 +1377,7 @@ export default function StepSectionAnalysis({
                                 <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
                                   {issue.examples.map((ex, ei) => (
                                     <div key={ei} style={{
-                                      fontSize: 12,
+                                      fontSize: reviewFontScale.supportingText,
                                       color: 'var(--gray-600)',
                                       lineHeight: 1.65,
                                       background: 'var(--gray-50)',
@@ -1329,7 +1394,7 @@ export default function StepSectionAnalysis({
                                 <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
                                   {guidelineEvidence.length === 0 && (
                                     <div style={{
-                                      fontSize: 12,
+                                      fontSize: reviewFontScale.supportingText,
                                       color: isRejected ? 'var(--gray-400)' : 'var(--dui-warning)',
                                       lineHeight: 1.65,
                                       background: isRejected ? 'var(--gray-50)' : 'var(--dui-warning-container)',
@@ -1343,7 +1408,7 @@ export default function StepSectionAnalysis({
                                   )}
                                   {guidelineEvidence.map((evidence, ei) => (
                                     <div key={ei} style={{
-                                      fontSize: 12,
+                                      fontSize: reviewFontScale.supportingText,
                                       color: isRejected ? 'var(--gray-400)' : 'var(--gray-700)',
                                       lineHeight: 1.65,
                                       background: isRejected ? 'var(--gray-50)' : 'var(--dui-primary-container)',
@@ -1373,7 +1438,7 @@ export default function StepSectionAnalysis({
                         padding: '7px 10px',
                         background: 'var(--blue-light)',
                         borderRadius: 4,
-                        fontSize: 12,
+                        fontSize: reviewFontScale.supportingText,
                         color: 'var(--gray-600)',
                         lineHeight: 1.7,
                         borderLeft: '3px solid var(--dui-primary)',

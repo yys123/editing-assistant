@@ -76,6 +76,96 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(by_key["3-22"].chunk_id, "R3-C001")
         self.assertIn("危急症", by_key["3-22"].quote)
 
+    async def test_ai_integration_exposes_original_content_citations_as_source_zero(self):
+        calls = []
+
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            calls.append(prompt)
+            return "慢性肾脏病患者需进行血钾监测[18]。"
+
+        req = AiIntegrationRequest(
+            disease="慢性肾脏病血钾管理",
+            user_request="总结血钾管理要点",
+            original_content=(
+                "慢性肾脏病患者需定期进行血钾监测[18]。"
+                "高钾血症时应评估心电图改变[19]。"
+            ),
+            reference_inputs=[
+                ReferenceInput(
+                    id=1,
+                    filename="高钾血症指南.pdf",
+                    text="血钾管理需要结合肾功能和用药情况[45]。",
+                ),
+            ],
+        )
+
+        result = await generate_ai_integration_answer(req, text_generator=fake_generate_text)
+
+        self.assertIn("原词条证据1｜引用标记：[0-18]", calls[0])
+        self.assertIn("原词条证据2｜引用标记：[0-19]", calls[0])
+        self.assertIn("引用原词条内容时必须使用[0-原文献号]", calls[0])
+        self.assertEqual(result.answer, "慢性肾脏病患者需进行血钾监测[0-18]。")
+        by_key = {anchor.citation_key: anchor for anchor in result.reference_anchors}
+        self.assertIn("0-18", by_key)
+        self.assertEqual(by_key["0-18"].source_id, 0)
+        self.assertEqual(by_key["0-18"].source_filename, "原词条内容")
+        self.assertEqual(by_key["0-18"].source_ref_id, "18")
+        self.assertIn("血钾监测", by_key["0-18"].quote)
+
+    async def test_ai_integration_rewrites_original_content_ranges_and_mixed_refs_to_source_zero(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            self.assertIn("原词条证据1｜引用标记：[0-79]", prompt)
+            self.assertIn("引用标记：[0-146]", prompt)
+            self.assertIn("引用标记：[0-147]", prompt)
+            self.assertIn("引用标记：[0-149]", prompt)
+            return "高钾血症急危重症需要紧急处理[79]，流程见图4[146–147,149]。"
+
+        req = AiIntegrationRequest(
+            disease="慢性肾脏病血钾管理",
+            user_request="总结急危重症定义和处理原则",
+            original_content=(
+                "CKD患者短期内出现血钾升高至≥6.0 mmol/L即属于高钾血症急危重症[79]。"
+                "急性高钾血症的处理应遵循“三步走”策略，具体流程见图4[146–147,149]。"
+            ),
+        )
+
+        result = await generate_ai_integration_answer(req, text_generator=fake_generate_text)
+
+        self.assertEqual(
+            result.answer,
+            "高钾血症急危重症需要紧急处理[0-79]，流程见图4[0-146、0-147、0-149]。",
+        )
+        by_key = {anchor.citation_key: anchor for anchor in result.reference_anchors}
+        for key in ("0-79", "0-146", "0-147", "0-149"):
+            self.assertIn(key, by_key)
+
+    async def test_ai_integration_rewrites_original_ranges_even_when_reference_source_one_exists(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            return "NMO复发率及致残率高[1-3]，部分患者符合NMOSD诊断标准[4]。"
+
+        req = AiIntegrationRequest(
+            disease="视神经脊髓炎谱系疾病",
+            user_request="总结定义",
+            original_content=(
+                "NMO复发率及致残率高[1-3]。"
+                "2015年制定了新的NMOSD诊断标准[4]。"
+            ),
+            reference_inputs=[
+                ReferenceInput(
+                    id=1,
+                    filename="指南.pdf",
+                    text="免疫治疗可降低复发风险[46]。",
+                ),
+            ],
+        )
+
+        result = await generate_ai_integration_answer(req, text_generator=fake_generate_text)
+
+        self.assertEqual(
+            result.answer,
+            "NMO复发率及致残率高[0-1、0-2、0-3]，部分患者符合NMOSD诊断标准[0-4]。",
+        )
+
     async def test_ai_integration_rewrites_internal_chunk_ids_to_source_ref_keys(self):
         async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
             return "应认为是危急症，需紧急处理[R3-C001]。"
@@ -95,6 +185,47 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
         result = await generate_ai_integration_answer(req, text_generator=fake_generate_text)
 
         self.assertEqual(result.answer, "应认为是危急症，需紧急处理[3-22]。")
+
+    async def test_ai_integration_does_not_rewrite_source_id_as_original_citation(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            return "优先采用指南结论[1]。"
+
+        req = AiIntegrationRequest(
+            disease="测试病种",
+            user_request="总结治疗",
+            original_content="原词条已有一条旧参考文献[1]。",
+            reference_inputs=[
+                ReferenceInput(
+                    id=1,
+                    filename="指南.pdf",
+                    text="指南建议进行规范治疗。",
+                ),
+            ],
+        )
+
+        result = await generate_ai_integration_answer(req, text_generator=fake_generate_text)
+
+        self.assertEqual(result.answer, "优先采用指南结论[1]。")
+
+    async def test_ai_integration_keeps_existing_source_zero_citation_as_single_original_ref(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            self.assertIn("原词条证据1｜引用标记：[0-18]", prompt)
+            self.assertNotIn("引用标记：[0-1]", prompt)
+            return "沿用原词条结论[0-18]。"
+
+        req = AiIntegrationRequest(
+            disease="测试病种",
+            user_request="沿用原词条",
+            original_content="原词条已标注为特殊来源[0-18]。",
+        )
+
+        result = await generate_ai_integration_answer(req, text_generator=fake_generate_text)
+
+        self.assertEqual(result.answer, "沿用原词条结论[0-18]。")
+        self.assertEqual(
+            [anchor.citation_key for anchor in result.reference_anchors],
+            ["0-18"],
+        )
 
     async def test_ai_integration_rewrites_internal_chunk_ids_to_source_id_when_no_source_ref_exists(self):
         async def fake_generate_text(prompt, system_instruction=None, context="unknown"):

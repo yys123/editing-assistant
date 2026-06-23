@@ -15,8 +15,32 @@ type ReferenceSentence = {
   end: number
 }
 
+const SUPERSCRIPT_CITATION_CHARS: Record<string, string> = {
+  '⁰': '0',
+  '¹': '1',
+  '²': '2',
+  '³': '3',
+  '⁴': '4',
+  '⁵': '5',
+  '⁶': '6',
+  '⁷': '7',
+  '⁸': '8',
+  '⁹': '9',
+  '⁻': '-',
+}
+
+const CITATION_NUMBER_PATTERN = String.raw`[0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+`
+const CITATION_DASH_PATTERN = String.raw`[-–—⁻]`
+export const CITATION_TOKEN_PATTERN = String.raw`(?:R\d+\s*[-–—]\s*C\d+|Q?${CITATION_NUMBER_PATTERN}|${CITATION_NUMBER_PATTERN}\s*${CITATION_DASH_PATTERN}\s*${CITATION_NUMBER_PATTERN})`
+export const CITATION_MARKER_PATTERN = String.raw`\^?(?:<sup>)?[\[［【](?:${CITATION_TOKEN_PATTERN}(?:\s*[、,，]\s*${CITATION_TOKEN_PATTERN})*)[\]］】](?:<\/sup>)?`
+export const CITATION_GROUP_PATTERN = String.raw`\^?(?:<sup>)?[\[［【](${CITATION_TOKEN_PATTERN}(?:\s*[、,，]\s*${CITATION_TOKEN_PATTERN})*)[\]］】](?:<\/sup>)?`
+
+function normalizeCitationGlyphs(text: string): string {
+  return Array.from(text).map(char => SUPERSCRIPT_CITATION_CHARS[char] ?? char).join('')
+}
+
 export function normalizeCitationToken(token: string): string {
-  return token
+  return normalizeCitationGlyphs(token)
     .trim()
     .replace(/^Q/i, 'Q')
     .replace(/^R/i, 'R')
@@ -31,12 +55,17 @@ export function splitCitationTokens(inner: string): string[] {
   return inner.split(/\s*[、,，]\s*/).map(normalizeCitationToken).filter(Boolean)
 }
 
+export function formatCitationSourceLabel(anchor: ReferenceAnchor): string {
+  if (anchor.source_id === 0) return anchor.source_filename || '原词条内容'
+  return `参考数据源 ${anchor.source_id}：${anchor.source_filename}`
+}
+
 function expandBareNumericRangeToken(token: string): string[] {
   const match = token.match(/^(\d+)\s*-\s*(\d+)$/)
   if (!match) return [token]
   const start = Number(match[1])
   const end = Number(match[2])
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || end - start > 50) {
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start === 0 || start > end || end - start > 50) {
     return [token]
   }
   const expanded: string[] = []
@@ -79,10 +108,8 @@ function formatResolvedCitationItems(items: { token: string; link: CitationLink 
 }
 
 export function linkifyCitationMarkers(content: string, resolveCitation: CitationResolver): string {
-  const citationToken = String.raw`(?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+)`
-  const citationMarker = String.raw`\^?(?:<sup>)?[\[［【](?:${citationToken}(?:\s*[、,，]\s*${citationToken})*)[\]］】](?:<\/sup>)?`
-  const citationClusterRe = new RegExp(String.raw`${citationMarker}(?:\s*[、,，]?\s*${citationMarker})*`, 'gi')
-  const citationGroupRe = new RegExp(String.raw`\^?(?:<sup>)?[\[［【](${citationToken}(?:\s*[、,，]\s*${citationToken})*)[\]］】](?:<\/sup>)?`, 'gi')
+  const citationClusterRe = new RegExp(String.raw`${CITATION_MARKER_PATTERN}(?:\s*[、,，]?\s*${CITATION_MARKER_PATTERN})*`, 'gi')
+  const citationGroupRe = new RegExp(CITATION_GROUP_PATTERN, 'gi')
   return content.replace(citationClusterRe, (full: string, offset: number) => {
     const context = sentenceAround(content, offset)
     const resolved = []
@@ -146,7 +173,7 @@ function sentenceContext(
 
 function normalizeSearchText(text: string): string {
   return text
-    .replace(/\^?(?:<sup>)?[\[［【](?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+)(?:\s*[、,，]\s*(?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+))*[\]］】](?:<\/sup>)?/gi, ' ')
+    .replace(new RegExp(String.raw`\^?(?:<sup>)?[\[［【](?:${CITATION_TOKEN_PATTERN})(?:\s*[、,，]\s*(?:${CITATION_TOKEN_PATTERN}))*[\]］】](?:<\/sup>)?`, 'gi'), ' ')
     .replace(/[^\p{L}\p{N}\u4e00-\u9fff]+/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -265,9 +292,100 @@ export function buildReferenceAnchorFromSourceDoc(
   }
 }
 
+export function buildOriginalContentAnchors(originalContent: string): ReferenceAnchor[] {
+  const anchors: ReferenceAnchor[] = []
+  const seen = new Set<string>()
+  const paragraphs = splitReferenceParagraphs(originalContent)
+  const sentenceGroups = paragraphs.map((paragraph, paragraphIndex) => splitSentenceFragments(paragraph, paragraphIndex))
+  const allSentences = sentenceGroups.flat()
+  const inlineRefRe = /[\[［【]([0-9⁰¹²³⁴⁵⁶⁷⁸⁹][0-9⁰¹²³⁴⁵⁶⁷⁸⁹\s,，、;；\-–—⁻]*)[\]］】]/g
+  const hashRefRe = /#R(\d+)\b/gi
+
+  const pushAnchor = (paragraph: string, paragraphIndex: number, matchIndex: number, sourceRefId: string) => {
+    const citationKey = `0-${sourceRefId}`
+    if (seen.has(citationKey)) return
+    const paragraphSentences = sentenceGroups[paragraphIndex] ?? []
+    const localSentence = paragraphSentences.find(sentence => matchIndex >= sentence.start && matchIndex < sentence.end)
+      ?? paragraphSentences[0]
+    const sentenceIndex = localSentence ? allSentences.indexOf(localSentence) : -1
+    const context = sentenceIndex >= 0
+      ? sentenceContext(allSentences, sentenceIndex)
+      : { context_before: '', context_after: '' }
+    const quote = localSentence?.text || paragraph.replace(/\s+/g, ' ').trim()
+    seen.add(citationKey)
+    anchors.push({
+      citation_key: citationKey,
+      source_id: 0,
+      source_filename: '原词条内容',
+      source_ref_id: sourceRefId,
+      quote,
+      context_before: context.context_before,
+      context_after: context.context_after,
+      paragraph_index: paragraphIndex,
+    })
+  }
+
+  paragraphs.forEach((paragraph, paragraphIndex) => {
+    inlineRefRe.lastIndex = 0
+    let match: RegExpExecArray | null
+    while ((match = inlineRefRe.exec(paragraph)) !== null) {
+      const matchIndex = match.index
+      const sourceRefIds = expandOriginalContentRefIds(match[1])
+      for (const sourceRefId of sourceRefIds) {
+        pushAnchor(paragraph, paragraphIndex, matchIndex, sourceRefId)
+      }
+    }
+
+    hashRefRe.lastIndex = 0
+    while ((match = hashRefRe.exec(paragraph)) !== null) {
+      pushAnchor(paragraph, paragraphIndex, match.index, String(Number(match[1])))
+    }
+  })
+
+  return anchors
+}
+
+export function buildOriginalContentAnchorsFromSources(...contents: string[]): ReferenceAnchor[] {
+  return mergeReferenceAnchors(...contents.map(content => buildOriginalContentAnchors(content)).filter(group => group.length > 0))
+}
+
+export function buildFallbackOriginalCitationAnchors(
+  content: string,
+  existingAnchors: ReferenceAnchor[],
+): ReferenceAnchor[] {
+  const existingKeys = new Set(existingAnchors.map(anchor => anchor.citation_key))
+  const anchors: ReferenceAnchor[] = []
+  const seen = new Set<string>()
+  const sourceZeroRe = /\[\s*((?:0\s*[-–—⁻]\s*[0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)(?:\s*[、,，]\s*0\s*[-–—⁻]\s*[0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)*)\s*\]/g
+  let match: RegExpExecArray | null
+  while ((match = sourceZeroRe.exec(content || '')) !== null) {
+    const quote = sentenceAround(content, match.index) || content
+    for (const rawToken of match[1].split(/\s*[、,，]\s*/)) {
+      const tokenMatch = normalizeCitationGlyphs(rawToken).match(/^0\s*[-–—]\s*(\d+)$/)
+      if (!tokenMatch) continue
+      const sourceRefId = String(Number(tokenMatch[1]))
+      const citationKey = `0-${sourceRefId}`
+      if (existingKeys.has(citationKey) || seen.has(citationKey)) continue
+      seen.add(citationKey)
+      anchors.push({
+        citation_key: citationKey,
+        source_id: 0,
+        source_filename: '原词条内容（未定位）',
+        source_ref_id: sourceRefId,
+        title_path: '未在当前原词条中定位到该编号',
+        quote,
+        context_before: '',
+        context_after: '',
+        paragraph_index: -1,
+      })
+    }
+  }
+  return anchors
+}
+
 function expandSourceRefIds(raw: string): string[] {
   const refIds: string[] = []
-  for (const part of raw.split(/[,，、;；]\s*/)) {
+  for (const part of normalizeCitationGlyphs(raw).split(/[,，、;；]\s*/)) {
     const trimmed = part.trim()
     if (!trimmed) continue
     const range = trimmed.match(/^(\d+)\s*[-–—]\s*(\d+)$/)
@@ -284,10 +402,25 @@ function expandSourceRefIds(raw: string): string[] {
   return [...new Set(refIds)]
 }
 
+function expandOriginalContentRefIds(raw: string): string[] {
+  const refIds: string[] = []
+  for (const part of raw.split(/[,，、;；]\s*/)) {
+    const trimmed = part.trim()
+    if (!trimmed) continue
+    const sourceZero = trimmed.match(/^0\s*[-–—]\s*(\d+)$/)
+    if (sourceZero) {
+      refIds.push(String(Number(sourceZero[1])))
+      continue
+    }
+    refIds.push(...expandSourceRefIds(trimmed))
+  }
+  return [...new Set(refIds.filter(refId => refId !== '0'))]
+}
+
 export function buildReferenceAnchorsFromDocs(referenceDocs: ReferenceDoc[]): ReferenceAnchor[] {
   const anchors: ReferenceAnchor[] = []
   const seen = new Set<string>()
-  const inlineRefRe = /[\[［【]([0-9][0-9\s,，、;；\-–—]*)[\]］】]/g
+  const inlineRefRe = /[\[［【]([0-9⁰¹²³⁴⁵⁶⁷⁸⁹][0-9⁰¹²³⁴⁵⁶⁷⁸⁹\s,，、;；\-–—⁻]*)[\]］】]/g
 
   referenceDocs.forEach((doc, docIndex) => {
     const sourceId = docIndex + 1
@@ -338,13 +471,13 @@ export function createCitationResolver(referenceAnchors: ReferenceAnchor[]): Cit
     list.push(anchor)
     anchorsByCitationKey.set(anchor.citation_key, list)
   }
-  const firstBySourceRef = new Map<string, string>()
+  const firstBySourceRef = new Map<string, ReferenceAnchor>()
   const sortedAnchors = [...anchors].sort((a, b) =>
     a.source_id - b.source_id || a.paragraph_index - b.paragraph_index
   )
   for (const anchor of sortedAnchors) {
     if (!firstBySourceRef.has(anchor.source_ref_id)) {
-      firstBySourceRef.set(anchor.source_ref_id, anchor.anchor_key ?? anchor.citation_key)
+      firstBySourceRef.set(anchor.source_ref_id, anchor)
     }
   }
 
@@ -366,8 +499,13 @@ export function createCitationResolver(referenceAnchors: ReferenceAnchor[]): Cit
       return anchor ? { key: anchor.anchor_key ?? anchor.citation_key, label: token } : null
     }
     if (/^\d+$/.test(token)) {
-      const key = firstBySourceRef.get(String(Number(token)))
-      if (key) return { key, label: String(Number(token)) }
+      const anchor = firstBySourceRef.get(String(Number(token)))
+      if (anchor) {
+        return {
+          key: anchor.anchor_key ?? anchor.citation_key,
+          label: anchor.source_id === 0 ? anchor.citation_key : String(Number(token)),
+        }
+      }
     }
     return null
   }

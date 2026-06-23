@@ -1,1269 +1,1031 @@
-AI
-2026/6/18 15:08:50
-我先接上上下文：已加载 `using-superpowers`，接下来会读 `dialogue.md` 看我们中断在什么位置，然后按里面最新的目标继续。
+刚才我们聊天中断了，聊天记录见：/Users/dxy/Documents/IT/editing-assistant/dialogue_副本2.md，请继续
 
 AI
-2026/6/18 15:08:59
-前半段显示：中断时已经实现并验证了一版稳定 `R1-C001` chunk 引用，最后停在“快速自查/评审”阶段。我继续读后半段，看看最终有没有未完成事项或已经发现的问题。
+2026/6/20 19:58:45
+我先读一下记录和当前仓库状态，弄清楚中断点在哪里；然后我会接着做，不会假装记得没看到的上下文。
 
 AI
-2026/6/18 15:09:06
-后续又出现了一个更具体的 bug：高亮变准后，展示给编辑看的参考文献序号还要按“第几个资料 + 句末文献号”来生成，比如 `[3-22]`。记录显示已经开始修这个点，我继续往下看它是否完成。
+2026/6/20 19:58:57
+记录里最新结论看起来已经把“源内参考号识别”修完并跑过测试了；我再核对文件现状和 diff，确认这份工作树里是否还有没收口的中断事项。
 
 AI
-2026/6/18 15:09:13
-现在我接在中断点继续：当前问题不是 chunk 定位本身，而是“源内参考号识别”太窄，导致大量片段退回 `[1]`、`[2]`。我会按前面的节奏先补失败用例，再修解析。
+2026/6/20 19:59:05
+我注意到这份记录有 1268 行，不只是刚才看到的收尾摘要；我继续看后半段，重点找最后一次“用户要求”和是否还有新的 bug/待办。
 
 AI
-2026/6/18 15:09:27
-我已经加载了 `systematic-debugging` 和 `test-driven-development`。接下来先把解析函数的现状和测试文件打开，找一个最小复现场景，避免继续靠感觉修。
+2026/6/20 19:59:15
+后半段明确了真正的中断点：前端已经改了裸引用范围 `[146-147]` 的展开，最后停在“把验证结果告诉你”之前。我现在做一次新鲜验证，避免只复述旧记录。
 
 AI
-2026/6/18 15:09:34
-证据很明确：现在只用 `_INLINE_SOURCE_REF_RE` 识别 ASCII 方括号里的数字，所以全角 `［22］`、`（22）`、`<sup>22</sup>`、`<a href="#R22">22</a>` 这类都容易漏，漏了就只能退回 `[资料号]`。我先加这些格式的红灯测试。
+2026/6/20 19:59:42
+接上了，中断点已经收口：前端引用渲染已支持裸源内编号范围。
+
+改动在 [frontend/src/utils/citations.ts](/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/citations.ts)：`[146-147]` 会展开成可点击的 `[146]`、`[147]`，`[149]` 也会保持显示为 `[149]` 并链接到对应锚点；同时不会误伤已有的 `[1-47]` 这种“资料-文献号”引用。
+
+验证刚重新跑过：
+
+- `node --experimental-strip-types src/utils/citations.test.mjs`：通过，输出 `citation tests passed`
+- `npm run build`：通过，仅有 Vite 既有的大包体积 warning
+
+补充测试在 [frontend/src/utils/citations.test.mjs](/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/citations.test.mjs)。已经生成/显示在页面上的旧内容，可能需要刷新页面或重新渲染后才会看到新链接效果。
+
+用户
+2026/6/20 20:26:52
+目前效果还可以，对于同一句话多个参考文献一起时，表现形式需要统一一下，多个都在一个[]里，中间用顿号隔开，如[1-45][3-34]改成[1-45、3-34]。
 
 AI
-2026/6/18 15:10:20
-我准备先动测试：覆盖几种常见的真实指南/OCR形态，并额外要求 prompt 里列出同一片段内所有可用的 `[源-文献号]`，否则模型只能看到 fallback 或最后一个编号，还是会偏。
+2026/6/20 20:27:02
+我会按现有引用链路做一个小范围改动：先确认当前 linkify 输出形态在哪里生成，再用测试锁住“同一句相邻多个引用合并到同一个方括号”的规则。
 
 AI
-2026/6/18 15:10:38
-测试已加好。现在跑这一个后端 citation 测试文件，应该会红在“格式识别太窄”和“prompt 没列全可用标记”上。
+2026/6/20 20:27:16
+我看了当前实现：现在每个已解析引用都会各自输出一个 markdown 链接，所以视觉上会变成连续的 `[[1-45]](...) [[3-34]](...)` 或多个独立方括号。这里不需要动后端，最好只在前端渲染层统一展示。
+
+我的建议设计很小：在 `linkifyCitationMarkers` 里保留每个引用各自可点击的锚点，但把同一组/相邻 citation marker 的可见文本合并成一个方括号风格：例如输入 `...[1-45][3-34]` 输出成视觉上的 `[1-45、3-34]`，其中 `1-45` 和 `3-34` 仍分别链接到自己的证据；已有 `[1-45、3-34]`、`[146-147]、[149]` 规则继续保持。测试先补红灯，再改实现。
+
+这个方向可以吗？确认后我就按 TDD 改。
 
 AI
-2026/6/18 15:11:05
-红灯符合预期，而且额外暴露了一个小问题：同一 chunk 里有多个真实源内编号时，prompt 目前只给了一个“主引用标记”，这会诱导模型用错。我要把解析扩展为统一 helper，并让 prompt 列出这个片段里所有真实可用的 `[源-编号]`。
+2026/6/20 20:27:17
+等你确认一下上面的展示规则，我就继续改代码并跑测试。
+
+用户
+2026/6/20 20:27:28
+怎么确认？
 
 AI
-2026/6/18 15:11:29
-实现上我没有再从 `R...C...` 推断编号，而是只从参考文本里的真实标记抽取：全角括号、上标、HTML 锚点和 `#R22` 都会归一到源内文献号。现在先跑刚才的红灯测试看是否转绿。
+2026/6/20 20:27:35
+你直接回复一句就行，比如：
+
+`确认，按这个方案改`
+
+或者如果你想保留细节，可以回复：
+
+`确认：同一句连续引用显示成一个方括号，如 [1-45、3-34]，里面每个编号仍分别可点击。`
+
+我看到确认后就开始改代码、补测试、跑构建。
+
+用户
+2026/6/20 20:28:21
+确认：同一句连续引用显示成一个方括号，如 [1-45、3-34]，里面每个编号仍分别可点击。
 
 AI
-2026/6/18 15:11:48
-只剩一个失败点很有价值：OCR 把 `［ 23 ］` 拆成多行时，单独的 `23` 被标题识别逻辑误判成小标题，导致引用标记被拆断。这个不是正则问题，是切块前的标题判断太宽了，我把“纯数字行”从标题里排除。
+2026/6/20 20:28:35
+确认收到。我现在按这个规则补红灯测试：连续引用和同一组多引用都要渲染成一个外层方括号，但每个编号仍各自链接。
 
 AI
-2026/6/18 15:11:54
-最小修正已加：纯数字不再当标题。继续跑 citation 测试，确认这轮红灯完整转绿。
+2026/6/20 20:28:48
+先动测试文件：我会把已有“同一组多引用”的期望改成一个外层方括号，并新增 `[1-3][2-6]` 连续引用的红灯用例。
 
 AI
-2026/6/18 15:12:06
-后端 citation 测试已经转绿。因为 AI 整合也共用同一套参考片段格式，我再跑 AI 整合测试；之后按验证流程跑相关专项和必要构建。
+2026/6/20 20:28:57
+红灯用例已写好。现在先跑 citation 测试，确认它确实因为展示格式没合并而失败。
 
 AI
-2026/6/18 15:12:20
-AI 整合专项也过了。最后我跑后端全量测试，因为这次改的是生成器公共解析函数，会影响单章节、联合生成和 AI 整合三条后端路径。
+2026/6/20 20:29:08
+红灯符合预期，失败点正是“多个引用各自带方括号”。我现在改 `linkifyCitationMarkers`：把相邻引用组作为一个 cluster 处理，cluster 内多个引用共享一个外层 `[]`。
 
 AI
-2026/6/18 15:12:31
-后端全量测试也通过了。现在我快速看一下最终 diff 的关键段落，确认只围绕引用解析和测试，没有把别的工作树内容搅进去。
+2026/6/20 20:29:33
+实现上我会尽量少碰：新增一个“引用 cluster”格式化 helper，单个引用保持老输出，多个引用才切到一个外层方括号。这样能减少对现有点击/高亮逻辑的影响。
 
 AI
-2026/6/18 15:12:38
-关键 diff 看过了，这次新增只集中在 `generator.py` 的源内参考号解析/格式化，以及对应测试。工作树里仍有之前那批未提交改动，我不会回滚它们。
+2026/6/20 20:29:52
+代码改完了。现在跑同一个 citation 测试，看红灯是否转绿；如果暴露出 markdown 形态或旧用例冲突，我会继续收敛。
 
 AI
-2026/6/18 15:12:59
-继续修好了。根因是源内参考号识别太窄，之前主要只认普通 `[22]`，所以很多指南/OCR格式识别不到，就退回成 `[1]`、`[2]`。
+2026/6/20 20:30:05
+单元测试已经转绿。还有一个细节我想实证一下：这种 markdown 写法要被 `ReactMarkdown` 渲染成外层方括号 + 内部多个链接，而不是被解析歪；我用项目依赖做一个轻量渲染检查。
 
-这次改了 [backend/services/generator.py](/Users/dxy/Documents/IT/editing-assistant/backend/services/generator.py:103)：
-- 支持 `［22］`、`［34-35］`、`<sup>19</sup>`、`<a href="#R20">20</a>`、`#R21`、跨行 `［ 23 ］` 等格式。
-- 纯数字行不再被误判成标题，避免 OCR 把 `［ 23 ］` 拆行后丢掉编号。
-- 同一个片段里有多个源内编号时，prompt 会列出所有可用引用标记，比如 `可用引用标记：[1-3]、[1-5]`，不再只给一个或退回 `[1]`。
+AI
+2026/6/20 20:30:15
+渲染检查也符合预期：实际 HTML 是外层 `[` `]`，里面两个独立 `<a>` 链接。构建也通过了；我再快速看一下最终 diff，确认没有改到不相关文件。
 
-补了测试在 [backend/tests/test_generator_citations.py](/Users/dxy/Documents/IT/editing-assistant/backend/tests/test_generator_citations.py:71)。
+AI
+2026/6/20 20:30:25
+已按你确认的规则改好，改动在 [frontend/src/utils/citations.ts](/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/citations.ts)。
+
+现在同一句里的多个引用会统一显示成一个外层方括号，例如：
+
+`[1-45][3-34]` → `[1-45、3-34]`
+
+并且里面每个编号仍然是独立链接。之前的裸范围也同步统一了，比如 `[146-147]、[149]` 会显示成 `[146、147、149]`，每个编号分别跳自己的证据。
 
 验证已跑：
-- `./venv/bin/python -m unittest tests.test_generator_citations`：11 个通过
-- `./venv/bin/python -m unittest tests.test_ai_integration`：6 个通过
-- `./venv/bin/python -m unittest discover tests`：106 个通过
 
-输出里仍有 Python 3.9 / LibreSSL 的环境警告，但测试本身通过。
-
-developer
-2026/6/18 17:58:38
-<permissions instructions>
-Filesystem sandboxing defines which files can be read or written. `sandbox_mode` is `workspace-write`: The sandbox permits reading files, and editing files in `cwd` and `writable_roots`. Editing files in other directories requires approval. Network access is restricted.
-# Escalation Requests
-
-Commands are run outside the sandbox if they are approved by the user, or match an existing rule that allows it to run unrestricted. The command string is split into independent command segments at shell control operators, including but not limited to:
-
-- Pipes: |
-- Logical operators: &&, ||
-- Command separators: ;
-- Subshell boundaries: (...), $(...)
-
-Each resulting segment is evaluated independently for sandbox restrictions and approval requirements.
-
-Example:
-
-git pull | tee output.txt
-
-This is treated as two command segments:
-
-["git", "pull"]
-
-["tee", "output.txt"]
-
-Commands that use more advanced shell features like redirection (>, >>, <), substitutions ($(...), ...), environment variables (FOO=bar), or wildcard patterns (*, ?) will not be evaluated against rules, to limit the scope of what an approved rule allows.
-
-## How to request escalation
-
-IMPORTANT: To request approval to execute a command that will require escalated privileges:
-
-- Provide the `sandbox_permissions` parameter with the value `"require_escalated"`
-- Include a short question asking the user if they want to allow the action in `justification` parameter. e.g. "Do you want to download and install dependencies for this project?"
-- Optionally suggest a `prefix_rule` - this will be shown to the user with an option to persist the rule approval for future sessions.
-
-If you run a command that is important to solving the user's query, but it fails because of sandboxing or with a likely sandbox-related network error (for example DNS/host resolution, registry/index access, or dependency download failure), rerun the command with "require_escalated". ALWAYS proceed to use the `justification` parameter - do not message the user before requesting approval for the command.
-
-## When to request escalation
-
-While commands are running inside the sandbox, here are some scenarios that will require escalation outside the sandbox:
-
-- You need to run a command that writes to a directory that requires it (e.g. running tests that write to /var)
-- You need to run a GUI app (e.g., open/xdg-open/osascript) to open browsers or files.
-- If you run a command that is important to solving the user's query, but it fails because of sandboxing or with a likely sandbox-related network error (for example DNS/host resolution, registry/index access, or dependency download failure), rerun the command with `require_escalated`. ALWAYS proceed to use the `sandbox_permissions` and `justification` parameters. do not message the user before requesting approval for the command.
-- You are about to take a potentially destructive action such as an `rm` or `git reset` that the user did not explicitly ask for.
-- Be judicious with escalating, but if completing the user's request requires it, you should do so - don't try and circumvent approvals by using other tools.
-
-## prefix_rule guidance
-
-When choosing a `prefix_rule`, request one that will allow you to fulfill similar requests from the user in the future without re-requesting escalation. It should be categorical and reasonably scoped to similar capabilities. You should rarely pass the entire command into `prefix_rule`.
-
-### Banned prefix_rules 
-Avoid requesting overly broad prefixes that the user would be ill-advised to approve. For example, do not request ["python3"], ["python", "-"], or other similar prefixes that would allow arbitrary scripting.
-NEVER provide a prefix_rule argument for destructive commands like rm.
-NEVER provide a prefix_rule if your command uses a heredoc or herestring. 
-
-### Examples
-Good examples of prefixes:
-- ["npm", "run", "dev"]
-- ["gh", "pr", "check"]
-- ["cargo", "test"]
-
-
-## Approved command prefixes
-The following prefix rules have already been approved: - ["cp"]
-- ["./package_ipa.sh"]
-- ["./scripts/auto_git_backup.sh"]
-- ["wc", "-l"]
-- ["ps", "aux"]
-- ["git", "add"]
-- ["lsof", "-p"]
-- ["curl", "-sS"]
-- ["git", "push"]
-- ["mkdir", "-p"]
-- ["npm", "pack"]
-- ["xattr", "-d"]
-- ["git", "commit"]
-- ["git", "remote"]
-- ["kill", "30183"]
-- ["kill", "43669"]
-- ["docker", "exec"]
-- ["npm", "install"]
-- ["brew", "install"]
-- ["launchctl", "load"]
-- ["python3", "run.py"]
-- ["launchctl", "print"]
-- ["bb-browser", "fetch"]
-- ["launchctl", "kickstart"]
-- ["xcodebuild", "-project"]
-- ["bb-browser", "--version"]
-- ["python3", "get_cookies.py"]
-- ["xcodebuild", "-exportArchive"]
-- ["python3", "mirror_buffett_letters.py"]
-- ["rg", "(21464|35673|uvicorn|start.sh)"]
-- ["rm", ".git/auto-backup.launchd.err.log"]
-- ["rg", "(uvicorn main:app|start.sh|5175|8002)"]
-- ["python3", "/Users/dxy/Documents/IT/valueK/app/sec.py"]
-- ["rg", "(editing-assistant|uvicorn|vite|npm|node|python)"]
-- ["rg", "/Applications/Codex.app/Contents/Resources/node_repl"]
-- ["rg", "(uvicorn|python.*main:app|start.sh|editing-assistant)"]
-- ["curl", "-I", "-sS"]
-- ["npm", "run", "dev"]
-- ["kill", "7157", "67816"]
-- ["git", "worktree", "add"]
-- ["kill", "12744", "79033"]
-- ["kill", "35673", "21464"]
-- ["npx", "-y", "bb-browser"]
-- ["bb-browser", "tab", "new"]
-- ["python3", "-m", "uvicorn"]
-- ["curl", "-sS", "--max-time"]
-- ["rm", "-rf", ".pycache_tmp"]
-- ["rm", "-rf", ".tmp_pycache"]
-- ["bb-browser", "status", "--json"]
-- ["mkdir", "-p", "~/.codex/skills"]
-- ["rm", "-rf", "/Users/dxy/.paddlex"]
-- ["bb-browser", "eval", "document.cookie"]
-- ["bb-browser", "open", "https://xueqiu.com"]
-- ["curl", "-sS", "http://127.0.0.1:8000/zhuce6"]
-- ["curl", "-sS", "http://127.0.0.1:8000/healthz"]
-- ["curl", "-sS", "http://127.0.0.1:8000/api/runtime"]
-- ["mkdir", "-p", "/Users/dxy/Documents/IT/deepR/ipa"]
-- ["bash", "-n", "/Users/dxy/Documents/IT/deepR/package_ipa.sh"]
-- ["test", "-e", "/Users/dxy/Documents/IT/deepR/DeepReading.xcarchive"]
-- ["pkill", "-f", "/Applications/Codex.app/Contents/Resources/node_repl"]
-- ["/bin/zsh", "-lc", "python3 -m pip install paddlepaddle paddleocr>=2.6.0"]
-- ["/bin/zsh", "-lc", "HOMEBREW_NO_AUTO_UPDATE=1 brew install python@3.12 uv"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm login"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm doctor"]
-- ["/bin/zsh", "-lc", "export npm_config_cache=/tmp/codex-npm-cache && npm install"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm login --check"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm login --force"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm notebook list"]
-- ["mv", "-f", "/Users/dxy/Documents/IT/deepR/deepreading_app_x/build/DeepReading.xcarchive"]
-- ["/bin/zsh", "-lc", "'/Users/dxy/.codex/skills/playwright/scripts/playwright_cli.sh' --help"]
-- ["chmod", "+x", "/Users/dxy/Library/Application Support/editing-assistant/auto_git_backup.sh"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm --debug notebook list"]
-- ["/bin/zsh", "-lc", "npm_config_cache=/tmp/codex-bb-browser-npm-cache npx -y bb-browser --help"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm --help | sed -n \"1,220p\""]
-- ["/bin/zsh", "-lc", "export npm_config_cache=/tmp/codex-npm-cache && npm install --prefer-offline"]
-- ["bb-browser", "screenshot", "/Users/dxy/Documents/IT/pdf书籍文献提取/output/scholar-bb.png"]
-- ["rm", "frontend/esbuild-darwin-arm64-0.21.5.tgz", "frontend/rollup-rollup-darwin-arm64-4.59.0.tgz"]
-- ["/bin/zsh", "-lc", "du -sh /Users/dxy/Documents/IT/deepR/DeepReading.xcarchive 2>/dev/null || true"]
-- ["/bin/zsh", "-lc", "npm_config_cache=/tmp/codex-bb-browser-npm-cache npx -y bb-browser site update"]
-- ["launchctl", "unload", "/Users/dxy/Library/LaunchAgents/com.editing-assistant.auto-git-backup.plist"]
-- ["/bin/zsh", "-lc", "npm_config_cache=/tmp/codex-bb-browser-npm-cache npx -y bb-browser status --json"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm login --help | sed -n \"1,220p\""]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm notebook list | sed -n \"1,30p\""]
-- ["/bin/zsh", "-lc", "PYTHONDONTWRITEBYTECODE=1 python3 -m uvicorn main:app --host 127.0.0.1 --port 8765"]
-- ["/bin/zsh", "-lc", "npm_config_cache=/tmp/codex-bb-browser-npm-cache npx -y bb-browser site list --json"]
-- ["cp", "/Users/dxy/Documents/IT/deepR/package_ipa.sh", "/Users/dxy/Documents/IT/deepR/package_ipa.sh.bak"]
-- ["/bin/zsh", "-lc", "PYTHONUNBUFFERED=1 ./venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8002"]
-- ["/bin/zsh", "-lc", "npm_config_cache=/tmp/codex-bb-browser-npm-cache-open npx -y bb-browser status --json"]
-- ["/bin/zsh", "-lc", "PYTHONUNBUFFERED=1 ./venv/bin/python3 -m uvicorn main:app --host 127.0.0.1 --port 8002"]
-- ["/bin/zsh", "-lc", "npm_config_cache=/tmp/codex-bb-browser-npm-cache-open npx -y bb-br...
-[Some commands were truncated]
-
-`approvals_reviewer` is `auto_review`: Sandbox escalations with require_escalated will be reviewed for compliance with the policy. If a rejection happens, you should proceed only with a materially safer alternative, or inform the user of the risk and send a final message to ask for approval.
- The writable roots are `/Users/dxy/Documents/IT/editing-assistant`, `/private/tmp`, `/private/var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T`.
-</permissions instructions>
+- `node --experimental-strip-types src/utils/citations.test.mjs`：通过
+- ReactMarkdown 渲染检查：确认外层 `[]` 内部是多个独立 `<a>` 链接
+- `npm run build`：通过，仅有原来的 Vite chunk size warning
 
 用户
-2026/6/18 17:58:38
-
-# Files mentioned by the user:
-
-## codex-clipboard-79fe8153-6237-472a-9965-b606177f3a69.png: /var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/codex-clipboard-79fe8153-6237-472a-9965-b606177f3a69.png
-
-## My request for Codex:
-如图，“在等待透析准备时，可联合口服环硅酸锆钠等降钾措施[1][4-33]”，这里我们只用了4-33，但是我点击看到，原文是“在等待准备透析时推荐口服环硅酸锆钠散等降钾措施 <sup class="literature-sup">[3,32,33]</sup>。”，是有3篇，也就是应该是[4-3、4-32、4-33]。
-
-<image name=[Image #1] path="/var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/codex-clipboard-79fe8153-6237-472a-9965-b606177f3a69.png">
-</image>
+2026/6/20 20:33:00
+帮我上传到github上备份
 
 AI
-2026/6/18 17:58:57
-我看到问题了：这次不是“识别不到”，而是“识别到了多个源内参考号，但系统把这个 chunk 的主引用压成了最后一个 `[4-33]`”。我会按 TDD 继续修：先加一个覆盖 `<sup>[3,32,33]</sup>` 的红灯，要求内部 ID 也改写成 `[4-3、4-32、4-33]`，再改后端格式化和兜底映射。
+2026/6/20 20:33:15
+我来处理 GitHub 备份。先看一下当前分支、远端和已有备份脚本的行为，避免把仓库推到错误位置；如果需要提交，我会保留现有改动，不回滚任何东西。
 
 AI
-2026/6/18 17:59:20
-我查了当前代码：`source_ref_ids` 可以拿到 `3,32,33`，但 `citation_key` 仍按最后一个编号生成，所以 prompt 第一行就是 `引用标记：[4-33]`，模型自然只写了 `[4-33]`。我会把“片段推荐引用标记”改成组合标记，同时保留单个 `[4-3]`、`[4-32]`、`[4-33]` 锚点用于点击定位。
+2026/6/20 20:33:22
+当前在 `main`，远端是 `https://github.com/yys123/editing-assistant.git`。仓库里有一批未提交改动和一个新的聊天记录文件；我会用现有备份脚本，它会 `git add -A`、自动提交、rebase 同步后 push 到 `origin/main`。
 
 AI
-2026/6/18 17:59:22
-先改测试：新增“同一句多个源内编号必须整体输出”的断言，并把旧的多编号 prompt 断言从“只看最后一个”改成“推荐组合引用”。
+2026/6/20 20:33:34
+备份脚本执行完成了，输出写进了仓库的自动备份日志。我现在核对最近日志、提交和工作区状态，确认 push 真正完成。
 
 AI
-2026/6/18 17:59:38
-红灯测试已经写好，现在跑这个测试文件，确认当前实现确实卡在组合引用缺失上。
+2026/6/20 20:33:42
+已备份到 GitHub。
 
-AI
-2026/6/18 17:59:52
-红灯正好落在目标处：解析已经拿到 `3,32,33`，但推荐引用仍是最后一个。我现在只改这条映射规则：多编号片段推荐组合引用，单编号/无编号保持原逻辑。
+当前状态：
 
-AI
-2026/6/18 18:00:08
-组合引用映射已接上。现在重跑后端 citation 测试看红灯是否转绿；如果有旧断言冲突，我会只调整测试语义，不放宽业务要求。
+- 分支：`main`
+- 远端：`origin/main`
+- 最新提交：`c544ee3 Auto backup: 2026-06-20 20:33:23`
+- push 结果：`main -> main`
+- 工作区：干净，已和 `origin/main` 同步
 
-AI
-2026/6/18 18:00:17
-后端核心测试已经通过。为避免旧结果或残留内部 ID 在前端仍只显示最后一个编号，我再补一个前端 resolver 的红灯/绿灯检查：`source_ref_id: "3,32,33"` 的内部 chunk 应显示成 `4-3、4-32、4-33`。
-
-AI
-2026/6/18 18:00:22
-我准备编辑前端 citation 测试，确保旧的 `[R4-C001]` 也不会在界面上退化成 `[4-33]`。这属于显示层兜底，不改变后端主逻辑。
-
-AI
-2026/6/18 18:00:38
-前端红灯测试已加，现在跑 citation 测试，预期当前 resolver 会显示最后一个 `4-33`，所以会失败。
-
-AI
-2026/6/18 18:00:43
-前端红灯也确认了：旧内部 chunk 显示只取最后一个源内号。我现在把 resolver 的内部 ID label 改成“源号-每个源内号”的组合显示。
-
-AI
-2026/6/18 18:00:54
-前端显示规则已改。先跑刚才失败的前端 citation 测试，再跑后端相关测试和构建做收尾验证。
-
-AI
-2026/6/18 18:01:05
-专项已经过了。现在按完成前验证再跑后端全量和前端 build，因为这次同时动了后端输出和前端引用显示。
-
-AI
-2026/6/18 18:01:23
-全量验证通过了，构建只有 Vite 体积提示。最后我抓一下改动行号，给你一个清楚的修复说明。
-
-AI
-2026/6/18 18:01:42
-你这个例子抓得很准：原文 `<sup>[3,32,33]</sup>` 其实识别出了 3 个源内文献号，但后端之前把这个片段的“推荐引用标记”压成了最后一个，所以模型只看到/只用了 `[4-33]`。
-
-我已经修了：
-
-- 后端给模型的片段引用现在会写成 `引用标记：[4-3、4-32、4-33]`。
-- 同时仍保留单个可点击锚点：`[4-3]`、`[4-32]`、`[4-33]`。
-- 如果模型误写内部 ID，例如 `[R4-C001]`，后端会自动改成 `[4-3、4-32、4-33]`。
-- 前端旧内容里如果残留 `[R4-C001]`，也会显示成 `[4-3、4-32、4-33]`。
-
-关键位置：
-- [backend/services/generator.py](/Users/dxy/Documents/IT/editing-assistant/backend/services/generator.py:366)
-- [frontend/src/utils/citations.ts](/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/citations.ts:243)
-
-验证已通过：
-- 后端相关测试：18 个通过
-- 后端全量测试：111 个通过
-- 前端 citation 测试：通过
-- 前端构建：通过
-
-注意：已经生成出来、正文里已经写死为 `[4-33]` 的旧结果，本身缺少“这是同一个 chunk 的多个引用”的信息，通常需要重新生成这段后才会变成 `[4-3、4-32、4-33]`。
+::git-stage{cwd="/Users/dxy/Documents/IT/editing-assistant"}
+::git-commit{cwd="/Users/dxy/Documents/IT/editing-assistant"}
+::git-push{cwd="/Users/dxy/Documents/IT/editing-assistant" branch="main"}
 
 用户
-2026/6/18 18:04:15
-另外，这里高亮的内容太多了，它其实应该只高亮“在等待准备透析时推荐口服环硅酸锆钠散等降钾措施 <sup class="literature-sup">[3,32,33]</sup>。”这一句的完整那句话即可（以句号判断），然后非高亮的是高亮的前后1-2句。
+2026/6/20 20:41:40
+AI整合的问答记录，希望能增加删除功能。然后有折叠功能，命名的话，希望以问题作为命名，这样一目了然，然后你优化一下排版。
 
 AI
-2026/6/18 18:04:26
-我会按 `systematic-debugging` 和 `test-driven-development` 继续修这个引用定位问题：先确认高亮为什么拿了整个 chunk，再用测试锁定“只高亮含引用号的完整句，前后句做上下文”。
+2026/6/20 20:41:55
+我会先用 `brainstorming` 把这个前端交互改动收成一个小设计，再等你确认后实现；同时我会用 `test-driven-development` 做回归测试，避免把现有引用/历史记录功能碰歪。先读 AI 整合页面的数据结构和当前问答记录渲染方式。
 
 AI
-2026/6/18 18:04:51
-根因现在很清楚：前端合并锚点时，后端返回的 chunk 锚点覆盖了原本句子级锚点；而 chunk 锚点的 `quote` 现在是整个 chunk，所以右侧高亮太大。我要把 chunk 锚点也改成句子级 quote，context 只放前后 1-2 句。
+2026/6/20 20:42:09
+我看到了当前结构：AI 整合记录只是前端状态里的 `AiIntegrationRecord[]`，页面上现在用时间胶囊切换，没有删除入口，也没有真正的折叠。父组件只给了 `onAddRecord`，所以删除需要补一个回调往上改历史数组。
 
 AI
-2026/6/18 18:05:05
-我会在后端测试里直接断言 `reference_anchors`：对于包含三句的 chunk，`quote` 只能是中间那句，`context_before/context_after` 才放前后句。这样能精确防止以后又退回“整段高亮”。
+2026/6/20 20:42:21
+我已经有足够上下文了。设计建议如下，范围控制在 AI 整合页面和父组件状态，不动后端接口：
+
+1. 记录列表改成 accordion：每条记录的标题用问题本身，过长截断；下方显示时间、参考数量等轻量信息。
+2. 点击标题展开/折叠答案；默认展开最新一条。展开项保留现有引用点击和右侧证据定位面板。
+3. 每条记录右侧加删除图标按钮；删除后从 `aiIntegrationHistory` 移除，并触发现有自动保存。若删的是当前展开项，就自动展开相邻/最新记录。
+4. 排版优化为“提问区、资料选择、原文范围、问答记录”四块更清楚；问答记录标题行加数量，单条记录用紧凑边框行，不再用一排时间胶囊。
+
+我推荐这个方案，因为它最贴近你说的“一目了然”，同时不会改变 AI 回答生成和引用定位逻辑。确认我就开始实现并跑前端测试/构建。
 
 AI
-2026/6/18 18:05:21
-测试已加，现在跑 citation 测试确认红灯。预期会失败在 `quote` 仍然是整个 chunk。
-
-AI
-2026/6/18 18:05:37
-红灯确认了。现在实现很小：chunk 锚点不再直接用 `chunk.text`，而是在 chunk 文本里找包含目标源内参考号的句子，用这句做 `quote`，前后 2 句做上下文。
-
-AI
-2026/6/18 18:05:54
-实现已接入。先跑刚才失败的后端 citation 测试，看句子级高亮是否转绿。
-
-AI
-2026/6/18 18:06:07
-后端引用测试已经转绿。因为这个字段同时供“生成”和“AI整合”两处前端面板使用，我再跑 AI 整合专项、后端全量和前端构建做完整验证。
-
-AI
-2026/6/18 18:06:16
-AI 整合和前端 citation 测试都过了。最后跑后端全量和前端构建，确认没有破坏其他路径。
-
-AI
-2026/6/18 18:06:29
-验证完成了，构建仍只有原来的 Vite chunk 体积提示。最后我取一下行号，方便你核对这次专门修的高亮范围逻辑。
-
-AI
-2026/6/18 18:06:53
-修好了。根因是后端给前端的 chunk 锚点里，`quote` 还是整个 chunk，所以右侧把一大段都当成高亮内容。
-
-现在改成：chunk 锚点会在原文 chunk 里找到包含源内参考号的那一句，只把这句作为高亮 `quote`；前后 1-2 句放到 `context_before/context_after` 作为非高亮上下文。你这个例子会只高亮：
-
-`在等待准备透析时推荐口服环硅酸锆钠散等降钾措施 <sup class="literature-sup">[3,32,33]</sup>。`
-
-关键位置：
-- [backend/services/generator.py](/Users/dxy/Documents/IT/editing-assistant/backend/services/generator.py:383)
-- [backend/tests/test_generator_citations.py](/Users/dxy/Documents/IT/editing-assistant/backend/tests/test_generator_citations.py:125)
-
-验证已通过：
-- 后端引用测试：13 个通过
-- AI 整合测试：6 个通过
-- 后端全量测试：112 个通过
-- 前端 citation 测试：通过
-- 前端构建：通过
-
-已经生成过的旧结果里如果保存的是旧锚点，可能需要重新生成这段，新的返回数据才会带句子级高亮。
-
-developer
-2026/6/20 15:37:59
-<permissions instructions>
-Filesystem sandboxing defines which files can be read or written. `sandbox_mode` is `workspace-write`: The sandbox permits reading files, and editing files in `cwd` and `writable_roots`. Editing files in other directories requires approval. Network access is restricted.
-# Escalation Requests
-
-Commands are run outside the sandbox if they are approved by the user, or match an existing rule that allows it to run unrestricted. The command string is split into independent command segments at shell control operators, including but not limited to:
-
-- Pipes: |
-- Logical operators: &&, ||
-- Command separators: ;
-- Subshell boundaries: (...), $(...)
-
-Each resulting segment is evaluated independently for sandbox restrictions and approval requirements.
-
-Example:
-
-git pull | tee output.txt
-
-This is treated as two command segments:
-
-["git", "pull"]
-
-["tee", "output.txt"]
-
-Commands that use more advanced shell features like redirection (>, >>, <), substitutions ($(...), ...), environment variables (FOO=bar), or wildcard patterns (*, ?) will not be evaluated against rules, to limit the scope of what an approved rule allows.
-
-## How to request escalation
-
-IMPORTANT: To request approval to execute a command that will require escalated privileges:
-
-- Provide the `sandbox_permissions` parameter with the value `"require_escalated"`
-- Include a short question asking the user if they want to allow the action in `justification` parameter. e.g. "Do you want to download and install dependencies for this project?"
-- Optionally suggest a `prefix_rule` - this will be shown to the user with an option to persist the rule approval for future sessions.
-
-If you run a command that is important to solving the user's query, but it fails because of sandboxing or with a likely sandbox-related network error (for example DNS/host resolution, registry/index access, or dependency download failure), rerun the command with "require_escalated". ALWAYS proceed to use the `justification` parameter - do not message the user before requesting approval for the command.
-
-## When to request escalation
-
-While commands are running inside the sandbox, here are some scenarios that will require escalation outside the sandbox:
-
-- You need to run a command that writes to a directory that requires it (e.g. running tests that write to /var)
-- You need to run a GUI app (e.g., open/xdg-open/osascript) to open browsers or files.
-- If you run a command that is important to solving the user's query, but it fails because of sandboxing or with a likely sandbox-related network error (for example DNS/host resolution, registry/index access, or dependency download failure), rerun the command with `require_escalated`. ALWAYS proceed to use the `sandbox_permissions` and `justification` parameters. do not message the user before requesting approval for the command.
-- You are about to take a potentially destructive action such as an `rm` or `git reset` that the user did not explicitly ask for.
-- Be judicious with escalating, but if completing the user's request requires it, you should do so - don't try and circumvent approvals by using other tools.
-
-## prefix_rule guidance
-
-When choosing a `prefix_rule`, request one that will allow you to fulfill similar requests from the user in the future without re-requesting escalation. It should be categorical and reasonably scoped to similar capabilities. You should rarely pass the entire command into `prefix_rule`.
-
-### Banned prefix_rules 
-Avoid requesting overly broad prefixes that the user would be ill-advised to approve. For example, do not request ["python3"], ["python", "-"], or other similar prefixes that would allow arbitrary scripting.
-NEVER provide a prefix_rule argument for destructive commands like rm.
-NEVER provide a prefix_rule if your command uses a heredoc or herestring. 
-
-### Examples
-Good examples of prefixes:
-- ["npm", "run", "dev"]
-- ["gh", "pr", "check"]
-- ["cargo", "test"]
-
-
-## Approved command prefixes
-The following prefix rules have already been approved: - ["cp"]
-- ["./package_ipa.sh"]
-- ["./scripts/auto_git_backup.sh"]
-- ["wc", "-l"]
-- ["ps", "aux"]
-- ["git", "add"]
-- ["lsof", "-p"]
-- ["curl", "-sS"]
-- ["git", "push"]
-- ["mkdir", "-p"]
-- ["npm", "pack"]
-- ["xattr", "-d"]
-- ["git", "commit"]
-- ["git", "remote"]
-- ["kill", "30183"]
-- ["kill", "43669"]
-- ["docker", "exec"]
-- ["npm", "install"]
-- ["brew", "install"]
-- ["launchctl", "load"]
-- ["python3", "run.py"]
-- ["launchctl", "print"]
-- ["bb-browser", "fetch"]
-- ["launchctl", "kickstart"]
-- ["xcodebuild", "-project"]
-- ["bb-browser", "--version"]
-- ["python3", "get_cookies.py"]
-- ["xcodebuild", "-exportArchive"]
-- ["python3", "mirror_buffett_letters.py"]
-- ["rg", "(21464|35673|uvicorn|start.sh)"]
-- ["rm", ".git/auto-backup.launchd.err.log"]
-- ["rg", "(uvicorn main:app|start.sh|5175|8002)"]
-- ["python3", "/Users/dxy/Documents/IT/valueK/app/sec.py"]
-- ["rg", "(editing-assistant|uvicorn|vite|npm|node|python)"]
-- ["rg", "/Applications/Codex.app/Contents/Resources/node_repl"]
-- ["rg", "(uvicorn|python.*main:app|start.sh|editing-assistant)"]
-- ["curl", "-I", "-sS"]
-- ["npm", "run", "dev"]
-- ["kill", "7157", "67816"]
-- ["git", "worktree", "add"]
-- ["kill", "12744", "79033"]
-- ["kill", "35673", "21464"]
-- ["npx", "-y", "bb-browser"]
-- ["bb-browser", "tab", "new"]
-- ["python3", "-m", "uvicorn"]
-- ["curl", "-sS", "--max-time"]
-- ["rm", "-rf", ".pycache_tmp"]
-- ["rm", "-rf", ".tmp_pycache"]
-- ["bb-browser", "status", "--json"]
-- ["mkdir", "-p", "~/.codex/skills"]
-- ["rm", "-rf", "/Users/dxy/.paddlex"]
-- ["bb-browser", "eval", "document.cookie"]
-- ["bb-browser", "open", "https://xueqiu.com"]
-- ["curl", "-sS", "http://127.0.0.1:8000/zhuce6"]
-- ["curl", "-sS", "http://127.0.0.1:8000/healthz"]
-- ["curl", "-sS", "http://127.0.0.1:8000/api/runtime"]
-- ["mkdir", "-p", "/Users/dxy/Documents/IT/deepR/ipa"]
-- ["bash", "-n", "/Users/dxy/Documents/IT/deepR/package_ipa.sh"]
-- ["test", "-e", "/Users/dxy/Documents/IT/deepR/DeepReading.xcarchive"]
-- ["pkill", "-f", "/Applications/Codex.app/Contents/Resources/node_repl"]
-- ["/bin/zsh", "-lc", "python3 -m pip install paddlepaddle paddleocr>=2.6.0"]
-- ["/bin/zsh", "-lc", "HOMEBREW_NO_AUTO_UPDATE=1 brew install python@3.12 uv"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm login"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm doctor"]
-- ["/bin/zsh", "-lc", "export npm_config_cache=/tmp/codex-npm-cache && npm install"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm login --check"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm login --force"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm notebook list"]
-- ["mv", "-f", "/Users/dxy/Documents/IT/deepR/deepreading_app_x/build/DeepReading.xcarchive"]
-- ["/bin/zsh", "-lc", "'/Users/dxy/.codex/skills/playwright/scripts/playwright_cli.sh' --help"]
-- ["chmod", "+x", "/Users/dxy/Library/Application Support/editing-assistant/auto_git_backup.sh"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm --debug notebook list"]
-- ["/bin/zsh", "-lc", "npm_config_cache=/tmp/codex-bb-browser-npm-cache npx -y bb-browser --help"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm --help | sed -n \"1,220p\""]
-- ["/bin/zsh", "-lc", "export npm_config_cache=/tmp/codex-npm-cache && npm install --prefer-offline"]
-- ["bb-browser", "screenshot", "/Users/dxy/Documents/IT/pdf书籍文献提取/output/scholar-bb.png"]
-- ["rm", "frontend/esbuild-darwin-arm64-0.21.5.tgz", "frontend/rollup-rollup-darwin-arm64-4.59.0.tgz"]
-- ["/bin/zsh", "-lc", "du -sh /Users/dxy/Documents/IT/deepR/DeepReading.xcarchive 2>/dev/null || true"]
-- ["/bin/zsh", "-lc", "npm_config_cache=/tmp/codex-bb-browser-npm-cache npx -y bb-browser site update"]
-- ["launchctl", "unload", "/Users/dxy/Library/LaunchAgents/com.editing-assistant.auto-git-backup.plist"]
-- ["/bin/zsh", "-lc", "npm_config_cache=/tmp/codex-bb-browser-npm-cache npx -y bb-browser status --json"]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm login --help | sed -n \"1,220p\""]
-- ["/bin/zsh", "-lc", "PATH=\"/opt/homebrew/bin:$HOME/.local/bin:$PATH\" nlm notebook list | sed -n \"1,30p\""]
-- ["/bin/zsh", "-lc", "PYTHONDONTWRITEBYTECODE=1 python3 -m uvicorn main:app --host 127.0.0.1 --port 8765"]
-- ["/bin/zsh", "-lc", "npm_config_cache=/tmp/codex-bb-browser-npm-cache npx -y bb-browser site list --json"]
-- ["cp", "/Users/dxy/Documents/IT/deepR/package_ipa.sh", "/Users/dxy/Documents/IT/deepR/package_ipa.sh.bak"]
-- ["/bin/zsh", "-lc", "PYTHONUNBUFFERED=1 ./venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8002"]
-- ["/bin/zsh", "-lc", "npm_config_cache=/tmp/codex-bb-browser-npm-cache-open npx -y bb-browser status --json"]
-- ["/bin/zsh", "-lc", "PYTHONUNBUFFERED=1 ./venv/bin/python3 -m uvicorn main:app --host 127.0.0.1 --port 8002"]
-- ["/bin/zsh", "-lc", "npm_config_cache=/tmp/codex-bb-browser-npm-cache-open npx -y bb-br...
-[Some commands were truncated]
- The writable roots are `/Users/dxy/Documents/IT/editing-assistant`, `/private/tmp`, `/private/var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T`.
-</permissions instructions>
+2026/6/20 20:42:22
+你回复一句 `确认，按这个方案改` 就行。
 
 用户
-2026/6/20 15:37:59
+2026/6/20 20:53:00
+确认，按这个方案改
+
+AI
+2026/6/20 20:53:10
+收到。我先补一个小的前端状态辅助测试，把“删除当前展开记录后自动选择相邻/最新记录”的行为锁住，再改组件；这个功能比纯样式更容易悄悄出错。
+
+AI
+2026/6/20 20:53:15
+我会新增一个很小的 `aiIntegrationHistory` 工具函数测试，用来规定删除后的展开项选择：删当前项就选后一个，否则选前一个/最新；删非当前项则保持当前展开。
+
+AI
+2026/6/20 20:53:25
+测试已经写好，现在跑它确认红灯。
+
+AI
+2026/6/20 20:53:30
+红灯符合预期：工具函数还不存在。现在实现最小函数，然后接入 `StepAiIntegration` 和 `App` 的删除回调。
+
+AI
+2026/6/20 20:53:38
+辅助函数已加。接下来改组件接口和 UI：父组件传删除回调，AI 整合页把历史记录渲染成可折叠列表，并在每条记录上放删除图标。
+
+AI
+2026/6/20 20:53:44
+父组件状态入口已补上。现在改 `StepAiIntegration` 的记录区域：问题作为标题、点击折叠/展开、删除时自动切换展开项。
+
+AI
+2026/6/20 20:55:23
+功能结构已经接上了。现在补对应 CSS，让记录列表更像可扫读的工作台：问题标题一行优先、元信息和删除按钮靠右、展开答案留足阅读宽度。
+
+AI
+2026/6/20 20:55:50
+样式也加好了。现在跑新增测试和已有引用测试，再跑构建；如果 TypeScript 对新 props 或工具函数有意见，会在构建里暴露出来。
+
+AI
+2026/6/20 20:56:05
+功能和构建层面已经过了。因为这次改了前端排版，我再用本地页面做一次快速视觉检查，看看折叠列表、删除按钮和回答区域有没有明显挤压或错位。
+
+AI
+2026/6/20 20:56:09
+我会启动本地前端开发服务来做视觉检查。它是验证用的，结束前我会确认服务状态，不把不必要的后台进程留给你。
+
+AI
+2026/6/20 20:56:16
+前端服务起来了：`http://127.0.0.1:5175/`。现在我接入浏览器做一次页面级检查。
+
+AI
+2026/6/20 20:56:26
+浏览器连接这边遇到了当前沙箱元数据问题，我改用终端版 Playwright 做同样的本地页面检查。先确认 wrapper 依赖可用。
+
+AI
+2026/6/20 20:56:30
+服务本身返回正常。现在用 Playwright 打开页面抓 DOM 快照，看能不能直接到 AI 整合页；如果登录拦住，我会说明视觉检查受限。
+
+AI
+2026/6/20 20:57:05
+Playwright 打开页面这步还在跑，我检查一下它的输出状态。
+
+AI
+2026/6/20 20:57:17
+这个 CLI 打开命令没有及时返回，像是在保持浏览器会话。我先停掉它，改用静态构建和代码层验证收尾。
+
+AI
+2026/6/20 20:57:25
+可交互浏览器检查在这个环境里不顺，但测试、构建和本地服务健康检查都过了。我再看最终 diff，确认改动只在 AI 整合记录和前端工具/样式范围。
+
+AI
+2026/6/20 20:57:35
+diff 看起来干净，集中在 AI 整合记录。现在停止刚才的本地开发服务，避免留后台进程。
+
+AI
+2026/6/20 20:57:54
+我又做了一眼状态逻辑，发现一个折叠细节需要修：当前 `activeRecord` 在 `activeId=null` 时会自动回退到最新记录，这会导致“点已展开项”无法真正收起。这个我马上补掉，然后重新跑验证。
+
+AI
+2026/6/20 20:58:06
+折叠状态修好了。重新跑专项测试和构建，确保这个状态修正没有引入类型问题。
+
+AI
+2026/6/20 20:58:14
+验证已经重新通过。最后看一下工作区状态，我就给你简短汇总。
+
+AI
+2026/6/20 20:58:24
+已按方案改好 AI 整合问答记录。
+
+主要变化：
+- 问答记录改成折叠列表，标题直接用“问题”命名，默认新记录展开。
+- 点击问题可展开/收起回答。
+- 每条记录右侧新增删除按钮，删除当前展开项后会自动切到相邻记录；删到没有记录则清空。
+- 排版改成更清晰的记录区：标题、时间、删除操作、展开回答、引用资料标签分层展示。
+- 现有引用点击和右侧证据定位逻辑保留。
+
+涉及文件：
+- [App.tsx](/Users/dxy/Documents/IT/editing-assistant/frontend/src/App.tsx)
+- [StepAiIntegration.tsx](/Users/dxy/Documents/IT/editing-assistant/frontend/src/components/StepAiIntegration.tsx)
+- [index.css](/Users/dxy/Documents/IT/editing-assistant/frontend/src/index.css)
+- [aiIntegrationHistory.ts](/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/aiIntegrationHistory.ts)
+
+验证已跑：
+- `node --experimental-strip-types src/utils/aiIntegrationHistory.test.mjs`：通过
+- `node --experimental-strip-types src/utils/citations.test.mjs`：通过
+- `npm run build`：通过，仅有原来的 Vite chunk size warning
+
+本地浏览器可视化工具这边连接不稳定，我没拿到截图验证；但构建、状态逻辑和引用专项都过了。
+
+用户
+2026/6/20 21:13:31
+帮我上传到github上备份
+
+AI
+2026/6/20 21:13:39
+我来备份当前改动到 GitHub。先确认一下分支和待提交文件，然后用现有自动备份脚本提交并推送。
+
+AI
+2026/6/20 21:13:43
+当前在 `main`，远端是 `yys123/editing-assistant`，待备份的是这次 AI 整合记录删除/折叠相关改动。现在执行自动备份脚本，它会提交、同步并推送到 `origin/main`。
+
+AI
+2026/6/20 21:13:56
+脚本执行完成。我核对日志、最新提交和工作区状态，确认这次 push 已经落到远端。
+
+AI
+2026/6/20 21:14:03
+已备份到 GitHub。
+
+- 分支：`main`
+- 最新提交：`ade04c4 Auto backup: 2026-06-20 21:13:45`
+- 远端：`origin/main`
+- 状态：工作区干净，已和远端同步
+
+::git-stage{cwd="/Users/dxy/Documents/IT/editing-assistant"}
+::git-commit{cwd="/Users/dxy/Documents/IT/editing-assistant"}
+::git-push{cwd="/Users/dxy/Documents/IT/editing-assistant" branch="main"}
+
+用户
+2026/6/22 10:00:05
 <environment_context>
-  <current_date>2026-06-20</current_date>
+  <current_date>2026-06-22</current_date>
   <timezone>Asia/Shanghai</timezone>
   <filesystem><workspace_roots><root>/Users/dxy/Documents/IT/editing-assistant</root></workspace_roots><permission_profile type="managed"><file_system type="restricted"><entry access="read"><special>:root</special></entry><entry access="write"><path>/Users/dxy/Documents/IT/editing-assistant</path></entry><entry access="write"><special>:slash_tmp</special></entry><entry access="write"><special>:tmpdir</special></entry><entry access="read"><path>/Users/dxy/Documents/IT/editing-assistant/.git</path></entry><entry access="read"><path>/Users/dxy/Documents/IT/editing-assistant/.agents</path></entry><entry access="read"><path>/Users/dxy/Documents/IT/editing-assistant/.codex</path></entry></file_system></permission_profile></filesystem>
 </environment_context>
 
 用户
-2026/6/20 15:37:59
-我再次体验，发现“急性高钾血症的治疗目的在于迅速将血钾浓度降至安全水平，避免发生严重并发症[1-45]。治疗策略主要包括三大核心步骤：稳定心肌、促进钾离子进入细胞内、促进钾离子排出体外[1-45]。
-
-（一） 治疗原则与启动时机
-定义与启动标准：CKD患者短期内出现血钾升高至**≥6.0 mmol/L**，或出现高钾血症相关的心电图（ECG）异常（如T波高尖、PR间期延长、QRS波增宽等），即属于高钾血症急危重症，需立即启动紧急处理[1-45][3-34]。
-初始评估：立即复查血钾以排除假性高钾血症，同时进行生命体征以及心电图监测[1-45]。
-治疗流程图：具体处理流程可参考《中国慢性肾脏病患者血钾管理实践专家共识》中的急性高钾血症处理流程图[1-45]。
-（二） 紧急治疗措施
-1. 稳定心肌——静脉钙剂（一线治疗）
-
-目标：迅速对抗高钾对心肌的毒性，稳定心肌细胞膜电位[1-46]。
-适用人群：所有伴有或怀疑有心电图改变的高钾血症患者[1-46]。”这个结果里1-45点击后的内容好像都是固定的，但是实际上应该是不一样的，不同的内容参考的地方肯定是不一样。
-
-AI
-2026/6/20 15:38:20
-我明白：现在的问题已经不是“点不开”或“高亮太大”，而是模型在 prompt 里看到的是较粗的 chunk 级引用，所以一整段不同事实都套用了同一个 `[1-45]`。我会按 bug 流程继续修：把给模型看的参考从“chunk 级引用”细化到“句子级引用”，让不同句子拿到不同标记和不同锚点。
-
-AI
-2026/6/20 15:38:35
-我已经定位到这轮的根因：`_format_reference_chunks()` 仍按“一个 chunk 一个引用标记”喂给模型。即使右侧高亮已经能句子级显示，模型生成时仍会把一个 chunk 里的多条事实都标成同一个 `[1-45]`。我现在加红灯测试：同一 chunk 里两句分别带 `[45]`、`[46]` 时，prompt 必须把它们拆成两条句子级证据。
-
-AI
-2026/6/20 15:38:48
-红灯测试已写。现在跑引用测试，确认它确实因为 prompt 仍是 chunk 级而失败。
-
-AI
-2026/6/20 15:39:08
-接下来改实现：`_format_reference_chunks()` 不再输出“整块引用标记”，而是把 chunk 内每个句子拆成“证据1/证据2”，每条证据带自己的引用标记。这样模型看到“治疗目的”对应 `[1-45]`，“静脉钙剂”对应 `[1-46]`，不会整段复用一个编号。
-
-AI
-2026/6/20 15:39:27
-句子级证据格式已经改完。现在跑红灯测试，看它是否转绿以及哪些旧断言需要跟着更新。
-
-AI
-2026/6/20 15:39:37
-测试转绿了。还有一个提示词层面的细节：现在参考区已经是“证据1/证据2”，我会把写作要求里的“每个片段”改成“每条证据”，避免模型继续把一整块当作一个来源。先改测试期望，再改 prompt。
-
-AI
-2026/6/20 15:39:43
-我准备更新后端测试中的提示词断言，让它要求“每条证据”而不是“每个片段”。这会先红在当前 prompt 文案上。
-
-AI
-2026/6/20 15:40:02
-测试期望已更新，现在跑相关测试确认提示词文案红灯。
-
-AI
-2026/6/20 15:40:10
-红灯符合预期：参考区已经拆成证据级了，但 prompt 规则还在说“片段”。我现在只改这些提示词文案，让模型按“每条证据”选引用。
-
-AI
-2026/6/20 15:40:48
-提示词已切换为“每条证据”。我重新跑后端引用和 AI 整合专项，看红灯是否转绿。
-
-AI
-2026/6/20 15:41:06
-专项已经通过。完成前我按验证流程跑后端全量、前端 citation 测试和前端构建，确认这个证据级格式没有牵动其他路径。
-
-AI
-2026/6/20 15:41:28
-验证都通过了；我再取一下关键行号，最后给你简要说明这次修的是哪一层。
-
-AI
-2026/6/20 15:41:51
-这次抓到的是更底层的原因：模型之前看到的参考资料仍是“chunk 级”，一个 chunk 里可能有很多句，但顶部只给一个综合引用标记，所以它会把不同事实都套成同一个 `[1-45]`。
-
-我已经改成“句子级证据”喂给模型了：
-
-```text
-参考数据源 1：高钾血症指南.pdf
-证据1｜引用标记：[1-45]
-原文句子：急性高钾血症的治疗目的在于迅速将血钾浓度降至安全水平[45]。
-
-证据2｜引用标记：[1-46]
-原文句子：静脉钙剂可迅速对抗高钾对心肌的毒性[46]。
-```
-
-同时 prompt 也改成“必须使用每条证据列出的引用标记”，不再说“每个片段”。这样不同内容会更倾向于各自引用对应句子的 `[1-45]`、`[1-46]`，而不是整段复用一个编号。
-
-关键位置：
-- [backend/services/generator.py](/Users/dxy/Documents/IT/editing-assistant/backend/services/generator.py:366)
-- [backend/services/generator.py](/Users/dxy/Documents/IT/editing-assistant/backend/services/generator.py:738)
-- [backend/tests/test_generator_citations.py](/Users/dxy/Documents/IT/editing-assistant/backend/tests/test_generator_citations.py:150)
-
-验证已通过：
-- 后端专项测试：20 个通过
-- 后端全量测试：116 个通过
-- 前端 citation 测试：通过
-- 前端构建：通过
-
-这个改动需要重新生成内容才会体现到新的引用分布里。
-
-用户
-2026/6/20 15:49:55
+2026/6/22 10:00:05
 
 # Files mentioned by the user:
 
-## 截屏2026-06-20 下午3.49.16.png: /var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/TemporaryItems/NSIRD_screencaptureui_sAnPpR/截屏2026-06-20 下午3.49.16.png
+## codex-clipboard-861c3d64-a216-48e2-bdd8-a251b850c070.png: /var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/codex-clipboard-861c3d64-a216-48e2-bdd8-a251b850c070.png
 
 ## My request for Codex:
-如图，像[1-156、1-157]这些没有超链接，无法点击跳转
+AI整合里，这个回答为什么有删除符号，“慢性肾脏病血钾管理”这个任务，里面就一个回答。
 
-<image name=[Image #1] path="/var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/TemporaryItems/NSIRD_screencaptureui_sAnPpR/截屏2026-06-20 下午3.49.16.png">
+<image name=[Image #1] path="/var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/codex-clipboard-861c3d64-a216-48e2-bdd8-a251b850c070.png">
 </image>
 
 AI
-2026/6/20 15:50:16
-我会按 bug 修复流程继续：先确认是“前端没识别组合引用”还是“后端没返回这些 anchor”，再补红灯测试。你截图里 `[3-34]` 能点而 `[1-156、1-157]` 不能点，最可疑的是组合引用里的某些 token 没有 anchor 时，前端把整组都退回普通文本。
+2026/6/22 10:00:25
+我看到了截图里的“删除符号”：这不是记录删除按钮，而是正文里 `1~3 min`、`30~60 min` 这类波浪号被 Markdown/GFM 误当成删除线了。我会按 bug 修：先用渲染测试复现，再把 Markdown 配置改成不把单个 `~` 当删除线。
 
 AI
-2026/6/20 15:51:01
-进一步看下来，最关键的后端缺口是：chunk 里如果有多个源内号，比如 `[156,157]`，后端只给最后一个 `1-157` 建 chunk 锚点，没有给 `1-156` 也建同一个句子的锚点。这样生成结果里一旦写 `[1-156、1-157]`，前端可能拿不到完整 anchor，整组就不会被做成链接。我先补一个直接锁这个行为的红灯测试。
+2026/6/22 10:00:38
+根因已经定位：三个页面都用 `remark-gfm` 默认配置，默认会把单个 `~...~` 也当删除线；医学文本里的 `1~3 min` 和 `30~60 min` 正好被配对误解析。接下来我补一个 Markdown 渲染测试，然后统一改成 `singleTilde: false`。
 
 AI
-2026/6/20 15:51:15
-红灯测试已加，现在跑后端引用测试，预期当前实现缺 `1-156`。
+2026/6/22 10:00:51
+先跑这个新测试，确认现在确实红在缺少统一 Markdown 配置。
 
 AI
-2026/6/20 15:51:29
-红灯正好证明了：后端只返回了 `1-157` 和内部 `R1-C001`，少了 `1-156`。我现在把 chunk 锚点改成“每个源内号都建一个 anchor”，指向同一句原文。
+2026/6/22 10:00:58
+红灯符合预期。现在创建统一 Markdown 配置，并把 AI 整合、生成稿件、历史记录三个渲染入口都切过去。
 
 AI
-2026/6/20 15:51:41
-后端锚点已改为逐编号生成。先跑刚才的后端引用测试，再看前端是否还需要兜底。
+2026/6/22 10:01:04
+配置文件已加。接下来替换三个组件里的 `remarkPlugins={[remarkGfm]}`，这样 AI 整合、生成稿件和历史回看都不会再把单波浪号渲成删除线。
 
 AI
-2026/6/20 15:51:58
-这个后端修复会让新生成结果里的 `[1-156]` 和 `[1-157]` 都有可点击锚点。现在我跑 AI 整合、前端 citation、后端全量和构建，确认没有影响其他路径。
+2026/6/22 10:01:28
+StepGenerate 那段变量名和我预期不一样，补丁没有落下。我重新按实际代码位置拆开改。
 
 AI
-2026/6/20 15:52:06
-专项测试通过了。最后跑全量后端测试和前端构建，这是完成前的兜底验证。
+2026/6/22 10:01:32
+现在按实际变量名替换。
 
 AI
-2026/6/20 15:52:19
-验证完成。最后我抓一下行号，方便你核对修复点。
+2026/6/22 10:01:54
+三个入口已经统一配置。现在跑红灯测试看是否转绿，再跑引用相关测试和构建。
 
 AI
-2026/6/20 15:52:31
-这个点修好了。根因是后端给 chunk 建锚点时，对 `[156,157]` 这种同一句多编号，只给最后一个 `1-157` 建了 chunk 锚点，没有给 `1-156` 建，所以前端遇到 `[1-156、1-157]` 时拿不到完整跳转目标，就可能整组不变成链接。
+2026/6/22 10:02:09
+验证通过了。再扫一遍是否还有旧的 `remarkGfm` 直接使用，避免漏掉一个渲染入口。
 
-现在改成：同一个句子里识别到多少个源内编号，就给每个编号都建一个可点击锚点，都指向同一句原文。也就是：
+AI
+2026/6/22 10:02:15
+我再按完成前验证规则读一下校验要求，确保最后给你的结论都带新鲜证据。
 
-- `[1-156]` 可点击
-- `[1-157]` 可点击
-- `[1-156、1-157]` 这类组合也能分别变成可点击链接
+AI
+2026/6/22 10:02:37
+最后再跑一遍最相关的 Markdown 回归测试和前端构建，拿最新输出作为交付依据。
 
-关键位置：
-- [backend/services/generator.py](/Users/dxy/Documents/IT/editing-assistant/backend/services/generator.py:443)
-- [backend/tests/test_generator_citations.py](/Users/dxy/Documents/IT/editing-assistant/backend/tests/test_generator_citations.py:150)
+AI
+2026/6/22 10:02:49
+原因找到了：不是“删除按钮”，是 Markdown 把医学时间范围里的单个波浪号误识别成删除线了。
 
-验证已通过：
-- 后端引用测试：15 个通过
-- AI 整合测试：6 个通过
-- 后端全量测试：117 个通过
-- 前端 citation 测试：通过
-- 前端构建：通过
+比如原文类似：
 
-这个同样需要重新生成一次内容，新的 `reference_anchors` 返回后，这些组合编号才会变成可点击。
+`1~3 min起效，持续30~60 min`
+
+默认 GFM 会把中间这段当成 `~...~` 删除线，所以截图里就出现横线。
+
+我已经修了：统一把 Markdown 渲染配置改为不把单个 `~` 当删除线，只保留真正的 `~~删除线~~` 语法。影响范围包括：
+
+- AI 整合回答
+- 生成稿件预览
+- 历史记录预览
+
+新增了回归测试 [markdown.test.mjs](/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/markdown.test.mjs)，验证 `1~3 min`、`30~60 min` 会原样显示。
+
+验证已跑：
+- `node --experimental-strip-types src/utils/markdown.test.mjs`：通过
+- `npm run build`：通过，仅有原来的 Vite chunk size warning
 
 用户
-2026/6/20 16:12:10
+2026/6/22 10:20:30
+我希望加入一个新功能，就是如果用户选择了原词条内容，当引用到原词条内容时，且有相关参考文献，原词条的参考文献序号按0-X显示，譬如原词条本来那句话是[18]，最后生成时标记为0-18
+
+AI
+2026/6/22 10:20:53
+我会按 `brainstorming` 先把这个功能边界收清楚：它涉及“原词条内容”如何变成可引用证据，以及和参考文献 `[1-18]` 这套编号如何共存。先读一下后端 AI 整合 prompt/锚点和前端引用解析的现状，然后给你一个小设计确认。
+
+AI
+2026/6/22 10:21:15
+当前后端是把“原词条内容”整段塞进 prompt，但没有把它拆成可引用证据，也没有为原词条参考号生成锚点；所以模型即使引用原词条，也没有被明确要求写成 `0-X`。我再看一下响应结构和前端锚点字段，确认设计能沿用现有引用链路。
+
+AI
+2026/6/22 10:21:41
+我理解你的目标是：AI 整合如果带入了“原词条内容”，模型在引用原词条里已有参考文献时，不要继续写原来的裸 `[18]`，而是统一标成原词条来源编号 `[0-18]`。这样 `[1-18]` 表示第 1 个上传参考资料里的 18 号文献，`[0-18]` 表示原词条原本已有的 18 号文献，一眼能区分。
+
+我看了现状：后端现在只是把原词条内容原样放进 prompt，没有把原词条拆成可引用证据，也没有生成 `0-X` 的引用锚点。所以这需要补一条“原词条证据源”的链路。
+
+推荐方案：
+
+1. 后端把 `original_content` 当作特殊来源 `0`。
+2. 从原词条句子里抽取已有文献号，比如 `[18]`、`[18, 20]`、`[18-20]`。
+3. 在 AI 整合 prompt 里把这些句子列成可引用证据，例如：
+   `原词条证据1｜引用标记：[0-18]`
+4. 返回 `reference_anchors` 时也生成 `0-18` 的锚点，点击 `[0-18]` 时能定位到原词条对应句子。
+5. 如果模型仍输出原词条裸编号 `[18]`，后端在 AI 整合结果里把它改写成 `[0-18]`，但只在选择了原词条且该编号能在原词条里找到时改写，避免误伤其他引用。
+6. 前端引用解析基本可以复用现有 `[数据源-文献号]` 逻辑，只需要保证 `source_id=0` 的锚点显示为“原词条内容”。
+
+我建议只先做在 **AI 整合** 里，不扩展到生成稿件步骤。这样范围清楚，也符合你说的场景。
+
+确认我就按这个方案实现，并补测试验证：`原词条[18] -> AI 输出/点击为 [0-18]`。
+
+用户
+2026/6/22 10:22:50
+确认
+
+AI
+2026/6/22 10:23:02
+确认收到。我现在进入实现：先补后端红灯测试，锁住“原词条 `[18]` 作为 `[0-18]` 引用并返回锚点”的行为，再改生成器。
+
+AI
+2026/6/22 10:23:14
+我用 `writing-plans` 过了一遍实现拆分，范围很小：后端生成 `0-X` 原词条锚点和 prompt，后端结果兜底改写裸 `[X]`，前端只调整 source_id=0 的显示文案。现在先做红灯测试。
+
+AI
+2026/6/22 10:23:20
+我准备修改测试文件：验证 prompt 里出现 `引用标记：[0-18]`，模型返回裸 `[18]` 时被改写为 `[0-18]`，并返回可点击锚点。
+
+AI
+2026/6/22 10:23:38
+红灯测试已加。现在跑 AI 整合测试，预期失败在没有 `0-X` 原词条证据和改写逻辑。
+
+AI
+2026/6/22 10:23:43
+测试还在跑，我取一下结果。
+
+AI
+2026/6/22 10:23:54
+红灯符合预期。现在实现后端：复用已有源内文献号解析，把原词条拆成句子级证据，生成 `source_id=0` 的锚点，并在 AI 整合答案里把能匹配到原词条的裸编号改成 `0-X`。
+
+AI
+2026/6/22 10:24:27
+我会同时加一个保守规则：如果裸 `[1]` 同时可能是“第 1 个参考数据源”，就不自动改成 `[0-1]`，避免误伤现有参考文献来源号。
+
+AI
+2026/6/22 10:24:55
+我刚看到补丁里有一行明显不该出现的 JS 风格替换残留，我先清掉，再把 helper 接入 AI 整合主流程。
+
+AI
+2026/6/22 10:25:03
+接下来把原词条证据放进 prompt，并把返回答案做 `0-X` 兜底改写。
+
+AI
+2026/6/22 10:25:26
+后端主流程已接上。现在跑 AI 整合测试，看刚才红灯是否转绿，顺便暴露解析细节问题。
+
+AI
+2026/6/22 10:25:35
+测试还在跑，我取结果。
+
+AI
+2026/6/22 10:25:45
+后端新测试转绿了。我再补一个保护用例：原词条里如果有 `[1]`，而同时第 1 个参考数据源也存在，模型输出 `[1]` 时不应被误改成 `[0-1]`。
+
+AI
+2026/6/22 10:26:15
+保护用例已加。下一步改前端引用面板：`source_id=0` 显示为“原词条内容”，不再显示“参考数据源 0”。
+
+AI
+2026/6/22 10:26:26
+我会把面板文案做成一个小工具函数，这样 AI 整合、生成稿件、历史记录三个引用面板都统一显示。
+
+AI
+2026/6/22 10:26:50
+工具和测试已补。现在替换三个引用面板里的 source 文案。
+
+AI
+2026/6/22 10:27:03
+前端显示也统一了。现在跑后端 AI 整合测试和前端 citation 测试，确认新增保护用例和 source_id=0 文案都通过。
+
+AI
+2026/6/22 10:27:20
+前端 citation 测试已过；后端测试还在跑，我取一下结果。
+
+AI
+2026/6/22 10:27:32
+专项测试通过了。接下来跑引用相关后端测试和前端构建，覆盖这次碰到的共用引用解析与 TypeScript。
+
+AI
+2026/6/22 10:27:50
+前端构建通过了，后端 citation 测试还在跑，我继续取结果。
+
+AI
+2026/6/22 10:28:02
+核心验证都过了。因为改的是后端生成器公共文件，我再跑一遍后端全量测试；同时检查 diff，确认没有碰到不相关逻辑。
+
+AI
+2026/6/22 10:28:32
+我发现一个边界：如果原词条之前已经被处理过，里面本来就是 `[0-18]`，当前解析会把它误当成 `0 到 18` 的范围。这个要顺手堵住，不然以后会冒出一串 `0-1...0-18`。我先加用例再修。
+
+AI
+2026/6/22 10:28:47
+现在跑 AI 整合测试，预期这个新边界用例会红。
+
+AI
+2026/6/22 10:28:59
+测试还在跑，我取一下失败信息。
+
+AI
+2026/6/22 10:29:04
+红灯正好说明了边界问题。现在把原词条引用解析改成识别已有 `0-X`，而不是走普通范围展开。
+
+AI
+2026/6/22 10:29:28
+解析修正好了。重新跑 AI 整合专项，确认新边界和原功能都过。
+
+AI
+2026/6/22 10:29:34
+测试还在跑，我取结果。
+
+AI
+2026/6/22 10:29:44
+专项已过。现在做最终验证：后端 citation 专项、后端全量、前端 citation 测试和构建。
+
+AI
+2026/6/22 10:29:57
+大部分验证已完成，后端 citation 专项还在跑，我取最后一个结果。
+
+AI
+2026/6/22 10:30:06
+最后补跑一下 Markdown 回归测试，因为当前工作区也包含上一轮的 Markdown 渲染修复文件，确保整体前端工具测试没有遗漏。
+
+AI
+2026/6/22 10:30:14
+验证完成，改动集中在 AI 整合的原词条引用链路和前端引用面板显示；工作区还有上一轮 Markdown 删除线修复文件一起处于未提交状态。
+
+AI
+2026/6/22 10:30:29
+已实现这个功能。
+
+现在 AI 整合在带入“原词条内容”时，会把原词条里已有的参考文献号作为特殊来源 `0` 处理：
+
+- 原词条句子：`慢性肾脏病患者需定期进行血钾监测[18]。`
+- AI 整合引用时：`[0-18]`
+- 点击 `[0-18]` 会定位到原词条对应句子
+- 引用面板显示为“原词条内容”，不再显示“参考数据源 0”
+
+还加了兜底：如果模型仍输出裸 `[18]`，只要它能在原词条里找到对应编号，就会自动改成 `[0-18]`。同时避免误伤 `[1]` 这种可能表示“第 1 个参考数据源”的引用。
+
+验证已跑：
+- 后端 AI 整合专项：`9 tests OK`
+- 后端 citation 专项：`17 tests OK`
+- 后端全量：`122 tests OK`
+- 前端 citation 测试：通过
+- 前端 markdown 测试：通过
+- `npm run build`：通过，仅有原来的 Vite chunk size warning
+
+改动主要在 [generator.py](/Users/dxy/Documents/IT/editing-assistant/backend/services/generator.py) 和 [citations.ts](/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/citations.ts)。
+
+用户
+2026/6/22 11:57:14
 
 # Files mentioned by the user:
 
-## 截屏2026-06-20 下午4.11.39.png: /var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/TemporaryItems/NSIRD_screencaptureui_ViNZot/截屏2026-06-20 下午4.11.39.png
+## codex-clipboard-951b6f03-dbae-4e9b-99a9-5e13cc135dbb.png: /var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/codex-clipboard-951b6f03-dbae-4e9b-99a9-5e13cc135dbb.png
 
 ## My request for Codex:
-我发现这个1-47点进去都是同一个内容，有些参考依据就对不上
+我没有纳入一篇指南，仅用原词条内容测试了一下，测试结果如图，不仅没有标记为0-X，而且也没有超链接，无法点击跳转
 
-<image name=[Image #1] path="/var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/TemporaryItems/NSIRD_screencaptureui_ViNZot/截屏2026-06-20 下午4.11.39.png">
+<image name=[Image #1] path="/var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/codex-clipboard-951b6f03-dbae-4e9b-99a9-5e13cc135dbb.png">
 </image>
 
 AI
-2026/6/20 16:12:50
-我会继续按 bug 流程处理这个问题：这次根因看起来是“同一个文献号 `[1-47]` 在原资料里出现多次，前端只按 `citation_key` 存一个锚点，所以所有 `[1-47]` 都跳到同一处”。我先重新加载调试/TDD规则，然后补一个最小复现测试，再改成按生成句子的上下文选择最相近的同编号锚点。
+2026/6/22 11:57:37
+我看到问题了：你这个例子里原词条引用是范围/多编号形式 `[146–147,149]`，而我上一版只兜底改写了单个裸编号，比如 `[18] -> [0-18]`。我会按这个真实形态补测试并修掉，同时确认前端能把 `[0-146、0-147、0-149]` 渲染成可点击。
 
 AI
-2026/6/20 16:13:10
-我查完了：后端现在可能返回多个 `citation_key="1-47"` 的锚点，但前端把锚点放进 `Map<citation_key, anchor>`，天然只能保留一个；所以同一个编号在不同原文句子里重复出现时，点击都会落到同一条。接下来我会让前端保留重复锚点，并在渲染每个引用时用“当前生成句子”和候选原文句子做相似度选择。
+2026/6/22 11:57:53
+我会把兜底改写从“只处理单个裸编号”扩展到“裸范围和混合多编号”，同时保留已有 `[0-18]` 不重复改、已有参考源格式 `[1-45]` 不误改。
 
 AI
-2026/6/20 16:13:46
-我准备先改前端测试来复现你的截图：同一个 `1-47` 有三个候选原文锚点时，引用旁边的生成句子提到“葡萄糖/胰岛素”就应该链接到胰岛素那条，而提到“碳酸氢钠”就链接到碳酸氢钠那条。当前实现会失败，因为它只按 `citation_key` 找一个固定锚点。
+2026/6/22 11:58:11
+测试已加，先跑它确认当前确实失败在范围没有改写。
 
 AI
-2026/6/20 16:14:05
-红灯测试已加。现在跑前端 citation 测试，应该会因为 `mergeReferenceAnchors` 还不存在而失败。
+2026/6/22 11:58:23
+红灯精准复现了截图：`[79]` 能改成 `[0-79]`，但 `[146–147,149]` 里的范围只被规范成了 `146-147`，没有展开成 `0-146、0-147`。现在改这个函数。
 
 AI
-2026/6/20 16:14:14
-红灯确认。现在实现前端锚点合并和上下文选择：保留重复 citation key，生成稳定 `anchor_key`，`linkifyCitationMarkers` 会把当前引用所在句子传给 resolver 用来选最相近的原文句。
+2026/6/22 11:58:40
+范围改写已实现。现在重跑 AI 整合专项，确认截图这种形态转绿。
 
 AI
-2026/6/20 16:15:00
-核心工具函数已实现，但组件里还在用 `Map<citation_key, anchor>` 去重，这会把重复锚点提前丢掉。我继续把生成页、AI整合页和历史页的锚点合并改成保留重复锚点，并按 `anchor_key` 查找当前高亮。
+2026/6/22 11:58:57
+后端已能把 `[146–147,149]` 变成 `[0-146、0-147、0-149]`。我再补一个前端测试，确保这种 `0-X` 多引用会显示成一个方括号并且每个编号可点。
 
 AI
-2026/6/20 16:15:13
-生成页已改。继续改 AI 整合页和历史页，避免同一个问题在其他入口复现。
+2026/6/22 11:59:14
+前端回归用例已补。现在跑前端 citation 测试和构建，同时再跑后端 citation 专项。
 
 AI
-2026/6/20 16:15:31
-AI 整合页也改好了。最后处理历史页。
+2026/6/22 11:59:49
+前端已过，后端 citation 测试还在跑，我取一下完整结果。
 
 AI
-2026/6/20 16:15:46
-三处入口都改成保留重复锚点了。现在先跑前端 citation 红灯测试，看上下文选择是否转绿。
+2026/6/22 12:00:17
+专项和构建都过了。最后跑后端全量测试，确保公共生成器改动没有影响其他路径。
 
 AI
-2026/6/20 16:15:57
-前端 citation 测试通过了。接下来跑前端构建和后端测试，确认类型和后端锚点生成都没受影响。
+2026/6/22 12:01:04
+我再补一层前端兜底：即使是已经生成过的旧回答，只要当前任务里还有原词条内容，也能从原词条即时生成 `0-X` 锚点。这样不会完全依赖后端新返回的 `reference_anchors`。
 
 AI
-2026/6/20 16:16:07
-构建暴露了一个类型问题：有一处旧代码把 `resolveCitation` 直接传给 `map`，现在 resolver 多了 context 参数，TypeScript 会把 `map` 的 index 当成 context。这个很好修，我改成显式 `token => resolveCitation(token, text)`。
+2026/6/22 12:01:32
+兜底工具已加。现在把 AI 整合页接上：按每条问答记录当时的“原词条范围”重建原词条锚点，并合并到现有锚点里。
 
 AI
-2026/6/20 16:16:15
-准备修这个类型点。这里用于 diff 视图，传整段文本作为上下文已经足够让 resolver 选择更接近的锚点。
+2026/6/22 12:01:44
+现在补前端测试，验证旧回答里 `[146-147,149]` 在只有原词条锚点时会显示为 `[0-146、0-147、0-149]` 并可点。
 
 AI
-2026/6/20 16:16:23
-类型修复已完成。现在重新跑前端构建。
+2026/6/22 12:01:58
+前端兜底测试已加。现在跑前端 citation 测试和构建，看看 TypeScript 是否接受这次改动。
 
 AI
-2026/6/20 16:16:47
-我又顺着数据流看了一层：前端现在能保留重复锚点了，但后端如果同一个 chunk 里多句话都引用 `[47]`，仍可能只产出一个 `1-47` 锚点。你截图里“胰岛素/碳酸氢钠/β受体激动剂”很像就是这种情况。我再补一个后端红灯，确保同一个编号多次出现时也返回多个句子级锚点。
+2026/6/22 12:02:07
+测试过了，构建指出 TypeScript 对循环里的 `match` 可能为空不放心。我把那两处换成局部常量，消掉类型风险。
 
 AI
-2026/6/20 16:17:03
-后端重复编号红灯已加。现在跑引用测试，预期当前只返回一个 `1-47`，会失败。
+2026/6/22 12:02:27
+类型问题已修。重新跑构建和相关测试。
 
 AI
-2026/6/20 16:17:18
-红灯证明后端同一个 chunk 里重复 `[47]` 只产出一个锚点。我现在把 chunk 锚点生成从“按唯一参考号”改成“按句子里的每次参考号出现”生成：同一个 `1-47` 可以有多个锚点，每个锚点对应不同原文句。
+2026/6/22 12:02:38
+前端过了，后端 AI 整合专项还在跑，取一下完整结果。
 
 AI
-2026/6/20 16:17:41
-后端锚点已按句子级重复出现生成。现在重跑后端引用测试。
+2026/6/22 12:02:51
+关键路径都过了。最后再跑后端全量和 markdown 测试，作为收口验证。
 
 AI
-2026/6/20 16:17:57
-后端红灯也转绿了。现在跑完整验证：前端 citation 测试、AI整合专项、后端全量和前端构建。
+2026/6/22 12:03:06
+你这个测试暴露的是我上一版漏掉的形态：`[79]` 这种单个编号能改，但 `[146–147,149]` 这种“范围 + 多编号”没有展开成 `0-X`，所以前端也拿不到对应的 `0-146 / 0-147 / 0-149` 链接。
 
-AI
-2026/6/20 16:18:14
-验证都过了。最后取一下关键行号，给你说明这次修的是“同编号多处出现”的问题。
+我已修掉：
 
-AI
-2026/6/20 16:18:29
-你这个截图对应的是“同一个文献号在原资料里多处出现”的问题。比如 `[1-47]` 可能在胰岛素、碳酸氢钠、β受体激动剂几句话后都出现，但之前系统只按 `citation_key = 1-47` 存一个锚点，所以所有 `[1-47]` 都会跳到同一个原文位置。
+- `[79]` -> `[0-79]`
+- `[146–147,149]` -> `[0-146、0-147、0-149]`
+- 每个 `0-X` 都会有原词条锚点，可点击跳到原词条对应句子
+- 兼容旧回答：如果历史记录里仍是 `[146-147,149]`，前端会根据当前原词条内容重建 `0-X` 锚点并显示为可点击的 `[0-146、0-147、0-149]`
 
-我这次修了两层：
+验证已跑：
+- `./venv/bin/python -m unittest tests.test_ai_integration`：10 个通过
+- `./venv/bin/python -m unittest discover tests`：130 个通过
+- `node --experimental-strip-types src/utils/citations.test.mjs`：通过
+- `node --experimental-strip-types src/utils/markdown.test.mjs`：通过
+- `npm run build`：通过，仅有原来的 Vite chunk size warning
 
-- 后端：同一个 chunk 里如果 `[47]` 出现多次，会为每一次出现都生成一个句子级锚点。
-- 前端：不再用 `citation_key` 去重丢掉重复锚点；点击时会根据当前生成句子的上下文，选择最相近的那个 `[1-47]` 原文句子。
-
-也就是说，正文里：
-- “高糖+胰岛素……[1-47]” 会优先跳到胰岛素那句；
-- “碳酸氢钠……[1-47]” 会优先跳到碳酸氢钠那句；
-- “β受体激动剂……[1-47]” 会优先跳到 β受体激动剂那句。
-
-关键位置：
-- [backend/services/generator.py](/Users/dxy/Documents/IT/editing-assistant/backend/services/generator.py:443)
-- [frontend/src/utils/citations.ts](/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/citations.ts:34)
-- [frontend/src/components/StepGenerate.tsx](/Users/dxy/Documents/IT/editing-assistant/frontend/src/components/StepGenerate.tsx:356)
-
-验证已通过：
-- 前端 citation 测试：通过
-- 后端引用测试：16 个通过
-- AI 整合测试：6 个通过
-- 后端全量测试：118 个通过
-- 前端构建：通过
-
-这类修复同样需要重新生成内容或重新拿到新的 `reference_anchors` 后才能在界面里体现。
+你需要重新生成一次 AI 整合回答才能让后端输出直接变成 `0-X`；历史旧回答现在前端也会尽量兜底变成可点击。
 
 用户
-2026/6/20 17:21:48
-这次改了以后，感觉[1]、[2]这种多了，[1-5]这种少了很多
-
-AI
-2026/6/20 17:22:16
-我理解这个新现象：句子级拆分后，很多“没有源内编号的句子”被单独作为证据输出成 `[1]`、`[2]`，模型就更容易使用这些粗粒度编号。我要按 bug 流程先加一个复现测试，再把“无编号句子”的暴露规则收紧，避免它们抢走本该使用的 `[1-5]` 这类引用。
-
-AI
-2026/6/20 17:22:34
-我定位到具体诱因了：`_sentence_evidence_blocks_for_chunk()` 现在把 chunk 里的每一句都变成可引用证据；哪怕同一个 chunk 里已经有 `[1-5]` 这种源内编号，旁边没有编号的句子也会被标成 `[1]`。这会在 prompt 里制造大量 `[1]`、`[2]`。我先补测试锁住：混合 chunk 中“无编号句子”只能作为上下文，不能输出 `引用标记：[1]`。
-
-AI
-2026/6/20 17:22:50
-测试已加，现在跑后端引用测试，预期会红在“无编号邻句仍被标成 `[1]`”。
-
-AI
-2026/6/20 17:23:03
-红灯符合预期。现在改格式化逻辑：如果一个 chunk 内已经有任意源内编号，那么无编号句子只作为“上下文”出现，不给 `[1]` 引用标记；只有整个 chunk 都没有源内编号时，才允许用 `[1]`/`[2]` 这种资料级引用。
-
-AI
-2026/6/20 17:23:14
-实现已改。重新跑后端引用测试，看红灯是否转绿。
-
-AI
-2026/6/20 17:23:32
-后端引用测试通过了。接下来跑 AI整合、后端全量、前端 citation 和构建，确认收紧 `[1]` 输出没有破坏其他路径。
-
-AI
-2026/6/20 17:23:46
-验证都通过了。最后我取一下关键行号，然后给你说明这次调整的效果和边界。
-
-AI
-2026/6/20 17:23:58
-你这个反馈是对的。原因是我上一步把 chunk 拆成句子级证据后，把“没有源内编号的邻近句子”也单独变成了可引用证据，于是 prompt 里多了很多：
-
-`证据2｜引用标记：[1]`
-
-模型自然就更常用 `[1]`、`[2]`，导致 `[1-5]` 这类变少。
-
-我已经收紧了规则：
-
-- 如果一个 chunk 里已经存在 `[1-5]`、`[1-156]` 这类源内编号，那么同一 chunk 里没有编号的句子只作为上下文展示。
-- 这些无编号邻句会标成：`上下文｜无源内参考文献号，不能单独作为引用依据`
-- 只有整个 chunk 都没有任何源内编号时，才允许退回使用 `[1]`、`[2]`。
-
-关键位置：
-- [backend/services/generator.py](/Users/dxy/Documents/IT/editing-assistant/backend/services/generator.py:366)
-- [backend/tests/test_generator_citations.py](/Users/dxy/Documents/IT/editing-assistant/backend/tests/test_generator_citations.py:207)
-
-验证已通过：
-- 后端引用测试：17 个通过
-- AI 整合测试：6 个通过
-- 后端全量测试：119 个通过
-- 前端 citation 测试：通过
-- 前端构建：通过
-
-重新生成后，`[1]`、`[2]` 应该会明显减少，只有资料片段本身确实没有源内编号时才出现。
-
-用户
-2026/6/20 18:07:00
-能否再想办法提高点击参考文献序号后，高亮内容的匹配度
-
-AI
-2026/6/20 18:07:16
-可以，而且这次需要从“点击时只按编号定位”再往前走一步：把同一个编号下的多个候选原文，按当前正文引用所在句子的语义/关键词相似度重新排序。这样不是只靠 `[1-47]`，而是用“这句话在讲胰岛素、碳酸氢钠还是β受体激动剂”来选高亮位置。我会先加载 brainstorming，把改动范围收紧，再按 TDD 补一个会失败的匹配测试。
-
-AI
-2026/6/20 18:07:37
-可以，而且我建议下一步不要再只修正则或编号了，要把“点击引用后的定位”做成一个小型重排器。
-
-我推荐的方案是：
-
-1. **同编号候选全部保留**
-   例如 `[1-47]` 在原文里出现 3 次，就保留 3 个候选锚点，而不是只留一个。
-
-2. **点击时按当前正文句子重排**
-   点击某个 `[1-47]` 时，系统取它所在的生成句子，比如“高糖+胰岛素……”，然后和 3 个候选原文句子比较相似度，优先高亮最像的那句。
-
-3. **相似度不要只靠二字片段**
-   可以加几个医学编辑场景更有用的权重：
-   - 药物名完全命中加权：胰岛素、碳酸氢钠、葡萄糖酸钙、环硅酸锆钠等
-   - 数值/剂量命中加权：10 mL、500 mL、30 min、5~10 min
-   - 关键词短语命中加权：稳定心肌、促进钾离子进入细胞内、排钾
-   - 标题路径加权：治疗原则、稳定心肌、促进细胞内转移等
-   - 如果多个候选分数接近，显示“可能匹配多个原文”，避免假装很确定
-
-备选方案有两个：
-
-- **更强但稍慢**：后端返回每条引用时直接绑定 `anchor_id`，让模型不要只输出 `[1-47]`，而是内部带上证据 ID，前端显示仍是 `[1-47]`。这是最准的方向。
-- **轻量快速**：只增强前端点击重排，不改生成协议。成本低，但如果生成句子改写太大，仍可能选错。
-- **折中推荐**：先做“前端重排 + 后端候选保留 + 分数阈值”，后续再升级到内部 evidence id。
-
-我建议先做折中方案：改动可控，能明显提升你现在看到的“同一个编号跳到固定内容”的问题。你确认后，我就按 TDD 继续实现。
-
-用户
-2026/6/20 18:36:37
+2026/6/22 13:35:20
 
 # Files mentioned by the user:
 
-## 截屏2026-06-20 下午6.36.08.png: /var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/TemporaryItems/NSIRD_screencaptureui_CC3ut7/截屏2026-06-20 下午6.36.08.png
+## codex-clipboard-f0cafea4-1293-45cd-b66d-f9661a6b0896.png: /var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/codex-clipboard-f0cafea4-1293-45cd-b66d-f9661a6b0896.png
 
 ## My request for Codex:
-如图，急性高钾血症处理流程图[146-147]、[149]，这里参考文献没有超链接，无法点击跳转
+如图，还是有一些问题，如[0、1、2、3、4、5、6、7、8、9、10、11、12、13、14、15、16、17]，这个的0没有超链接，而且没有加引用数据源的序号，如1-1。
 
-<image name=[Image #1] path="/var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/TemporaryItems/NSIRD_screencaptureui_CC3ut7/截屏2026-06-20 下午6.36.08.png">
+<image name=[Image #1] path="/var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/codex-clipboard-f0cafea4-1293-45cd-b66d-f9661a6b0896.png">
 </image>
 
 AI
-2026/6/20 18:37:03
-我会继续按调试/TDD流程处理这个“无数据源前缀的原文文献号不能点击”的问题。截图里 `[146-147]`、`[149]` 是旧原文/图注里的源内文献号，不是我们新生成的 `[1-146]` 格式；当前前端对这类“裸编号范围”支持不完整，所以不会变链接。先补前端红灯测试，再修 resolver。
+2026/6/22 13:35:42
+我明白了，这次不是后端单纯没改写，而是前端兜底把 `[0-17]` 误当成“0 到 17 的范围”展开了，所以出现 `[0、1、2...17]`，其中 `0` 没有锚点，后面的裸数字又去匹配了其它来源编号。这个要在前端解析层修：`0-X` 必须被视为原词条引用，不允许按范围展开。
 
 AI
-2026/6/20 18:37:14
-证据清楚了：`[149]` 这类单个裸编号理论上可以通过 `source_ref_id -> source_id-ref_id` 兜底解析；但 `[146-147]` 当前被当成一个 token `146-147`，resolver 只会找是否存在同名锚点，找不到就放弃。我要把“裸编号范围”展开成 `[1-146]、[1-147]` 对应的可点击链接。
+2026/6/22 13:36:03
+我再补一个更底层的前端保护：任何 `0-X` 都不允许被当作范围展开。即使某次没有拿到锚点，也应该保持 `[0-17]` 原样，而不是炸成 `[0、1、2...]`。这正是截图里的视觉问题。
 
 AI
-2026/6/20 18:38:05
+2026/6/22 13:36:17
+先跑这个测试，确认它现在会复现展开问题。
+
+AI
+2026/6/22 13:36:28
+这个空 resolver 还不够狠，因为没有任何链接时原本就会保留原样。截图的问题是 `1..17` 被其它锚点解析成链接了，所以我把测试改成这个真实情况。
+
+AI
+2026/6/22 13:36:34
+现在重新跑，应该会红在 `[0-17]` 被展开。
+
+AI
+2026/6/22 13:36:40
+红灯完全复现了截图。现在改 `expandBareNumericRangeToken`：起点是 `0` 的 token 只可能是原词条来源，不展开。
+
+AI
+2026/6/22 13:36:47
+展开规则已修。现在跑前端 citation 测试，确认红灯转绿。
+
+AI
+2026/6/22 13:37:12
+这次修的是前端解析层，不需要改后端。为了确认不影响你之前要的 `[146-147] -> [146、147]` 裸范围展开，我再跑构建和相关测试。
+
+AI
+2026/6/22 13:37:34
+这次问题的根因很明确：前端把 `[0-17]` 误当成“0 到 17 的范围”展开了，于是显示成 `[0、1、2...17]`。`0` 没有对应锚点，所以不能点；`1~17` 又被当成裸编号去匹配其它引用，所以看起来也没有正确的 `0-X` / `1-X` 前缀。
+
+我已修复：
+
+- `0-X` 永远视为“原词条引用”，不再按范围展开。
+- 如果有原词条锚点，`[0-17]` 会正常显示并可点击。
+- 旧回答里如果还是 `[146-147,149]`，前端会基于原词条内容兜底显示成 `[0-146、0-147、0-149]` 并可点击。
+- 保留之前你要的普通裸范围行为：如 `[146-147]` 在非 `0-X` 场景仍可展开。
+
+验证已跑：
+- `node --experimental-strip-types src/utils/citations.test.mjs`：通过
+- `node --experimental-strip-types src/utils/markdown.test.mjs`：通过
+- `npm run build`：通过，仅有原来的 Vite chunk size warning
+- 后端全量测试此前也已通过：`130 tests OK`
+
+你刷新页面后再看这条回答，`[0、1、2...]` 这种展开应该不会再出现。
+
+用户
+2026/6/22 13:40:08
+
+# Files mentioned by the user:
+
+## codex-clipboard-af957ee7-e80a-4f1e-b17a-f6a5f188d1d2.png: /var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/codex-clipboard-af957ee7-e80a-4f1e-b17a-f6a5f188d1d2.png
+
+## My request for Codex:
+如图，个别没有超链接，你看看是什么情况
+
+<image name=[Image #1] path="/var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/codex-clipboard-af957ee7-e80a-4f1e-b17a-f6a5f188d1d2.png">
+</image>
+
+AI
+2026/6/22 13:40:29
+我会按调试流程看这个：截图里 `[1-46]` 能点，说明基础引用渲染没坏；问题集中在 `[0-17]` 这类原词条引用没有对应锚点。先加一个最小复现，确认是“没有原词条锚点”还是“有锚点但前端没解析”。
+
+AI
+2026/6/22 13:41:17
+从代码看，`[0-17]` 变成普通黑字只有一种情况：前端没有拿到 `0-17` 这个锚点。常见原因有两个：一是这是旧回答，后端当时没返回原词条锚点；二是前端从当前原词条重建锚点时，没有识别到原文里的某种参考号格式。我要把前端原词条锚点重建能力补齐，并给 `0-X` 增加“未定位但可点击”的兜底，避免再出现黑字。
+
+AI
+2026/6/22 13:41:38
+我准备做两层补丁：第一层是前端从原词条里识别更多参考号格式，比如 `#R17` 这种 HTML/链接形态；第二层是兜底，如果回答里已经有 `[0-17]` 但当前确实定位不到原词条原句，也给它生成一个“原词条内容（未定位）”锚点，至少能点开看到未定位提示，不再黑字。
+
+AI
+2026/6/22 13:41:46
+先把新记录存下当时实际传给后端的原词条内容，这样以后历史记录恢复时也能重建 `0-X` 锚点，不受当前页面状态变化影响。
+
+AI
+2026/6/22 13:41:58
+现在补工具函数和测试。先写测试锁住：`[0-17]` 即使原锚点缺失，也会变成可点击；原词条里的 `#R17` 也能生成 `0-17`。
+
+AI
+2026/6/22 13:42:13
+测试先跑一下，预期会红在新函数不存在或 `#R17` 还识别不到。
+
+AI
+2026/6/22 13:42:20
+红灯符合预期。现在实现 `buildFallbackOriginalCitationAnchors`，并让 `buildOriginalContentAnchors` 识别 `#R17`。
+
+AI
+2026/6/22 13:42:54
+实现好了。现在跑 citation 测试，确认红灯转绿。
+
+AI
+2026/6/22 13:43:03
+现在跑构建，确认类型和页面组件接入没问题。
+
+AI
+2026/6/22 13:43:15
+前端构建和 markdown 测试通过了。后端 AI 整合专项还在跑，我取结果。
+
+AI
+2026/6/22 13:43:25
+核心测试都过了。最后跑后端全量并看一下最终状态。
+
+AI
+2026/6/22 13:43:40
+看到了。这个情况不是 `[0-17]` 本身格式错，而是它没有找到对应的 `0-17` 锚点，所以前端只能把它当普通文本显示。
+
+我补了两层处理：
+
+1. 原词条锚点识别更完整  
+   现在除了普通 `[17]`，也会识别原词条里类似 `#R17` / HTML 链接锚点这类格式，生成 `0-17`。
+
+2. 未定位兜底  
+   如果回答里已经有 `[0-17]`，但当前原词条里暂时定位不到这个编号，也会生成一个“原词条内容（未定位）”锚点，让它至少可点击，不再是黑字。点开后会提示这是未定位到原词条编号的引用。
+
+另外，新生成的 AI 整合记录会保存当时实际带入的原词条内容快照，之后历史记录恢复时也能稳定重建 `0-X` 锚点。
+
+验证已跑：
+- `node --experimental-strip-types src/utils/citations.test.mjs`：通过
+- `node --experimental-strip-types src/utils/markdown.test.mjs`：通过
+- `npm run build`：通过
+- 后端全量：`130 tests OK`
+
+刷新页面后再看，截图里这些黑色 `[0-17]` 应该会变成可点击链接。
+
+用户
+2026/6/22 17:32:10
+
+# Files mentioned by the user:
+
+## codex-clipboard-1ca58715-5aa4-4195-bdd1-b2241b32b256.png: /var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/codex-clipboard-1ca58715-5aa4-4195-bdd1-b2241b32b256.png
+
+## My request for Codex:
+视神经脊髓炎谱系疾病这个任务，如图，有些参考文献序号没有超链接，字体还是上标，你看看是什么情况
+
+<image name=[Image #1] path="/var/folders/mp/t7vzjs2x7pq40fqtbb6hl1640000gn/T/codex-clipboard-1ca58715-5aa4-4195-bdd1-b2241b32b256.png">
+</image>
+
+AI
+2026/6/22 17:32:34
+我先把这个当成引用解析 bug 来查：截图里没链接的编号仍是上标，说明它们很可能是 `<sup>...</sup>` 或 `^...` 形态，没有被 `linkifyCitationMarkers` 捕获。先读当前解析正则和相关测试，再补一个复现。
+
+AI
+2026/6/22 17:32:55
+我看出这类和上一类不一样：`[1-3]`、`[4]`、`[6-7]` 这些仍保留上标，通常是因为它们被当作“原词条原来的裸参考号”，但后端为了避免误伤 `[1-46]` 这种“第1篇资料-第46号文献”，对以 `1-` 开头的范围过于保守，没改成 `0-X`。我会把判断改成“如果确实存在参考资料锚点才保留，否则按原词条编号改写”。先补这个红灯测试。
+
+AI
+2026/6/22 17:33:14
+现在跑 AI 整合专项，确认这个用例复现失败。
+
+AI
+2026/6/22 17:33:58
 **Handoff Summary**
 
 **Current Task**
-User reported that in generated content, references like `急性高钾血症处理流程图[146-147]、[149]` are not clickable. Screenshot shows other citations like `[3-35]`, `[3-36]`, `[3-37]` work, but bare source-internal references without a data source prefix do not.
+- User is debugging citation linkification in `/Users/dxy/Documents/IT/editing-assistant`.
+- Latest issue: in AI整合 for “视神经脊髓炎谱系疾病”, some citation markers still appear as superscript/plain text without hyperlinks, e.g. `复发率及致残率高[1-3]`, `[4]`, `[6-7]`, while references like `[1-46]`, `[2-1、4]`, `[4-10]` link correctly.
+- Likely root cause identified: backend rewrite for original-content citations is too conservative when reference source id `1` exists. It preserves `[1-3]` as if it might be source 1 / ref 3, instead of converting original article refs to `[0-1、0-2、0-3]` when no actual reference anchor/source-ref match exists.
+
+**Relevant Prior Work Already Done**
+- Added AI整合 original-content source `0` support in `backend/services/generator.py`:
+  - Extracts original article citations into `ReferenceAnchor` with `source_id=0`, `source_filename="原词条内容"`, keys like `0-18`.
+  - Adds “原词条可引用证据” to AI integration prompt.
+  - Rewrites model bare original citations like `[18]` to `[0-18]`.
+  - Handles ranges/mixed refs like `[146–147,149]` -> `[0-146、0-147、0-149]`.
+  - Handles existing `[0-18]` without expanding as `0..18`.
+- Frontend citation work in `frontend/src/utils/citations.ts`:
+  - `formatCitationSourceLabel()` displays `source_id=0` as “原词条内容”.
+  - `buildOriginalContentAnchors()` rebuilds `0-X` anchors from original article content.
+  - `buildFallbackOriginalCitationAnchors()` creates fallback anchors for answer text `[0-X]` not found in original content, so they are still clickable.
+  - `expandBareNumericRangeToken()` now refuses to expand ranges starting with `0`, avoiding `[0-17]` -> `[0、1...17]`.
+  - `StepAiIntegration.tsx` now stores `originalContentSnapshot` on new records and merges original/fallback anchors.
+- Markdown issue also fixed:
+  - `frontend/src/utils/markdown.ts` exports `markdownRemarkPlugins = [[remarkGfm, { singleTilde: false }]]`.
+  - ReactMarkdown users switched to this config to avoid `1~3 min` rendering as strikethrough.
+  - `frontend/src/utils/markdown.test.mjs` added.
+
+**Latest Work In Progress**
+- Added new backend red test in `backend/tests/test_ai_integration.py`:
+  ```py
+  async def test_ai_integration_rewrites_original_ranges_even_when_reference_source_one_exists(self):
+      async def fake_generate_text(...):
+          return "NMO复发率及致残率高[1-3]，部分患者符合NMOSD诊断标准[4]。"
+
+      req = AiIntegrationRequest(
+          disease="视神经脊髓炎谱系疾病",
+          user_request="总结定义",
+          original_content=(
+              "NMO复发率及致残率高[1-3]。"
+              "2015年制定了新的NMOSD诊断标准[4]。"
+          ),
+          reference_inputs=[
+              ReferenceInput(id=1, filename="指南.pdf", text="免疫治疗可降低复发风险[46]。"),
+          ],
+      )
+
+      result = await generate_ai_integration_answer(req, text_generator=fake_generate_text)
+
+      self.assertEqual(
+          result.answer,
+          "NMO复发率及致残率高[0-1、0-2、0-3]，部分患者符合NMOSD诊断标准[0-4]。",
+      )
+  ```
+- Test command was running when compaction was requested:
+  `cd backend && ./venv/bin/python -m unittest tests.test_ai_integration`
+- Need to fetch/continue result. Expected current failure: `[1-3]` likely remains `[1-3]` because `_rewrite_original_content_citations()` skips range rewrite when range start equals an existing reference source id.
+
+**Key Code To Inspect/Fix**
+- `backend/services/generator.py`
+  - `_rewrite_original_content_citations(text, original_anchors, reference_source_ids)`
+  - Current problematic logic:
+    ```py
+    range_match = re.fullmatch(r'(\d+)\s*-\s*(\d+)', token)
+    if range_match and int(range_match.group(1)) not in reference_source_ids:
+        expanded = _expand_source_ref_ids(token)
+        if expanded and all(ref_id in original_ref_ids for ref_id in expanded):
+            rewritten.extend(f"0-{ref_id}" for ref_id in expanded)
+            changed = True
+            continue
+    ```
+  - This skips `[1-3]` if reference source id `1` exists, even if `1-3` is not a valid selected reference citation.
+- Better fix direction:
+  - Pass valid reference citation keys into `_rewrite_original_content_citations`, not only `reference_source_ids`.
+  - Build `reference_citation_keys` from `reference_anchors` excluding source_id 0, or from `_extract_reference_anchors(req.reference_inputs)` + `_anchors_from_reference_chunks(reference_chunks)`.
+  - Preserve a token like `[1-46]` only if token is in valid reference citation keys.
+  - Otherwise, if expanded ids all exist in `original_ref_ids`, rewrite range `[1-3]` -> `[0-1、0-2、0-3]`.
+  - Preserve source-only `[1]` when reference source id 1 exists (existing test `test_ai_integration_does_not_rewrite_source_id_as_original_citation` must still pass).
+  - For bare `[4]`, if source id 4 is not selected and `4` exists in original refs, rewrite to `[0-4]`. If source id 4 exists, likely preserve `[4]`.
+- Consider adding/adjusting tests for:
+  - `[1-46]` stays `[1-46]` when that anchor exists in selected reference.
+  - `[1-3]` rewrites to `0-1,0-2,0-3` when only selected ref source 1 exists but no `1-3` anchor exists.
+  - `[4]` rewrites to `[0-4]` if no source id 4 exists.
+  - Existing tests must remain green.
+
+**Validation Commands Previously Used**
+- Backend:
+  - `cd backend && ./venv/bin/python -m unittest tests.test_ai_integration`
+  - `cd backend && ./venv/bin/python -m unittest tests.test_generator_citations`
+  - `cd backend && ./venv/bin/python -m unittest discover tests`
+- Frontend:
+  - `cd frontend && node --experimental-strip-types src/utils/citations.test.mjs`
+  - `cd frontend && node --experimental-strip-types src/utils/markdown.test.mjs`
+  - `cd frontend && npm run build`
+- Expected non-fatal warnings:
+  - Python 3.9 / LibreSSL / google auth warnings.
+  - Vite large chunk warning.
+
+**Current Dirty Worktree Context**
+- Many modified files from ongoing work:
+  - `backend/services/generator.py`
+  - `backend/tests/test_ai_integration.py`
+  - `frontend/src/components/HistoryView.tsx`
+  - `frontend/src/components/StepAiIntegration.tsx`
+  - `frontend/src/components/StepGenerate.tsx`
+  - `frontend/src/types/index.ts`
+  - `frontend/src/utils/citations.ts`
+  - `frontend/src/utils/citations.test.mjs`
+  - `frontend/src/utils/markdown.ts` and `.test.mjs` new
+  - plus unrelated/user files currently modified: `frontend/src/components/AdminSettingsModal.tsx`, `frontend/src/index.css`, `dialogue_副本3.md`
+- Do not revert unrelated changes. Use `apply_patch` for edits.
 
 **User Preferences / Constraints**
-- Always answer in Chinese.
+- User writes Chinese; final answer should be Chinese.
 - User expects implementation, not just explanation.
-- Use skills when applicable. For this session, `systematic-debugging` and `test-driven-development` have been used for bugfixes.
-- Worktree is very dirty with many unrelated pre-existing changes. Do not revert unrelated changes.
-- Use `apply_patch` for edits.
-- Writable root: `/Users/dxy/Documents/IT/editing-assistant`.
-- Tests/build have been run frequently; keep using project test commands.
-
-**Important Recent Context**
-Several citation fixes have already been made:
-1. Backend now builds stable chunk/reference anchors and supports `[source-ref]` citations.
-2. Backend extracts source-internal refs from more formats: fullwidth brackets, `<sup>`, `#R22`, etc.
-3. Backend sentence-level evidence blocks are now used in prompts, not whole chunk-level citation blocks.
-4. Backend avoids creating source-only `[1]` evidence for unnumbered neighbor sentences when the chunk has source refs.
-5. Backend now keeps repeated occurrences of the same citation number, e.g. multiple `1-47` anchors for different sentences.
-6. Frontend now supports duplicate `citation_key`s via `anchor_key` and chooses best anchor by comparing current generated sentence context to candidate anchor text.
-7. Frontend components were updated to use `mergeReferenceAnchors` and lookup by `anchor_key`:
-   - `frontend/src/components/StepGenerate.tsx`
-   - `frontend/src/components/StepAiIntegration.tsx`
-   - `frontend/src/components/HistoryView.tsx`
-
-**Current Code State To Know**
-Relevant frontend file:
-- `/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/citations.ts`
-
-Important functions currently there:
-- `normalizeCitationToken`
-- `splitCitationTokens`
-- `linkifyCitationMarkers`
-- `sentenceAround`
-- `sentenceOverlapScore`
-- `mergeReferenceAnchors`
-- `createCitationResolver`
-
-Current relevant resolver tail in `createCitationResolver`:
-```ts
-if (anchorsByCitationKey.has(token)) {
-  const anchor = bestAnchorForContext(anchorsByCitationKey.get(token) ?? [], context)
-  return anchor ? { key: anchor.anchor_key ?? anchor.citation_key, label: token } : null
-}
-if (/^\d+$/.test(token)) {
-  const key = firstBySourceRef.get(String(Number(token)))
-  if (key) return { key, label: key }
-}
-return null
-```
-
-Problem analysis just before compaction:
-- `[149]` bare single source-internal number can likely be resolved by `firstBySourceRef` if an anchor has `source_ref_id === "149"`.
-- `[146-147]` is currently tokenized/normalized as token `"146-147"`.
-- Resolver treats `"146-147"` as a citation key, not as a bare source-internal range. Unless an anchor literally has citation_key `"146-147"`, it fails.
-- Desired behavior: bare ranges like `[146-147]` should expand to source-internal refs `146` and `147`, resolve each via `firstBySourceRef`, and render as clickable links. Since no source prefix is present, label could stay `[146]`/`[147]` or possibly display resolved labels like `[1-146]`/`[1-147]`. User’s screenshot text is from preserved original content, so preserving visible `[146-147]` might be preferable, but current linkifier renders one button per token. A practical first fix: split bare numeric ranges in `splitCitationTokens` or `linkifyCitationMarkers` into separate refs, producing `[[1-146]]...、[[1-147]]...` or `[[146]]...、[[147]]...`. Better UX might require label preservation but more code.
-
-**Tests Existing / Commands**
-Backend:
-- `cd backend && ./venv/bin/python -m unittest tests.test_generator_citations`
-- `cd backend && ./venv/bin/python -m unittest tests.test_ai_integration`
-- `cd backend && ./venv/bin/python -m unittest discover tests`
-
-Frontend:
-- `cd frontend && node --experimental-strip-types src/utils/citations.test.mjs`
-- `cd frontend && npm run build`
-
-Expected warnings:
-- Python 3.9 / LibreSSL / google auth warnings, non-fatal.
-- Vite chunk size warning, non-fatal.
-
-**What Remains To Do**
-1. Add frontend failing test in `frontend/src/utils/citations.test.mjs` for bare source-internal refs:
-   - anchors include `citation_key: "1-146"`, `source_ref_id: "146"` and `citation_key: "1-147"`, `source_ref_id: "147"`, plus `"1-149"`.
-   - `linkifyCitationMarkers("急性高钾血症处理流程图[146-147]、[149]。", resolver)` should produce clickable output for all three refs.
-2. Run frontend citation test and confirm it fails.
-3. Implement support in `frontend/src/utils/citations.ts`.
-   Possible approach:
-   - Add `expandBareNumericRangeToken(token: string): string[]`.
-   - In `linkifyCitationMarkers`, after `splitCitationTokens`, expand any token matching `/^\d+\s*-\s*\d+$/` only if it is a bare range, not `source-ref`? Ambiguity: `1-47` is source-ref and must not expand. Need distinguish by resolver:
-     - Could treat `146-147` as bare range only if `resolveCitation("146-147")` returns null and both endpoints resolve as bare numbers.
-     - Or define heuristic: a token `a-b` is source-ref if `a` is a known source id? Resolver doesn’t expose source IDs.
-   Safer: in `linkifyCitationMarkers`, for each token:
-     - Try `resolveCitation(token, context)` first.
-     - If no link and token matches numeric range, expand `start..end` (limit maybe <=50), resolve each as bare number.
-     - If any expanded refs resolve, render those links joined by `、`; otherwise keep original `[token]`.
-   This avoids breaking `[1-47]`, because if `resolveCitation("1-47")` succeeds, no expansion.
-4. Ensure single bare `[149]` still resolves through existing `firstBySourceRef`.
-5. Run `node --experimental-strip-types src/utils/citations.test.mjs`.
-6. Run `npm run build`.
-7. Optionally run backend tests if backend untouched is not necessary, but full verification before final is ideal.
-8. Final answer in Chinese, mention this is a frontend linkification fix and old rendered content may need refresh/re-render if already displayed.
-
-**Critical Existing Tests To Preserve**
-`frontend/src/utils/citations.test.mjs` already has tests for:
-- `[1-3、1-5、2-6]`
-- en dash `[1–22]`
-- internal chunk `[R1-C001]`
-- multi-ref chunk `R4-C001 -> [4-3、4-32、4-33]`
-- repeated `1-47` context-sensitive anchor selection
-
-Do not break these.
+- Must preserve existing citation behavior:
+  - `[1-46]` from uploaded reference should stay linked as reference source 1/ref 46.
+  - Original article refs should be `0-X`.
+  - `[0-X]` must not be expanded into `0..X`.
+  - Multiple citations should display in one bracket with dunhao, e.g. `[0-1、0-2、0-3]`, each clickable.
+- Current working directory: `/Users/dxy/Documents/IT/editing-assistant`.
 
 AI
-2026/6/20 18:38:30
-我会接着上个模型的未完成点继续：这次集中修前端 linkify，让裸的源内编号范围 `[146-147]` 能展开并跳到对应的 `[1-146]`、`[1-147]` 锚点，同时不破坏已有 `[1-47]` 这种“数据源-文献号”格式。先按技能要求加载当前要用的调试/TDD规则。
+2026/6/22 17:34:12
+我接着上一个中断点继续：这次问题已经定位到后端改写规则太保守，`[1-3]` 这种原词条范围被误认为可能是“第 1 篇参考资料-第 3 号文献”，所以没有转成 `0-X`。我先取当前测试状态，再把判断改成“只有真实存在的参考资料引用才保留”。
 
 AI
-2026/6/20 18:38:42
-我已经接上上下文：上一轮中断在“裸编号范围 `[146-147]` 被当作一个 token，resolver 不会展开”的位置。现在我先加前端红灯测试，确认 `[146-147]、[149]` 这种原文遗留格式会失败。
+2026/6/22 17:34:22
+测试正在跑，先取一下红灯结果；随后会把后端改写函数改为看“实际存在的参考文献 citation key”，不是只看来源编号。
 
 AI
-2026/6/20 18:38:53
-我现在把截图里的最小场景加到 `citations.test.mjs`：已有 `1-146`、`1-147`、`1-149` 锚点时，正文里的裸 `[146-147]、[149]` 都应该变成可点击。
+2026/6/22 17:34:33
+红灯正是截图里的问题：`[4]` 能转 `0-4`，但 `[1-3]` 因为来源 1 存在被保留了。现在改成只有 `1-3` 这个参考资料锚点真实存在时才保留。
 
 AI
-2026/6/20 18:39:14
-红灯测试已经加好。现在跑前端 citation 测试，预期会失败在 `[146-147]` 没有被展开。
+2026/6/22 17:34:44
+我会让 `_rewrite_original_content_citations` 接收 `reference_citation_keys`。裸 `[1]` 仍按来源号保护；但 `[1-3]` 只有当 `1-3` 是真实参考锚点时才保留，否则就转为原词条 `[0-1、0-2、0-3]`。
 
 AI
-2026/6/20 18:39:38
-红灯很具体：`[149]` 已能找到锚点，但显示成了 `[1-149]`；`[146-147]` 完全没有展开。我会在 linkify 层做两件事：先尝试原 token，失败后才把裸数字范围展开；裸编号显示仍保留原来的裸编号样式。
+2026/6/22 17:34:58
+实现已改。现在重跑 AI 整合专项，确认 `[1-3]` 转成 `0-1、0-2、0-3`，同时已有 `[1-46]` 不受影响。
 
 AI
-2026/6/20 18:40:06
-实现已改：裸范围只在直接解析失败时展开，所以不会误伤 `[1-47]` 这种带数据源的引用。现在重跑前端 citation 测试。
+2026/6/22 17:35:13
+测试还在跑，我取完整结果。
 
 AI
-2026/6/20 18:40:21
-前端 citation 测试已经过了。这个改动只在前端引用渲染层，但我还会跑一次前端构建，确认 TypeScript 和生产构建都没问题。
+2026/6/22 17:35:21
+后端专项过了。为了覆盖截图里的“仍是上标”前端显示，我再补一个前端测试：`[1-3]` 在只有原词条锚点时应渲染成 `[0-1、0-2、0-3]` 的链接。
 
 AI
-2026/6/20 18:40:41
-**Handoff Summary**
-
-**Current Progress**
-- Resumed from prior interrupted work in `/Users/dxy/Documents/IT/editing-assistant`.
-- User reported citations like `急性高钾血症处理流程图[146-147]、[149]` were not clickable.
-- Root cause confirmed in frontend citation linkification:
-  - `[149]` bare source-internal ref already resolved, but displayed as `[1-149]`.
-  - `[146-147]` was treated as one token and not expanded.
-- Added regression test in `frontend/src/utils/citations.test.mjs`.
-- Implemented fix in `frontend/src/utils/citations.ts`:
-  - Added `expandBareNumericRangeToken(token)`.
-  - In `linkifyCitationMarkers`, first tries direct resolution.
-  - Only if direct resolution fails, expands bare numeric ranges like `146-147`.
-  - This preserves existing behavior for valid citation keys like `[1-47]`.
-  - Changed bare numeric resolution label to show the original bare ref, e.g. `[149]`, while linking to `#citation-1-149`.
-
-**Verification Already Run**
-- `cd frontend && node --experimental-strip-types src/utils/citations.test.mjs`
-  - Passed: `citation tests passed`
-- `cd frontend && npm run build`
-  - Passed.
-  - Vite emitted the known chunk-size warning only.
-
-**Files Changed**
-- `/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/citations.ts`
-- `/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/citations.test.mjs`
-
-**Important Context / Constraints**
-- User prefers Chinese responses.
-- User expects implementation, not just explanation.
-- Dirty git worktree with many unrelated changes. Do not revert unrelated files.
-- Use `apply_patch` for edits.
-- Writable root: `/Users/dxy/Documents/IT/editing-assistant`.
-- Relevant prior citation work already exists:
-  - backend emits stable anchors and duplicate anchors via `anchor_key`;
-  - frontend uses `mergeReferenceAnchors` and context-aware `createCitationResolver`;
-  - components using these include `StepGenerate.tsx`, `StepAiIntegration.tsx`, `HistoryView.tsx`.
-- Existing tests cover:
-  - `[1-3、1-5、2-6]`
-  - en dash `[1–22]`
-  - chunk refs like `[R1-C001]`
-  - multi-ref chunk refs like `[4-3、4-32、4-33]`
-  - duplicate `1-47` context-sensitive anchor selection.
-
-**Current Test Expectation Added**
-```js
-linkifyCitationMarkers('急性高钾血症处理流程图[146-147]、[149]。', bareSourceRefResolver)
-```
-Expected:
-```md
-急性高钾血症处理流程图[[146]](#citation-1-146)、[[147]](#citation-1-147)、[[149]](#citation-1-149)。
-```
-
-**What Remains**
-- Likely just send final Chinese response summarizing:
-  - fixed `[146-147]` expansion and bare `[149]` display/linking;
-  - verified with citation test and frontend build;
-  - note that already generated/visible content may need refresh/regeneration or re-render depending app state.
-- Optional: inspect `git diff` before final if needed, but not strictly required.
+2026/6/22 17:35:45
+前端测试已补。现在跑前端 citation 测试和构建。
 
 AI
-2026/6/20 18:40:59
-我接上了：上一段工作已经把裸范围 `[146-147]` 展开成可点击的 `[146]`、`[147]`，并让裸 `[149]` 保持显示为 `[149]` 但链接到对应锚点。为了不靠转述交付，我再快速跑一遍前端 citation 测试和构建确认当前工作区状态。
+2026/6/22 17:36:01
+前端已经过了，后端 citation 专项还在跑，我取结果。
 
 AI
-2026/6/20 18:41:22
-**Handoff Summary**
-
-**Current Progress**
-- User asked to continue prior interrupted chat from `/Users/dxy/Documents/IT/editing-assistant/dialogue.md`.
-- Main active bug: citations like `急性高钾血症处理流程图[146-147]、[149]` were not clickable.
-- Existing code already had prior citation fixes:
-  - context-aware citation resolver to handle repeated citations like `[1-47]` pointing to different anchors;
-  - `mergeReferenceAnchors` assigns duplicate anchor keys like `1-47~1`;
-  - multi-source/chunk refs such as `R4-C001` display as `[4-3、4-32、4-33]`;
-  - highlighted source quote/context handling had previously been improved.
-- Latest fix implemented in:
-  - `/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/citations.ts`
-  - `/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/citations.test.mjs`
-- Specific latest behavior:
-  - Bare numeric range tokens like `[146-147]` expand only when direct citation resolution fails.
-  - `[146-147]` becomes clickable `[[146]](#citation-1-146)、[[147]](#citation-1-147)`.
-  - Bare `[149]` displays as `[149]` and links to `#citation-1-149`, instead of becoming `[1-149]`.
-  - Valid composite citation keys such as `[1-47]` are preserved and not wrongly expanded into `[1]` and `[47]`.
-
-**Verification Already Run**
-- In `/Users/dxy/Documents/IT/editing-assistant/frontend`:
-  - `node --experimental-strip-types src/utils/citations.test.mjs`
-  - Result: `citation tests passed`
-  - `npm run build`
-  - Result: passed. Vite emitted only the known chunk-size warning.
-
-**Relevant Diff Highlights**
-- `CitationResolver` now accepts optional `context`.
-- `linkifyCitationMarkers` computes sentence context around each citation marker and passes it to the resolver.
-- Added `expandBareNumericRangeToken(token)`:
-  - matches only bare numeric ranges like `146-147`;
-  - expands ranges up to 50 items;
-  - called only after direct resolver lookup fails.
-- Added regression test:
-  ```js
-  linkifyCitationMarkers('急性高钾血症处理流程图[146-147]、[149]。', bareSourceRefResolver)
-  ```
-  Expected:
-  ```md
-  急性高钾血症处理流程图[[146]](#citation-1-146)、[[147]](#citation-1-147)、[[149]](#citation-1-149)。
-  ```
-
-**Important Context / Constraints**
-- User prefers Chinese responses.
-- User wants implementation and verification, not only explanation.
-- Workspace root: `/Users/dxy/Documents/IT/editing-assistant`.
-- Writable root is the same workspace plus tmp dirs.
-- Dirty git worktree likely contains unrelated changes. Do not revert unrelated work.
-- Use `apply_patch` for code edits.
-- If editing frontend UI, follow existing project patterns.
-- User has been focused on citation matching/clickability/highlight precision:
-  - `[4-33]` should sometimes be `[4-3、4-32、4-33]` when source ref id contains multiple refs.
-  - Highlight should be only the matched sentence, with surrounding 1-2 sentences non-highlighted.
-  - Repeated citations like `[1-45]` or `[1-47]` should not all jump to the same evidence if different generated sentences matched different source passages.
-  - They observed after changes that `[1]`, `[2]` became more common and `[1-5]` fewer, so be careful not to degrade label specificity.
-
-**What Remains**
-- Most likely next response should be a concise Chinese final update:
-  - Say `[146-147]` and `[149]` clickability is fixed.
-  - Mention tests/build passed.
-  - Note that already rendered/generated old content may need refresh/regeneration or app re-render to see the new links.
-- Optional but useful before final if resuming in tools:
-  - Run `git diff -- frontend/src/utils/citations.ts frontend/src/utils/citations.test.mjs` to inspect exact changes.
-  - No further code changes appear necessary unless the user adds new symptoms.
+2026/6/22 17:36:13
+关键验证都过了。最后跑一次后端全量和 markdown 测试，确认这轮没有破坏其他路径。
 
 AI
-2026/6/20 18:41:40
-我先按完成前验证再跑一遍前端 citation 测试和构建，确认当前工作区里这个修复仍是通过状态，然后给你一个简短结论。
+2026/6/22 17:36:34
+看明白了。截图里没链接、还像上标的 `[1-3]`、`[4]`、`[6-7]`，本质上是“原词条已有参考文献号”，但后端之前看到有第 1 篇上传资料，就过度保守地把 `[1-3]` 当成可能的“资料1-文献3”，没有改成原词条来源 `0-X`。
 
-AI
-2026/6/20 18:42:01
-**Handoff Summary**
+我已修正判断逻辑：
 
-**Current Progress**
-- User asked to continue an interrupted editing-assistant debugging thread from `/Users/dxy/Documents/IT/editing-assistant/dialogue.md`.
-- Active issue was citation clickability/matching in generated medical text, especially:
-  - `急性高钾血症处理流程图[146-147]、[149]` had citations without hyperlinks.
-  - Earlier issues included `[4-33]` needing to expand to `[4-3、4-32、4-33]`, overly broad highlight ranges, repeated refs like `[1-45]`/`[1-47]` jumping to the same evidence, and concern that `[1]`/`[2]` labels became too common.
-- Code changes were already implemented before this checkpoint in:
-  - `/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/citations.ts`
-  - `/Users/dxy/Documents/IT/editing-assistant/frontend/src/utils/citations.test.mjs`
-- Key behavior added:
-  - Citation resolver accepts optional sentence-level `context`.
-  - `linkifyCitationMarkers` extracts context around each citation marker and passes it into resolution.
-  - Bare numeric ranges like `[146-147]` are expanded only after direct citation resolution fails.
-  - `[146-147]` becomes `[[146]](#citation-1-146)、[[147]](#citation-1-147)`.
-  - Bare `[149]` links to `#citation-1-149` but displays as `[149]`.
-  - Composite keys like `[1-47]` are preserved and not split into `[1]` and `[47]`.
+- 如果 `[1-46]` 这种引用确实存在于上传参考资料锚点里，继续保留为 `[1-46]`。
+- 如果 `[1-3]` 只是原词条里的旧参考号范围，且不存在真实的上传资料锚点 `1-3`，就改成 `[0-1、0-2、0-3]`。
+- `[4]`、`[6-7]` 这类也会按原词条来源改成 `[0-4]`、`[0-6、0-7]`，从而能生成链接。
+- 前端也补了对应兜底：原词条小范围 `[1-3]` 会显示成一个方括号，里面每个 `0-X` 可分别点击。
 
-**Verification Already Run**
-- From `/Users/dxy/Documents/IT/editing-assistant/frontend`:
-  - `node --experimental-strip-types src/utils/citations.test.mjs`
-  - Output: `citation tests passed`
-  - `npm run build`
-  - Passed successfully.
-  - Vite emitted only the existing large chunk warning:
-    - `Some chunks are larger than 500 kB after minification`.
+验证已跑：
+- `./venv/bin/python -m unittest tests.test_ai_integration`：11 个通过
+- `./venv/bin/python -m unittest tests.test_generator_citations`：17 个通过
+- `./venv/bin/python -m unittest discover tests`：131 个通过
+- `node --experimental-strip-types src/utils/citations.test.mjs`：通过
+- `node --experimental-strip-types src/utils/markdown.test.mjs`：通过
+- `npm run build`：通过，仅有原来的 Vite chunk size warning
 
-**Important Context / Constraints**
-- User prefers Chinese responses.
-- User expects implementation and verification, not only suggestions.
-- Workspace root: `/Users/dxy/Documents/IT/editing-assistant`.
-- Writable root: same workspace plus temp dirs.
-- Dirty worktree may contain unrelated/user changes. Do not revert unrelated changes.
-- Use `apply_patch` for manual edits.
-- If continuing with frontend behavior, follow existing code style and project patterns.
-- Need be careful not to degrade citation label specificity. User specifically noticed after prior changes that `[1]`, `[2]` increased and `[1-5]` decreased.
-
-**What Remains**
-- Most likely next step is simply to send the user a concise Chinese final update:
-  - Say the `[146-147]` and `[149]` clickability issue has been fixed.
-  - Mention the regression test and production build both passed.
-  - Note that old already-rendered content may need refreshing/regenerating or reopening/re-rendering to see new clickable links.
-- Optional if more confidence is needed:
-  - Inspect diff with `git diff -- frontend/src/utils/citations.ts frontend/src/utils/citations.test.mjs`.
-  - No additional code changes appear necessary unless the user reports a new mismatch.
+需要重新生成一次这条 AI 整合回答，后端才会把这些旧上标引用改写成 `0-X`；历史旧回答如果还保留 `[1-3]`，前端会尽量基于原词条锚点兜底链接，但最干净的效果还是重新生成。

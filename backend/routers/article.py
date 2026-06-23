@@ -491,7 +491,7 @@ def _entry_detail_content(data: dict) -> str:
 def _normalize_guide_detail_content(content: str) -> str:
     if not _looks_like_html(content):
         return content.strip()
-    structured = parse_html_structured(content)
+    structured = parse_html_structured(content, preserve_leading_text=True)
     return structured.strip() or content.strip()
 
 

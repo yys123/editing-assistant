@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { AiIntegrationRecord, ParsedArticle, ReferenceAnchor, ReferenceDoc } from '../types'
 import { apiFetch, safeJson } from '../api'
 import {
   buildReferenceAnchorFromSourceDoc,
   buildReferenceAnchorsFromDocs,
+  buildFallbackOriginalCitationAnchors,
+  buildOriginalContentAnchorsFromSources,
+  CITATION_GROUP_PATTERN,
   createCitationResolver,
+  formatCitationSourceLabel,
   linkifyCitationMarkers,
   mergeReferenceAnchors,
   splitCitationTokens,
 } from '../utils/citations'
 import { getNextAiIntegrationActiveId } from '../utils/aiIntegrationHistory'
+import { markdownRemarkPlugins } from '../utils/markdown'
 
 interface Props {
   disease: string
@@ -59,7 +63,7 @@ function answerSentenceAround(text: string, index: number) {
 
 function sourceCitationQueries(answer: string) {
   const queries = new Map<string, string[]>()
-  const citationGroupRe = /\^?(?:<sup>)?[\[［【]((?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+)(?:\s*[、,，]\s*(?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+))*)[\]］】](?:<\/sup>)?/gi
+  const citationGroupRe = new RegExp(CITATION_GROUP_PATTERN, 'gi')
   let match: RegExpExecArray | null
   while ((match = citationGroupRe.exec(answer)) !== null) {
     const sentence = answerSentenceAround(answer, match.index)
@@ -98,7 +102,7 @@ function AiCitationPanel({
       <div className="citation-panel-header">
         <div>
           <div className="citation-panel-title">[{anchor.citation_key}]</div>
-          <div className="citation-panel-source">参考数据源 {anchor.source_id}：{anchor.source_filename}</div>
+          <div className="citation-panel-source">{formatCitationSourceLabel(anchor)}</div>
           {anchor.title_path && <div className="citation-panel-source">{anchor.title_path}</div>}
         </div>
         <button type="button" className="btn-m3-icon" onClick={onClose} aria-label="关闭引用定位">
@@ -150,6 +154,18 @@ export default function StepAiIntegration({
   )
   const referenceAnchors = useMemo(() => {
     if (!activeRecord) return []
+    const currentOriginalContent = activeRecord.originalScope === 'none'
+      ? ''
+      : activeRecord.originalScope === 'sections'
+        ? buildSectionContent(parsedArticle, activeRecord.selectedSectionIds ?? [])
+        : articleContent
+    const originalContentSources = activeRecord.originalScope === 'none'
+      ? []
+      : [
+        activeRecord.originalContentSnapshot ?? '',
+        currentOriginalContent,
+        articleContent,
+      ]
     const selectedSourceIds = new Set<number>()
     referenceDocs.forEach((doc, index) => {
       if (activeRecordSelectedRefSet.has(doc.filename)) selectedSourceIds.add(index + 1)
@@ -157,12 +173,18 @@ export default function StepAiIntegration({
     const sourceAnchors = buildSourceAnchors(referenceDocs, activeRecordSelectedRefSet, activeRecord.answer)
     const internalAnchors = buildReferenceAnchorsFromDocs(referenceDocs)
       .filter(anchor => selectedSourceIds.has(anchor.source_id))
-    return mergeReferenceAnchors(
+    const originalAnchors = buildOriginalContentAnchorsFromSources(...originalContentSources)
+    const mergedAnchors = mergeReferenceAnchors(
+      originalAnchors,
       activeRecord.referenceAnchors ?? [],
+    )
+    return mergeReferenceAnchors(
+      mergedAnchors,
+      buildFallbackOriginalCitationAnchors(activeRecord.answer, mergedAnchors),
       sourceAnchors,
       internalAnchors,
     )
-  }, [activeRecord, activeRecordSelectedRefSet, referenceDocs])
+  }, [activeRecord, activeRecordSelectedRefSet, articleContent, parsedArticle, referenceDocs])
   const citationKeySet = useMemo(
     () => new Set(referenceAnchors.map(anchor => anchor.anchor_key ?? anchor.citation_key)),
     [referenceAnchors],
@@ -294,6 +316,7 @@ export default function StepAiIntegration({
         priorityReferences: priorityRefs,
         originalScope,
         selectedSectionIds,
+        originalContentSnapshot: originalContent,
         createdAt: new Date().toISOString(),
       }
       onAddRecord(record)
@@ -524,7 +547,7 @@ export default function StepAiIntegration({
                     <div className="ai-history-answer">
                       <div className={`draft-preview-shell${activeCitation ? ' has-citation-panel' : ''}`}>
                         <div className="diff-content md draft-preview-content" style={{ maxHeight: 'none', minHeight: 160 }}>
-                          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                          <ReactMarkdown remarkPlugins={markdownRemarkPlugins} components={markdownComponents}>
                             {renderedAnswer}
                           </ReactMarkdown>
                         </div>

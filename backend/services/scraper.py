@@ -149,7 +149,7 @@ def _append_structured_text(lines: list[str], text: str) -> None:
 # Public: structured HTML parser (for article upload)
 # ---------------------------------------------------------------------------
 
-def parse_html_structured(html: str) -> str:
+def parse_html_structured(html: str, preserve_leading_text: bool = False) -> str:
     """Parse HTML into a structured text preserving heading hierarchy,
     image captions and tables.  Stops before the References section.
 
@@ -397,12 +397,13 @@ def parse_html_structured(html: str) -> str:
             continue
         cleaned.append(line)
 
-    # Trim leading non-heading lines (breadcrumbs / page navigation before first [H])
-    first_heading_idx = next(
-        (i for i, l in enumerate(cleaned) if re.match(r"^\[H\d\]", l)),
-        0,
-    )
-    cleaned = cleaned[first_heading_idx:]
+    if not preserve_leading_text:
+        # Trim leading non-heading lines (breadcrumbs / page navigation before first [H])
+        first_heading_idx = next(
+            (i for i, l in enumerate(cleaned) if re.match(r"^\[H\d\]", l)),
+            0,
+        )
+        cleaned = cleaned[first_heading_idx:]
 
     return "\n".join(cleaned)
 

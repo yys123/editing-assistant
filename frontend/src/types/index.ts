@@ -143,6 +143,7 @@ export interface AiIntegrationRecord {
   priorityReferences: string[]
   originalScope: 'all' | 'sections' | 'none'
   selectedSectionIds: string[]
+  originalContentSnapshot?: string
   createdAt: string
 }
 

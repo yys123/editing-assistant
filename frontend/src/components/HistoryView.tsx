@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { ReferenceAnchor, SessionRecord, Step } from '../types'
 import {
   buildReferenceAnchorsFromDocs,
   createCitationResolver,
+  formatCitationSourceLabel,
   linkifyCitationMarkers,
   mergeReferenceAnchors,
 } from '../utils/citations'
 import { filterHistorySessions, isOwnHistorySession } from '../utils/historyFilters'
+import { markdownRemarkPlugins } from '../utils/markdown'
 
 const STEP_LABELS: Record<number, string> = {
   1: '上传数据', 2: '参考文献审核', 3: '内容解析',
@@ -63,7 +64,7 @@ function HistoryCitationPanel({
       <div className="citation-panel-header">
         <div>
           <div className="citation-panel-title">[{anchor.citation_key}]</div>
-          <div className="citation-panel-source">参考数据源 {anchor.source_id}：{anchor.source_filename}</div>
+          <div className="citation-panel-source">{formatCitationSourceLabel(anchor)}</div>
         </div>
         <button type="button" className="btn-m3-icon" onClick={onClose} aria-label="关闭引用定位">
           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
@@ -634,7 +635,7 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
                                   )}
                                   <div className={`draft-preview-shell${activeCitation && record.id === expandedDraft ? ' has-citation-panel' : ''}`}>
                                     <div className="md" style={{ fontSize: 13, lineHeight: 1.7 }}>
-                                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                                      <ReactMarkdown remarkPlugins={markdownRemarkPlugins} components={markdownComponents}>
                                         {record.id === expandedDraft ? renderedExpandedDraftContent : record.editedContent}
                                       </ReactMarkdown>
                                     </div>

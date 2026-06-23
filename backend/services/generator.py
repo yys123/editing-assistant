@@ -597,6 +597,32 @@ def _extract_source_ref_ids(text: str) -> list[str]:
     return list(dict.fromkeys(ref_ids))
 
 
+def _expand_original_content_ref_ids(raw: str) -> list[str]:
+    ref_ids: list[str] = []
+    for part in re.split(r'[,，、;；]\s*', raw or ""):
+        trimmed = part.strip()
+        if not trimmed:
+            continue
+        source_zero = re.fullmatch(r'0\s*[-–—]\s*(\d+)', trimmed)
+        if source_zero:
+            ref_ids.append(str(int(source_zero.group(1))))
+            continue
+        ref_ids.extend(_expand_source_ref_ids(trimmed))
+    return list(dict.fromkeys(ref_id for ref_id in ref_ids if ref_id != "0"))
+
+
+def _iter_original_content_ref_matches(text: str) -> list[tuple[int, list[str]]]:
+    matches: list[tuple[int, list[str]]] = []
+    for pattern in (_INLINE_SOURCE_REF_RE, _SUP_SOURCE_REF_RE):
+        for match in pattern.finditer(text or ""):
+            ref_ids = _expand_original_content_ref_ids(match.group(1))
+            if ref_ids:
+                matches.append((match.start(), ref_ids))
+    for match in _HASH_SOURCE_REF_RE.finditer(text or ""):
+        matches.append((match.start(), [str(int(match.group(1)))]))
+    return sorted(matches, key=lambda item: item[0])
+
+
 def _extract_reference_anchors(ref_inputs: list[ReferenceInput]) -> list[ReferenceAnchor]:
     anchors: list[ReferenceAnchor] = []
     seen = set()
@@ -639,6 +665,108 @@ def _extract_reference_anchors(ref_inputs: list[ReferenceInput]) -> list[Referen
                         paragraph_index=idx,
                     ))
     return anchors
+
+
+def _extract_original_content_anchors(original_content: str) -> list[ReferenceAnchor]:
+    anchors: list[ReferenceAnchor] = []
+    seen = set()
+    paragraphs = _split_reference_paragraphs(original_content)
+    sentence_groups = [
+        _split_sentence_fragments(paragraph, idx)
+        for idx, paragraph in enumerate(paragraphs)
+    ]
+    all_sentences = [sentence for group in sentence_groups for sentence in group]
+    for idx, paragraph in enumerate(paragraphs):
+        for marker_start, source_ref_ids in _iter_original_content_ref_matches(paragraph):
+            paragraph_sentences = sentence_groups[idx] if idx < len(sentence_groups) else []
+            local_sentence = next(
+                (
+                    sentence for sentence in paragraph_sentences
+                    if sentence["start"] <= marker_start < sentence["end"]
+                ),
+                paragraph_sentences[0] if paragraph_sentences else None,
+            )
+            sentence_index = all_sentences.index(local_sentence) if local_sentence in all_sentences else -1
+            if sentence_index >= 0:
+                context_before, context_after = _sentence_context(all_sentences, sentence_index)
+            else:
+                context_before, context_after = "", ""
+            compact_quote = local_sentence["text"] if local_sentence else re.sub(r'\s+', ' ', paragraph).strip()
+            for source_ref_id in source_ref_ids:
+                citation_key = f"0-{source_ref_id}"
+                if citation_key in seen:
+                    continue
+                seen.add(citation_key)
+                anchors.append(ReferenceAnchor(
+                    citation_key=citation_key,
+                    source_id=0,
+                    source_filename="原词条内容",
+                    source_ref_id=source_ref_id,
+                    quote=compact_quote,
+                    context_before=context_before,
+                    context_after=context_after,
+                    paragraph_index=idx,
+                ))
+    return anchors
+
+
+def _format_original_content_evidence(anchors: list[ReferenceAnchor]) -> str:
+    if not anchors:
+        return "（原词条未识别到可转换为[0-X]的参考文献序号）"
+    blocks = []
+    for idx, anchor in enumerate(anchors, 1):
+        blocks.append(
+            f"原词条证据{idx}｜引用标记：[{anchor.citation_key}]\n"
+            f"原文句子：{anchor.quote}"
+        )
+    return "\n\n".join(blocks)
+
+
+def _rewrite_original_content_citations(
+    text: str,
+    original_anchors: list[ReferenceAnchor],
+    reference_source_ids: set[int],
+    reference_citation_keys: set[str],
+) -> str:
+    original_ref_ids = {anchor.source_ref_id for anchor in original_anchors}
+    if not text or not original_ref_ids:
+        return text
+
+    citation_group_re = re.compile(
+        rf'\^?(?:<sup>)?[\[［【]((?:Q?\d+|\d+\s*[-–—]\s*\d+)(?:\s*[、,，]\s*(?:Q?\d+|\d+\s*[-–—]\s*\d+))*)[\]］】](?:</sup>)?',
+        flags=re.IGNORECASE,
+    )
+
+    def repl(match: re.Match) -> str:
+        raw_tokens = re.split(r'\s*[、,，]\s*', match.group(1))
+        rewritten = []
+        changed = False
+        for raw_token in raw_tokens:
+            token = raw_token.strip().replace("–", "-").replace("—", "-")
+            source_zero = re.fullmatch(r'0\s*-\s*(\d+)', token)
+            if source_zero:
+                numeric = str(int(source_zero.group(1)))
+                if numeric in original_ref_ids:
+                    rewritten.append(f"0-{numeric}")
+                    changed = changed or token != f"0-{numeric}"
+                    continue
+            if re.fullmatch(r'\d+', token):
+                numeric = str(int(token))
+                if numeric in original_ref_ids and int(numeric) not in reference_source_ids:
+                    rewritten.append(f"0-{numeric}")
+                    changed = True
+                    continue
+            range_match = re.fullmatch(r'(\d+)\s*-\s*(\d+)', token)
+            if range_match and token not in reference_citation_keys:
+                expanded = _expand_source_ref_ids(token)
+                if expanded and all(ref_id in original_ref_ids for ref_id in expanded):
+                    rewritten.extend(f"0-{ref_id}" for ref_id in expanded)
+                    changed = True
+                    continue
+            rewritten.append(token)
+        return f"[{'、'.join(rewritten)}]" if changed else match.group(0)
+
+    return citation_group_re.sub(repl, text)
 
 
 def _extract_relevant_chunks(
@@ -699,6 +827,12 @@ async def generate_ai_integration_answer(
     text_generator=generate_text,
 ) -> AiIntegrationResponse:
     original_content = req.original_content.strip() or "（未选择原词条内容）"
+    original_anchors = _extract_original_content_anchors(req.original_content)
+    original_evidence_text = (
+        _format_original_content_evidence(original_anchors)
+        if req.original_content.strip()
+        else "（未选择原词条内容）"
+    )
     priority_ids = set(req.priority_reference_ids or [])
     reference_chunks = _select_reference_chunks(
         req.reference_inputs,
@@ -712,6 +846,7 @@ async def generate_ai_integration_answer(
         else _format_reference_chunks(reference_chunks, priority_ids)
     )
     reference_anchors = [
+        *original_anchors,
         *_extract_reference_anchors(req.reference_inputs),
         *_anchors_from_reference_chunks(reference_chunks),
     ]
@@ -726,6 +861,9 @@ async def generate_ai_integration_answer(
 ## 原词条内容
 {original_content}
 
+## 原词条可引用证据（引用时使用[0-原文献号]）
+{original_evidence_text}
+
 ## 已选择参考文献
 {reference_text}
 
@@ -733,6 +871,7 @@ async def generate_ai_integration_answer(
 - 优先以重点指南为准；若重点指南与其他资料冲突，说明冲突并采用重点指南结论。
 - 只使用上方提供的原词条内容和参考文献，不要引入未提供的数据或指南。
 - 如证据不足，明确说明“现有材料不足以判断”，并说明还需要哪类资料。
+- 引用原词条内容时必须使用[0-原文献号]，例如原词条句子原本标注[18]，回答中应写作[0-18]；只有原词条可引用证据列出的编号才能这样使用。
 - 涉及事实性结论时必须标注来源。引用参考资料时必须使用每条证据列出的“引用标记”，例如[3-22]；如果证据没有源内文献号，引用标记会是[1]、[2]这类参考数据源号。不要使用其他未列出的标记。
 - 直接回答用户问题，使用 Markdown，语言专业、清晰、便于医学编辑继续使用。"""
 
@@ -742,8 +881,20 @@ async def generate_ai_integration_answer(
         context="ai_integration",
     )
 
+    rewritten_answer = _rewrite_internal_chunk_citations(answer.strip(), reference_chunks)
+    rewritten_answer = _rewrite_original_content_citations(
+        rewritten_answer,
+        original_anchors,
+        {ref.id for ref in req.reference_inputs},
+        {
+            anchor.citation_key
+            for anchor in reference_anchors
+            if anchor.source_id != 0
+        },
+    )
+
     return AiIntegrationResponse(
-        answer=_rewrite_internal_chunk_citations(answer.strip(), reference_chunks),
+        answer=rewritten_answer,
         references_used=references_used,
         reference_anchors=reference_anchors,
     )

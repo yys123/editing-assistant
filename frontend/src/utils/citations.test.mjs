@@ -2,7 +2,11 @@ import assert from 'node:assert/strict'
 import {
   buildReferenceAnchorFromSourceDoc,
   buildReferenceAnchorsFromDocs,
+  buildFallbackOriginalCitationAnchors,
+  buildOriginalContentAnchors,
+  buildOriginalContentAnchorsFromSources,
   createCitationResolver,
+  formatCitationSourceLabel,
   linkifyCitationMarkers,
   mergeReferenceAnchors,
 } from './citations.ts'
@@ -239,6 +243,162 @@ const bareSourceRefResolver = createCitationResolver([
 assert.equal(
   linkifyCitationMarkers('急性高钾血症处理流程图[146-147]、[149]。', bareSourceRefResolver),
   '急性高钾血症处理流程图[[146](#citation-1-146)、[147](#citation-1-147)、[149](#citation-1-149)]。',
+)
+
+assert.equal(
+  formatCitationSourceLabel({
+    citation_key: '0-18',
+    source_id: 0,
+    source_filename: '原词条内容',
+    source_ref_id: '18',
+    quote: '原词条句子[18]。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 0,
+  }),
+  '原词条内容',
+)
+
+const originalContentResolver = createCitationResolver([
+  {
+    citation_key: '0-146',
+    source_id: 0,
+    source_filename: '原词条内容',
+    source_ref_id: '146',
+    quote: '急性高钾血症的处理流程见图4[146]。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 0,
+  },
+  {
+    citation_key: '0-147',
+    source_id: 0,
+    source_filename: '原词条内容',
+    source_ref_id: '147',
+    quote: '急性高钾血症的处理流程续图[147]。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 0,
+  },
+  {
+    citation_key: '0-149',
+    source_id: 0,
+    source_filename: '原词条内容',
+    source_ref_id: '149',
+    quote: '处理流程补充说明[149]。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 0,
+  },
+])
+assert.equal(
+  linkifyCitationMarkers('流程见图4[0-146、0-147、0-149]。', originalContentResolver),
+  '流程见图4[[0-146](#citation-0-146)、[0-147](#citation-0-147)、[0-149](#citation-0-149)]。',
+)
+
+assert.equal(
+  linkifyCitationMarkers('需要用药监测[0-17]。', token => (
+    /^\d+$/.test(token) && token !== '0' ? { key: `1-${token}`, label: token } : null
+  )),
+  '需要用药监测[0-17]。',
+)
+
+const hashOriginalAnchors = buildOriginalContentAnchors(
+  '中心静脉滴注时需密切监测血钾<a href="#R17">17</a>。',
+)
+assert.deepEqual(
+  hashOriginalAnchors.map(anchor => anchor.citation_key),
+  ['0-17'],
+)
+
+const fallbackOriginalAnchors = buildFallbackOriginalCitationAnchors('需要用药监测[0-17]。', [])
+assert.deepEqual(
+  fallbackOriginalAnchors.map(anchor => anchor.citation_key),
+  ['0-17'],
+)
+assert.equal(
+  fallbackOriginalAnchors[0].source_filename,
+  '原词条内容（未定位）',
+)
+assert.equal(
+  linkifyCitationMarkers('需要用药监测[0-17]。', createCitationResolver(fallbackOriginalAnchors)),
+  '需要用药监测[[0-17]](#citation-0-17)。',
+)
+
+const rebuiltOriginalAnchors = buildOriginalContentAnchors(
+  '急性高钾血症的处理应遵循“三步走”策略，具体流程见图4[146–147,149]。',
+)
+assert.deepEqual(
+  rebuiltOriginalAnchors.map(anchor => anchor.citation_key),
+  ['0-146', '0-147', '0-149'],
+)
+assert.equal(
+  linkifyCitationMarkers('流程见图4[146-147,149]。', createCitationResolver(rebuiltOriginalAnchors)),
+  '流程见图4[[0-146](#citation-0-146)、[0-147](#citation-0-147)、[0-149](#citation-0-149)]。',
+)
+
+const originalSmallRangeAnchors = buildOriginalContentAnchors(
+  'NMO复发率及致残率高[1-3]。2015年制定了新的NMOSD诊断标准[4]。',
+)
+assert.deepEqual(
+  originalSmallRangeAnchors.map(anchor => anchor.citation_key),
+  ['0-1', '0-2', '0-3', '0-4'],
+)
+assert.equal(
+  linkifyCitationMarkers('NMO复发率及致残率高[1-3]，诊断标准见[4]。', createCitationResolver(originalSmallRangeAnchors)),
+  'NMO复发率及致残率高[[0-1](#citation-0-1)、[0-2](#citation-0-2)、[0-3](#citation-0-3)]，诊断标准见[[0-4]](#citation-0-4)。',
+)
+
+const superscriptCitationResolver = createCitationResolver([
+  {
+    citation_key: '1-3',
+    source_id: 1,
+    source_filename: 'NMO指南.pdf',
+    source_ref_id: '3',
+    quote: 'NMO是一种免疫介导的炎性脱髓鞘疾病[3]。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 0,
+  },
+  {
+    citation_key: '4',
+    source_id: 4,
+    source_filename: '诊断标准.pdf',
+    source_ref_id: '',
+    quote: '2015年制定了新的NMOSD诊断标准。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 0,
+  },
+])
+assert.equal(
+  linkifyCitationMarkers('NMO是一种免疫介导的炎性脱髓鞘疾病[¹⁻³]。诊断标准见[⁴]。', superscriptCitationResolver),
+  'NMO是一种免疫介导的炎性脱髓鞘疾病[[1-3]](#citation-1-3)。诊断标准见[[4]](#citation-4)。',
+)
+
+const originalSuperscriptRangeAnchors = buildOriginalContentAnchors(
+  'NMO复发率及致残率高[¹⁻³]。2015年制定了新的NMOSD诊断标准[⁴]。',
+)
+assert.deepEqual(
+  originalSuperscriptRangeAnchors.map(anchor => anchor.citation_key),
+  ['0-1', '0-2', '0-3', '0-4'],
+)
+
+const supplementedOriginalAnchors = buildOriginalContentAnchorsFromSources(
+  '旧记录快照没有这条参考文献。',
+  '鉴于上述原因，2015年国际NMO诊断小组制定了新的NMOSD诊断标准，取消了NMO的单独定义，将NMO整合入更广义的NMOSD疾病范畴中[5]。',
+)
+const supplementedFallbackAnchors = buildFallbackOriginalCitationAnchors(
+  '鉴于上述原因，2015年国际NMO诊断小组制定了新的NMOSD诊断标准，取消了NMO的单独定义，将NMO整合入更广义的NMOSD疾病范畴中[0-5]。',
+  supplementedOriginalAnchors,
+)
+assert.equal(
+  supplementedOriginalAnchors.find(anchor => anchor.citation_key === '0-5')?.source_filename,
+  '原词条内容',
+)
+assert.deepEqual(
+  supplementedFallbackAnchors.map(anchor => anchor.citation_key),
+  [],
 )
 
 console.log('citation tests passed')

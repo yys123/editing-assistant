@@ -2,14 +2,17 @@ import { useState, useEffect, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { QAItem, GapItem, GeneratedDraft, DraftRecord, ReferenceDoc, ParsedArticle, BatchGeneratedDraft, ReferenceAnchor } from '../types'
 import { apiFetch } from '../api'
 import { getGenerationOriginalContent } from '../utils/generationScope'
 import { extractSectionContent } from '../utils/sectionContent'
+import { markdownRemarkPlugins } from '../utils/markdown'
 import {
   buildReferenceAnchorsFromDocs,
+  CITATION_GROUP_PATTERN,
+  CITATION_MARKER_PATTERN,
   createCitationResolver,
+  formatCitationSourceLabel,
   linkifyCitationMarkers,
   mergeReferenceAnchors,
   splitCitationTokens,
@@ -55,9 +58,9 @@ function formatReferences(content: string): string {
 
   const heading = headingLine.startsWith('#') ? headingLine : `### ${headingLine.replace(/\*+/g, '').trim()}`
 
-  const refMarker = /\[(?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+)(?:[、,，]\s*(?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+))*\]/i
+  const refMarker = new RegExp(CITATION_MARKER_PATTERN, 'i')
   const bodyOneLine = body.replace(/\n/g, ' ').replace(/\s+/g, ' ')
-  const parts = bodyOneLine.split(/(\[(?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+)(?:[、,，]\s*(?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+))*\])/i).filter(Boolean)
+  const parts = bodyOneLine.split(new RegExp(`(${CITATION_MARKER_PATTERN})`, 'i')).filter(Boolean)
 
   const entries: string[] = []
   for (let i = 0; i < parts.length; i++) {
@@ -89,7 +92,7 @@ function renderTextWithCitationButtons({
   activeCitationKey: string | null
   onCitationClick: (key: string) => void
 }) {
-  const groupRe = /\^?(?:<sup>)?[\[［【]((?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+)(?:\s*[、,，]\s*(?:R\d+\s*[-–—]\s*C\d+|Q?\d+|\d+\s*[-–—]\s*\d+))*)[\]］】](?:<\/sup>)?/gi
+  const groupRe = new RegExp(CITATION_GROUP_PATTERN, 'gi')
   const nodes: ReactNode[] = []
   let lastIndex = 0
   let match: RegExpExecArray | null
@@ -138,7 +141,7 @@ function CitationEvidencePanel({
       <div className="citation-panel-header">
         <div>
           <div className="citation-panel-title">[{anchor.citation_key}]</div>
-          <div className="citation-panel-source">参考数据源 {anchor.source_id}：{anchor.source_filename}</div>
+          <div className="citation-panel-source">{formatCitationSourceLabel(anchor)}</div>
           {anchor.title_path && <div className="citation-panel-source">{anchor.title_path}</div>}
         </div>
         <button type="button" className="btn-m3-icon" onClick={onClose} aria-label="关闭引用定位">
@@ -825,7 +828,7 @@ export default function StepGenerate({
           {view === 'preview' && (
             <div className={`draft-preview-shell${activeCitation ? ' has-citation-panel' : ''}`}>
               <div className="diff-content md draft-preview-content" style={{ maxHeight: 'none', minHeight: 300 }}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                <ReactMarkdown remarkPlugins={markdownRemarkPlugins} components={markdownComponents}>
                   {renderedDraftContent}
                 </ReactMarkdown>
               </div>

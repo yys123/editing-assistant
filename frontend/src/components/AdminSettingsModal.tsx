@@ -243,9 +243,9 @@ export default function AdminSettingsModal({ onClose }: Props) {
 
   return (
     <div className="modal-overlay">
-      <div className="modal-card" style={{ maxWidth: 720, maxHeight: 'calc(100vh - 32px)', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px', borderBottom: '1px solid var(--m3-outline-variant)', flexShrink: 0 }}>
-          <div>
+      <div className="modal-card admin-settings-modal">
+        <div className="admin-settings-header">
+          <div className="admin-settings-title">
             <h3 style={{ fontSize: 16, fontWeight: 500, color: 'var(--m3-on-surface)', margin: 0 }}>管理员模型设置</h3>
             <div style={{ marginTop: 6, fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
               仅管理员可见。默认作用域为“仅管理员任务生效”。
@@ -261,9 +261,13 @@ export default function AdminSettingsModal({ onClose }: Props) {
             <div className="spinner" style={{ margin: '0 auto' }} />
           </div>
         ) : (
-          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <div style={{ padding: '18px 24px 20px', overflowY: 'auto', minHeight: 0 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 14 }}>
+          <form onSubmit={handleSave} className="admin-settings-form">
+            <div className="admin-settings-body">
+            <div className="admin-settings-section admin-settings-section-first">
+            <div className="admin-settings-section-heading">
+              <h4>模型参数</h4>
+            </div>
+            <div className="admin-settings-config-grid">
               <div>
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--m3-on-surface-variant)', marginBottom: 6, display: 'block' }}>作用域</label>
                 <select className="m3-input" value={config.scope} onChange={e => setField('scope', e.target.value as Scope)}>
@@ -350,6 +354,7 @@ export default function AdminSettingsModal({ onClose }: Props) {
                 </div>
               </div>
             </div>
+            </div>
 
             {error && (
               <div style={{ padding: '10px 14px', background: 'var(--m3-error-container)', color: 'var(--m3-error)', borderRadius: 8, marginTop: 16, fontSize: 13 }}>
@@ -362,9 +367,9 @@ export default function AdminSettingsModal({ onClose }: Props) {
               </div>
             )}
 
-            <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--m3-outline-variant)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--m3-on-surface)' }}>运行状态</h4>
+            <div className="admin-settings-section">
+              <div className="admin-settings-section-heading">
+                <h4>运行状态</h4>
                 <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
                   {activity?.generated_at ? `最后刷新：${formatDateTime(activity.generated_at)}` : ''}
                 </div>
@@ -378,24 +383,24 @@ export default function AdminSettingsModal({ onClose }: Props) {
                   {activityError}
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 12 }}>
-                <div style={{ padding: 10, borderRadius: 8, background: 'var(--m3-surface-container-low)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>最近在线</div>
-                  <div style={{ fontSize: 16, fontWeight: 600 }}>{activity?.active_user_count ?? 0}</div>
+              <div className="admin-metric-grid admin-metric-grid-three">
+                <div className="admin-metric-card">
+                  <div className="admin-metric-label">最近在线</div>
+                  <div className="admin-metric-value">{activity?.active_user_count ?? 0}</div>
                 </div>
-                <div style={{ padding: 10, borderRadius: 8, background: 'var(--m3-surface-container-low)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>运行中请求</div>
-                  <div style={{ fontSize: 16, fontWeight: 600 }}>{activity?.running_count ?? 0}</div>
+                <div className="admin-metric-card">
+                  <div className="admin-metric-label">运行中请求</div>
+                  <div className="admin-metric-value">{activity?.running_count ?? 0}</div>
                 </div>
-                <div style={{ padding: 10, borderRadius: 8, background: 'var(--m3-surface-container-low)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>在线窗口</div>
-                  <div style={{ fontSize: 16, fontWeight: 600 }}>{formatDuration(activity?.active_window_seconds ?? 300)}</div>
+                <div className="admin-metric-card">
+                  <div className="admin-metric-label">在线窗口</div>
+                  <div className="admin-metric-value">{formatDuration(activity?.active_window_seconds ?? 300)}</div>
                 </div>
               </div>
-              <div style={{ maxHeight: 220, overflow: 'auto', border: '1px solid var(--m3-outline-variant)', borderRadius: 10 }}>
-                <table style={{ minWidth: 760, width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <div className="admin-table-shell admin-table-shell-activity">
+                <table className="admin-data-table admin-activity-table">
                   <thead>
-                    <tr style={{ background: 'var(--m3-surface-container-low)' }}>
+                    <tr>
                       <th style={{ textAlign: 'left', padding: 8 }}>用户</th>
                       <th style={{ textAlign: 'left', padding: 8 }}>状态</th>
                       <th style={{ textAlign: 'left', padding: 8 }}>最近活动</th>
@@ -452,37 +457,37 @@ export default function AdminSettingsModal({ onClose }: Props) {
               </div>
             </div>
 
-            <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--m3-outline-variant)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--m3-on-surface)' }}>AI 调用统计</h4>
+            <div className="admin-settings-section">
+              <div className="admin-settings-section-heading">
+                <h4>AI 调用统计</h4>
                 <button type="button" className="btn-m3-outline" style={{ marginLeft: 'auto', fontSize: 12, padding: '4px 10px' }} onClick={() => loadAiLogs().catch((e: Error) => setError(e.message))}>
                   刷新
                 </button>
               </div>
               {aiSummary && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginBottom: 12 }}>
-                  <div style={{ padding: 10, borderRadius: 8, background: 'var(--m3-surface-container-low)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>调用次数</div>
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>{aiSummary.calls ?? 0}</div>
+                <div className="admin-metric-grid admin-metric-grid-four">
+                  <div className="admin-metric-card">
+                    <div className="admin-metric-label">调用次数</div>
+                    <div className="admin-metric-value">{aiSummary.calls ?? 0}</div>
                   </div>
-                  <div style={{ padding: 10, borderRadius: 8, background: 'var(--m3-surface-container-low)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>总 Tokens</div>
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>{(aiSummary.total_tokens ?? 0).toLocaleString()}</div>
+                  <div className="admin-metric-card">
+                    <div className="admin-metric-label">总 Tokens</div>
+                    <div className="admin-metric-value">{(aiSummary.total_tokens ?? 0).toLocaleString()}</div>
                   </div>
-                  <div style={{ padding: 10, borderRadius: 8, background: 'var(--m3-surface-container-low)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>输入 / 输出</div>
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>{(aiSummary.input_tokens ?? 0).toLocaleString()} / {(aiSummary.output_tokens ?? 0).toLocaleString()}</div>
+                  <div className="admin-metric-card">
+                    <div className="admin-metric-label">输入 / 输出</div>
+                    <div className="admin-metric-value">{(aiSummary.input_tokens ?? 0).toLocaleString()} / {(aiSummary.output_tokens ?? 0).toLocaleString()}</div>
                   </div>
-                  <div style={{ padding: 10, borderRadius: 8, background: 'var(--m3-surface-container-low)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--m3-on-surface-variant)' }}>最高上下文占用</div>
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>{aiSummary.max_context_usage_ratio == null ? '—' : `${Math.round(aiSummary.max_context_usage_ratio * 100)}%`}</div>
+                  <div className="admin-metric-card">
+                    <div className="admin-metric-label">最高上下文占用</div>
+                    <div className="admin-metric-value">{aiSummary.max_context_usage_ratio == null ? '—' : `${Math.round(aiSummary.max_context_usage_ratio * 100)}%`}</div>
                   </div>
                 </div>
               )}
-              <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid var(--m3-outline-variant)', borderRadius: 10 }}>
-                <table style={{ minWidth: 940, width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <div className="admin-table-shell admin-table-shell-logs">
+                <table className="admin-data-table admin-logs-table">
                   <thead>
-                    <tr style={{ background: 'var(--m3-surface-container-low)' }}>
+                    <tr>
                       <th style={{ textAlign: 'left', padding: 8 }}>时间</th>
                       <th style={{ textAlign: 'left', padding: 8 }}>场景</th>
                       <th style={{ textAlign: 'left', padding: 8 }}>模型</th>
@@ -533,7 +538,7 @@ export default function AdminSettingsModal({ onClose }: Props) {
               </div>
             </div>
             </div>
-            <div style={{ display: 'flex', gap: 10, padding: '14px 24px 18px', borderTop: '1px solid var(--m3-outline-variant)', background: 'var(--m3-surface)', flexShrink: 0 }}>
+            <div className="admin-settings-footer">
               <button type="button" className="btn-m3-outline" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>
                 关闭
               </button>
