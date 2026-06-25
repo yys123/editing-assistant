@@ -234,6 +234,95 @@ class GuideDataSourceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("视神经脊髓炎谱系疾病（neuromyelitis optica spectrum disorders，NMOSD）", result["content"])
         self.assertIn("[H2] 一、流行病学特征", result["content"])
 
+    async def test_get_guide_detail_uses_declared_content_priority(self):
+        cases = [
+            (
+                {
+                    "title": "优先级指南",
+                    "guide_body": {
+                        "content": "  正常文本化指南  ",
+                        "body": "<p>旧body</p>",
+                        "ai_en_body": "爬虫全文",
+                    },
+                    "guide_parse_text": [
+                        {"item_status": 1, "process_context": "PDF全文"},
+                    ],
+                },
+                "正常文本化指南",
+            ),
+            (
+                {
+                    "title": "优先级指南",
+                    "guide_body": {
+                        "content": " ",
+                        "body": "<h2>旧HTML标题</h2><p>旧HTML正文</p>",
+                        "html_format": True,
+                        "ai_en_body": "爬虫全文",
+                    },
+                    "guide_parse_text": [
+                        {"item_status": 1, "process_context": "PDF全文"},
+                    ],
+                },
+                "[H2] 旧HTML标题\n旧HTML正文",
+            ),
+            (
+                {
+                    "title": "优先级指南",
+                    "guide_body": {
+                        "body": "## Markdown标题\n\nMarkdown正文",
+                        "html_format": False,
+                        "ai_en_body": "爬虫全文",
+                    },
+                    "guide_parse_text": [
+                        {"item_status": 1, "process_context": "PDF全文"},
+                    ],
+                },
+                "[H2] Markdown标题\nMarkdown正文",
+            ),
+            (
+                {
+                    "title": "优先级指南",
+                    "guide_body": {"ai_en_body": "爬虫全文"},
+                    "guide_parse_text": [
+                        {"item_status": 0, "process_context": "无效PDF全文"},
+                        {"item_status": 1, "process_context": "有效PDF全文"},
+                    ],
+                },
+                "有效PDF全文",
+            ),
+            (
+                {
+                    "title": "优先级指南",
+                    "guide_body": {"ai_en_body": "爬虫全文"},
+                    "guide_parse_text": [
+                        {"item_status": 0, "process_context": "无效PDF全文"},
+                    ],
+                },
+                "爬虫全文",
+            ),
+        ]
+
+        for data, expected_content in cases:
+            with self.subTest(expected_content=expected_content):
+                FakeAsyncClient.calls = []
+                FakeAsyncClient.responses = [
+                    FakeGuideResponse({
+                        "code": "success",
+                        "message": "成功",
+                        "data": data,
+                    })
+                ]
+
+                with (
+                    patch.object(article.httpx, "AsyncClient", FakeAsyncClient),
+                    patch.object(article.time, "time", return_value=1700000000.123),
+                    patch.object(article.secrets, "randbelow", side_effect=[1, 2, 3, 4, 5, 6, 7, 8]),
+                ):
+                    result = await article.get_guide_detail(12)
+
+                self.assertEqual(result["title"], "优先级指南")
+                self.assertEqual(result["content"], expected_content)
+
     async def test_guide_api_requires_credentials(self):
         with patch.object(
             article,

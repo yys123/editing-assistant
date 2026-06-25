@@ -57,6 +57,16 @@ GUIDE_DETAIL_CONTENT_KEYS = (
     "fullText",
     "full_text",
 )
+GUIDE_BODY_CONTAINER_KEYS = ("guide_body", "guideBody")
+GUIDE_PARSE_TEXT_CONTAINER_KEYS = (
+    "guide_parse_text",
+    "guideParseText",
+    "guide_parse_texts",
+    "guideParseTexts",
+)
+GUIDE_PARSE_TEXT_CONTENT_KEYS = ("process_context", "processContext")
+GUIDE_PARSE_TEXT_STATUS_KEYS = ("item_status", "itemStatus")
+GUIDE_AI_EN_BODY_KEYS = ("ai_en_body", "aiEnBody")
 ENTRY_DETAIL_NAME_KEYS = ("name", "title", "entryName", "entry_name", "ncdName", "ncd_name")
 ENTRY_DETAIL_CONTENT_KEYS = (
     "content",
@@ -488,6 +498,145 @@ def _entry_detail_content(data: dict) -> str:
     return _find_entry_module_html(data)
 
 
+def _guide_body_containers(value) -> list[dict]:
+    containers = []
+    seen = set()
+
+    def add_container(item: dict) -> None:
+        identity = id(item)
+        if identity not in seen:
+            seen.add(identity)
+            containers.append(item)
+
+    def walk(item) -> None:
+        if isinstance(item, dict):
+            for key in GUIDE_BODY_CONTAINER_KEYS:
+                nested = item.get(key)
+                if isinstance(nested, dict):
+                    add_container(nested)
+                elif isinstance(nested, list):
+                    for nested_item in nested:
+                        if isinstance(nested_item, dict):
+                            add_container(nested_item)
+
+            if any(key in item for key in ("content", "body", *GUIDE_AI_EN_BODY_KEYS)):
+                add_container(item)
+
+            for nested in item.values():
+                if isinstance(nested, (dict, list)):
+                    walk(nested)
+        elif isinstance(item, list):
+            for nested in item:
+                walk(nested)
+
+    walk(value)
+    return containers
+
+
+def _markdown_to_html(markdown_text: str) -> str:
+    parts = []
+    paragraph = []
+
+    def flush_paragraph() -> None:
+        if not paragraph:
+            return
+        text = "<br>".join(html_lib.escape(line) for line in paragraph)
+        parts.append(f"<p>{text}</p>")
+        paragraph.clear()
+
+    for raw_line in markdown_text.strip().splitlines():
+        line = raw_line.strip()
+        if not line:
+            flush_paragraph()
+            continue
+        heading = re.match(r"^(#{1,6})\s+(.+)$", line)
+        if heading:
+            flush_paragraph()
+            level = len(heading.group(1))
+            parts.append(f"<h{level}>{html_lib.escape(heading.group(2).strip())}</h{level}>")
+        else:
+            paragraph.append(line)
+
+    flush_paragraph()
+    return "".join(parts)
+
+
+def _body_html_format(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value == 1
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+    return False
+
+
+def _guide_body_content(data: dict) -> str:
+    for container in _guide_body_containers(data):
+        content = _direct_text_field(container, ("content",))
+        if content.strip():
+            return content
+
+    for container in _guide_body_containers(data):
+        body = _direct_text_field(container, ("body",))
+        if not body.strip():
+            continue
+        if _body_html_format(container.get("html_format")) or _looks_like_html(body):
+            return body
+        return _markdown_to_html(body)
+
+    return ""
+
+
+def _guide_parse_text_items(value) -> list[dict]:
+    items = []
+    if isinstance(value, dict):
+        for key in GUIDE_PARSE_TEXT_CONTAINER_KEYS:
+            nested = value.get(key)
+            if isinstance(nested, dict):
+                items.append(nested)
+            elif isinstance(nested, list):
+                items.extend(item for item in nested if isinstance(item, dict))
+        for nested in value.values():
+            if isinstance(nested, (dict, list)):
+                items.extend(_guide_parse_text_items(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            items.extend(_guide_parse_text_items(nested))
+    return items
+
+
+def _guide_parse_text_content(data: dict) -> str:
+    for item in _guide_parse_text_items(data):
+        status = next((item.get(key) for key in GUIDE_PARSE_TEXT_STATUS_KEYS if key in item), None)
+        if str(status).strip() != "1":
+            continue
+        content = _direct_text_field(item, GUIDE_PARSE_TEXT_CONTENT_KEYS)
+        if content.strip():
+            return content
+    return ""
+
+
+def _guide_ai_en_body_content(data: dict) -> str:
+    for container in _guide_body_containers(data):
+        content = _direct_text_field(container, GUIDE_AI_EN_BODY_KEYS)
+        if content.strip():
+            return content
+    return ""
+
+
+def _guide_detail_content(data: dict) -> str:
+    for content in (
+        _guide_body_content(data),
+        _guide_parse_text_content(data),
+        _guide_ai_en_body_content(data),
+        _first_guide_text_field(data, GUIDE_DETAIL_CONTENT_KEYS),
+    ):
+        if content.strip():
+            return content
+    return ""
+
+
 def _normalize_guide_detail_content(content: str) -> str:
     if not _looks_like_html(content):
         return content.strip()
@@ -538,7 +687,7 @@ async def get_guide_detail(guide_id: int):
     data = payload.get("data")
     if not isinstance(data, dict):
         raise HTTPException(502, "指南详情返回格式异常")
-    content = _first_guide_text_field(data, GUIDE_DETAIL_CONTENT_KEYS)
+    content = _guide_detail_content(data)
     if not content.strip():
         raise HTTPException(
             502,
