@@ -186,6 +186,34 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result.answer, "应认为是危急症，需紧急处理[3-22]。")
 
+    async def test_ai_integration_upgrades_source_only_citation_when_sentence_matches_source_ref(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            self.assertIn("引用标记：[3-1]", prompt)
+            self.assertIn("急性中毒患者约占同期急诊患者的2.7%~3.6%，近年呈上升趋势 [1]", prompt)
+            return "急诊占比：急性中毒患者约占同期急诊患者的2.7% ~ 3.6%，且近年来呈上升趋势[3]。"
+
+        req = AiIntegrationRequest(
+            disease="急性中毒",
+            user_request="总结中国国内流行病学数据",
+            reference_inputs=[
+                ReferenceInput(
+                    id=3,
+                    filename="急性中毒流行病学.html",
+                    text=(
+                        "急性中毒患者约占同期急诊患者的2.7%~3.6%，近年呈上升趋势\n"
+                        "[1]"
+                    ),
+                ),
+            ],
+        )
+
+        result = await generate_ai_integration_answer(req, text_generator=fake_generate_text)
+
+        self.assertEqual(
+            result.answer,
+            "急诊占比：急性中毒患者约占同期急诊患者的2.7% ~ 3.6%，且近年来呈上升趋势[3-1]。",
+        )
+
     async def test_ai_integration_does_not_rewrite_source_id_as_original_citation(self):
         async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
             return "优先采用指南结论[1]。"

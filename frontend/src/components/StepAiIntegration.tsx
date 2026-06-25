@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
-import { AiIntegrationRecord, ParsedArticle, ReferenceAnchor, ReferenceDoc } from '../types'
+import { AiIntegrationLinkedIssue, AiIntegrationRecord, GapAnalysis, ParsedArticle, ReferenceAnchor, ReferenceDoc, SectionAnalysis } from '../types'
 import { apiFetch, safeJson } from '../api'
 import {
   buildReferenceAnchorFromSourceDoc,
@@ -16,12 +16,22 @@ import {
   splitCitationTokens,
 } from '../utils/citations'
 import { getNextAiIntegrationActiveId } from '../utils/aiIntegrationHistory'
+import {
+  buildAiIntegrationIssueRequest,
+  collectAiIntegrationLinkedIssues,
+  collectNeedsAnalysisLinkedIssues,
+  issueSeverityLabel,
+  issueTypeLabel,
+  sectionIdsForLinkedIssues,
+} from '../utils/aiIntegrationIssues'
 import { markdownRemarkPlugins } from '../utils/markdown'
 
 interface Props {
   disease: string
   articleContent: string
   parsedArticle?: ParsedArticle | null
+  sectionAnalyses?: SectionAnalysis[]
+  gapAnalysis?: GapAnalysis | null
   referenceDocs?: ReferenceDoc[]
   history: AiIntegrationRecord[]
   onAddRecord: (record: AiIntegrationRecord) => void
@@ -49,6 +59,10 @@ function formatTime(iso: string) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function linkedIssueKey(issue: AiIntegrationLinkedIssue) {
+  return `${issue.source ?? 'quality_review'}:${issue.section_id}:${issue.id}`
 }
 
 function answerSentenceAround(text: string, index: number) {
@@ -119,7 +133,7 @@ function AiCitationPanel({
 }
 
 export default function StepAiIntegration({
-  disease, articleContent, parsedArticle, referenceDocs = [], history, onAddRecord, onDeleteRecord,
+  disease, articleContent, parsedArticle, sectionAnalyses = [], gapAnalysis = null, referenceDocs = [], history, onAddRecord, onDeleteRecord,
 }: Props) {
   const [userRequest, setUserRequest] = useState('')
   const [selectedRefs, setSelectedRefs] = useState<string[]>(() => referenceDocs.map(d => d.filename))
@@ -130,11 +144,32 @@ export default function StepAiIntegration({
   const [error, setError] = useState('')
   const [activeId, setActiveId] = useState<string | null>(history[history.length - 1]?.id ?? null)
   const [activeCitationKey, setActiveCitationKey] = useState<string | null>(null)
+  const [selectedIssueKey, setSelectedIssueKey] = useState<string | null>(null)
+
+  const reviewIssues = useMemo(
+    () => collectAiIntegrationLinkedIssues(sectionAnalyses),
+    [sectionAnalyses],
+  )
+  const needsIssues = useMemo(
+    () => collectNeedsAnalysisLinkedIssues(gapAnalysis),
+    [gapAnalysis],
+  )
+  const allLinkedIssues = useMemo(
+    () => [...reviewIssues, ...needsIssues],
+    [reviewIssues, needsIssues],
+  )
 
   useEffect(() => {
     setSelectedRefs(referenceDocs.map(doc => doc.filename))
     setPriorityRefs(prev => prev.filter(name => referenceDocs.some(doc => doc.filename === name)))
   }, [referenceDocs])
+
+  useEffect(() => {
+    setSelectedIssueKey(prev => {
+      if (prev && allLinkedIssues.some(issue => linkedIssueKey(issue) === prev)) return prev
+      return null
+    })
+  }, [allLinkedIssues])
 
   useEffect(() => {
     if (!parsedArticle) return
@@ -147,6 +182,36 @@ export default function StepAiIntegration({
 
   const selectedRefSet = useMemo(() => new Set(selectedRefs), [selectedRefs])
   const priorityRefSet = useMemo(() => new Set(priorityRefs), [priorityRefs])
+  const selectedLinkedIssues = useMemo(
+    () => allLinkedIssues.filter(issue => linkedIssueKey(issue) === selectedIssueKey),
+    [allLinkedIssues, selectedIssueKey],
+  )
+  const selectedReviewIssues = useMemo(
+    () => reviewIssues.filter(issue => linkedIssueKey(issue) === selectedIssueKey),
+    [reviewIssues, selectedIssueKey],
+  )
+  const selectedNeedsIssues = useMemo(
+    () => needsIssues.filter(issue => linkedIssueKey(issue) === selectedIssueKey),
+    [needsIssues, selectedIssueKey],
+  )
+  const reviewIssuesBySection = useMemo(() => {
+    const groups = new Map<string, AiIntegrationLinkedIssue[]>()
+    for (const issue of reviewIssues) {
+      const list = groups.get(issue.section_heading) ?? []
+      list.push(issue)
+      groups.set(issue.section_heading, list)
+    }
+    return [...groups.entries()]
+  }, [reviewIssues])
+  const needsIssuesBySection = useMemo(() => {
+    const groups = new Map<string, AiIntegrationLinkedIssue[]>()
+    for (const issue of needsIssues) {
+      const list = groups.get(issue.section_heading) ?? []
+      list.push(issue)
+      groups.set(issue.section_heading, list)
+    }
+    return [...groups.entries()]
+  }, [needsIssues])
   const activeRecord = activeId ? history.find(r => r.id === activeId) ?? null : null
   const activeRecordSelectedRefSet = useMemo(
     () => new Set(activeRecord?.selectedReferences ?? []),
@@ -259,6 +324,33 @@ export default function StepAiIntegration({
     setSelectedSectionIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id])
   }
 
+  const toggleReviewIssue = (issue: AiIntegrationLinkedIssue) => {
+    const key = linkedIssueKey(issue)
+    setSelectedIssueKey(prev => prev === key ? null : key)
+  }
+
+  const clearLinkedIssues = () => {
+    setSelectedIssueKey(null)
+  }
+
+  const generateRequestFromIssues = (
+    issues: AiIntegrationLinkedIssue[],
+    sourceLabel: string,
+    emptyMessage: string,
+  ) => {
+    if (issues.length === 0) {
+      setError(emptyMessage)
+      return
+    }
+    setUserRequest(buildAiIntegrationIssueRequest(issues, { sourceLabel }))
+    const nextSectionIds = sectionIdsForLinkedIssues(issues)
+    if (parsedArticle && nextSectionIds.length > 0) {
+      setOriginalScope('sections')
+      setSelectedSectionIds(nextSectionIds)
+    }
+    setError('')
+  }
+
   const deleteRecord = (id: string) => {
     const nextActiveId = getNextAiIntegrationActiveId(history, id, activeId)
     onDeleteRecord(id)
@@ -314,6 +406,7 @@ export default function StepAiIntegration({
         referenceAnchors: data.reference_anchors || [],
         selectedReferences: selectedRefs,
         priorityReferences: priorityRefs,
+        linkedIssues: selectedLinkedIssues,
         originalScope,
         selectedSectionIds,
         originalContentSnapshot: originalContent,
@@ -360,6 +453,162 @@ export default function StepAiIntegration({
           </div>
         )}
       </div>
+
+      {reviewIssues.length > 0 && (
+        <div className="section-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-primary)' }}>fact_check</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)' }}>质量评审问题</span>
+            <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
+              已选 {selectedReviewIssues.length} 个，每次仅可选择 1 个
+            </span>
+            <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', flexWrap: 'wrap' }}>
+              <button className="btn btn-sm" style={{ padding: '3px 10px', fontSize: 12, color: 'var(--gray-500)' }} onClick={clearLinkedIssues}>清空</button>
+              <button className="btn-m3-outline" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => generateRequestFromIssues(selectedReviewIssues, '内容质量评审问题', '请选择要带入 AI 整合的质量评审问题')}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>auto_fix_high</span>
+                生成整合要求
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
+            {reviewIssuesBySection.map(([heading, issues]) => (
+              <div key={heading} style={{ border: '0.5px solid var(--dui-divider)', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: 'var(--m3-surface-container-low)', fontSize: 12 }}>
+                  <span style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>{heading}</span>
+                  <span style={{ color: 'var(--m3-on-surface-variant)' }}>{issues.length} 个问题</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  {issues.map(issue => {
+                    const key = linkedIssueKey(issue)
+                    const checked = selectedIssueKey === key
+                    const severityColor = issue.severity === 'high' ? 'var(--dui-danger)' : issue.severity === 'medium' ? 'var(--dui-warning)' : 'var(--dui-primary)'
+                    return (
+                      <label
+                        key={key}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 8,
+                          padding: '8px 10px',
+                          borderTop: '0.5px solid var(--dui-divider)',
+                          cursor: 'pointer',
+                          background: checked ? 'var(--dui-primary-container)' : '#fff',
+                          fontSize: 12,
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="ai-integration-linked-issue"
+                          checked={checked}
+                          onChange={() => toggleReviewIssue(issue)}
+                          style={{ marginTop: 3, flexShrink: 0 }}
+                        />
+                        <span style={{ minWidth: 0, flex: 1 }}>
+                          <span style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap', marginBottom: 3 }}>
+                            <span style={{ color: severityColor, fontWeight: 600 }}>{issueSeverityLabel(issue.severity)}优先</span>
+                            <span style={{ color: 'var(--m3-on-surface-variant)' }}>{issueTypeLabel(issue.issue_type)}</span>
+                          </span>
+                          <span style={{ display: 'block', color: 'var(--m3-on-surface)', lineHeight: 1.55, wordBreak: 'break-word' }}>
+                            {issue.description}
+                          </span>
+                          {issue.reviewer_note && (
+                            <span style={{ display: 'block', marginTop: 3, color: 'var(--m3-primary)', lineHeight: 1.5 }}>
+                              备注：{issue.reviewer_note}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {needsIssues.length > 0 && (
+        <div className="section-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-primary)' }}>groups</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)' }}>用户需求问题</span>
+            <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
+              已选 {selectedNeedsIssues.length} 个，每次仅可选择 1 个
+            </span>
+            <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', flexWrap: 'wrap' }}>
+              <button className="btn btn-sm" style={{ padding: '3px 10px', fontSize: 12, color: 'var(--gray-500)' }} onClick={clearLinkedIssues}>清空</button>
+              <button className="btn-m3-outline" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => generateRequestFromIssues(selectedNeedsIssues, '用户需求分析问题', '请选择要带入 AI 整合的用户需求问题')}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>auto_fix_high</span>
+                生成整合要求
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
+            {needsIssuesBySection.map(([heading, issues]) => (
+              <div key={heading} style={{ border: '0.5px solid var(--dui-divider)', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: 'var(--m3-surface-container-low)', fontSize: 12 }}>
+                  <span style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>{heading}</span>
+                  <span style={{ color: 'var(--m3-on-surface-variant)' }}>{issues.length} 个问题</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  {issues.map(issue => {
+                    const key = linkedIssueKey(issue)
+                    const checked = selectedIssueKey === key
+                    const severityColor = issue.severity === 'high' ? 'var(--dui-danger)' : issue.severity === 'medium' ? 'var(--dui-warning)' : 'var(--dui-primary)'
+                    return (
+                      <label
+                        key={key}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 8,
+                          padding: '8px 10px',
+                          borderTop: '0.5px solid var(--dui-divider)',
+                          cursor: 'pointer',
+                          background: checked ? 'var(--dui-primary-container)' : '#fff',
+                          fontSize: 12,
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="ai-integration-linked-issue"
+                          checked={checked}
+                          onChange={() => toggleReviewIssue(issue)}
+                          style={{ marginTop: 3, flexShrink: 0 }}
+                        />
+                        <span style={{ minWidth: 0, flex: 1 }}>
+                          <span style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap', marginBottom: 3 }}>
+                            <span style={{ color: severityColor, fontWeight: 600 }}>{issueSeverityLabel(issue.severity)}优先</span>
+                            <span style={{ color: 'var(--m3-on-surface-variant)' }}>{issueTypeLabel(issue.issue_type)}</span>
+                            {issue.qa_frequency != null && (
+                              <span style={{ color: 'var(--m3-on-surface-variant)' }}>{issue.qa_frequency} 次提问</span>
+                            )}
+                          </span>
+                          <span style={{ display: 'block', color: 'var(--m3-on-surface)', lineHeight: 1.55, wordBreak: 'break-word' }}>
+                            {issue.description}
+                          </span>
+                          {(issue.examples ?? []).length > 0 && (
+                            <span style={{ display: 'block', marginTop: 3, color: 'var(--m3-on-surface-variant)', lineHeight: 1.5 }}>
+                              示例：{issue.examples.slice(0, 2).join('；')}
+                            </span>
+                          )}
+                          {issue.reviewer_note && (
+                            <span style={{ display: 'block', marginTop: 3, color: 'var(--m3-primary)', lineHeight: 1.5 }}>
+                              备注：{issue.reviewer_note}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="section-card">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -545,6 +794,32 @@ export default function StepAiIntegration({
 
                   {expanded && (
                     <div className="ai-history-answer">
+                      {(record.linkedIssues?.length ?? 0) > 0 && (
+                        <div style={{
+                          marginBottom: 12,
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          background: 'var(--m3-surface-container-low)',
+                          border: '0.5px solid var(--dui-divider)',
+                        }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--m3-on-surface)', marginBottom: 6 }}>
+                            关联问题 {record.linkedIssues?.length ?? 0} 个
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                            {record.linkedIssues?.map(issue => (
+                              <div key={linkedIssueKey(issue)} style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', lineHeight: 1.55 }}>
+                                <span style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>{issue.section_heading}</span>
+                                <span style={{ margin: '0 6px', color: 'var(--gray-400)' }}>·</span>
+                                <span>{issueSeverityLabel(issue.severity)}优先</span>
+                                <span style={{ margin: '0 6px', color: 'var(--gray-400)' }}>·</span>
+                                <span>{issueTypeLabel(issue.issue_type)}</span>
+                                <span style={{ margin: '0 6px', color: 'var(--gray-400)' }}>·</span>
+                                <span>{issue.description}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <div className={`draft-preview-shell${activeCitation ? ' has-citation-panel' : ''}`}>
                         <div className="diff-content md draft-preview-content" style={{ maxHeight: 'none', minHeight: 160 }}>
                           <ReactMarkdown remarkPlugins={markdownRemarkPlugins} components={markdownComponents}>

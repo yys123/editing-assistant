@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { apiFetch } from '../api'
+import { getNeedsAnalysisTargetSections } from '../utils/needsAnalysisSections'
 import {
   QAItem, SectionAnalysis, ParsedArticle, GapAnalysis,
   NeedCluster, NeedSectionMapping, SectionNeedsGap, GapItem, NeedCoverage,
@@ -387,6 +388,7 @@ export default function StepGapAnalysis({
   const [analyzeProgress, setAnalyzeProgress] = useState(0)
   const [analyzeTotal, setAnalyzeTotal] = useState(0)
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  const needsAnalysisSections = getNeedsAnalysisTargetSections(parsedArticle)
 
   // ── Update a single NeedCoverage in gapAnalysis ───────────────────────────
   const updateNeedCoverage = (sectionId: string, topic: string, changes: Partial<NeedCoverage>) => {
@@ -431,7 +433,7 @@ export default function StepGapAnalysis({
     const res = await apiFetch('/api/analyze/needs-map', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ disease, clusters: cls, sections: parsedArticle.sections }),
+      body: JSON.stringify({ disease, clusters: cls, sections: needsAnalysisSections }),
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.detail || '需求映射失败')
@@ -443,7 +445,7 @@ export default function StepGapAnalysis({
     cls: NeedCluster[],
     maps: NeedSectionMapping[],
   ): Promise<SectionNeedsGap[]> => {
-    const sectionsWithNeeds = parsedArticle.sections.filter(s => {
+    const sectionsWithNeeds = needsAnalysisSections.filter(s => {
       const m = maps.find(m => m.section_id === s.id)
       return m && m.cluster_topics.length > 0
     })
@@ -452,7 +454,7 @@ export default function StepGapAnalysis({
 
     // Pre-fill empty results for sections without needs
     const resultMap = new Map<string, SectionNeedsGap>()
-    for (const s of parsedArticle.sections) {
+    for (const s of needsAnalysisSections) {
       const m = maps.find(m => m.section_id === s.id)
       if (!m || m.cluster_topics.length === 0) {
         resultMap.set(s.id, { section_id: s.id, section_heading: s.heading, need_coverages: [], gap_items: [], coverage_assessment: '' })
@@ -483,7 +485,7 @@ export default function StepGapAnalysis({
       })
     )
 
-    return parsedArticle.sections.map(s => resultMap.get(s.id)!).filter(Boolean)
+    return needsAnalysisSections.map(s => resultMap.get(s.id)!).filter(Boolean)
   }
 
   // ── Assemble ──────────────────────────────────────────────────────────────────
@@ -523,7 +525,7 @@ export default function StepGapAnalysis({
           const res = await apiFetch('/api/analyze/needs-placement', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ disease, unmapped_clusters: unmapped, sections: parsedArticle.sections }),
+            body: JSON.stringify({ disease, unmapped_clusters: unmapped, sections: needsAnalysisSections }),
           })
           if (res.ok) {
             const data = await res.json()
@@ -543,7 +545,7 @@ export default function StepGapAnalysis({
   }
 
   const retrySectionGap = async (sectionId: string) => {
-    const section = parsedArticle.sections.find(s => s.id === sectionId)
+    const section = needsAnalysisSections.find(s => s.id === sectionId)
     if (!section) return
     setSectionErrors(prev => { const n = { ...prev }; delete n[sectionId]; return n })
     const mapping = mappings.find(m => m.section_id === sectionId)

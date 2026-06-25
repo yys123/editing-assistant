@@ -12,6 +12,11 @@ import {
   type GuideSearchItem,
 } from '../api'
 import { articleContentToStructuredMarkers } from '../utils/articleStructure'
+import {
+  createRichEditorHistory,
+  isMarkModuleShortcut,
+  isUndoShortcut,
+} from '../utils/richEditorShortcuts'
 
 interface Props {
   disease: string
@@ -882,6 +887,7 @@ function RichPasteEditor({
   onRichHtmlChange: (value: string) => void
 }) {
   const editorRef = useRef<HTMLDivElement>(null)
+  const historyRef = useRef(createRichEditorHistory(''))
   const [cuckooExpertMode, setCuckooExpertMode] = useState(false)
 
   useEffect(() => {
@@ -890,19 +896,30 @@ function RichPasteEditor({
     if (document.activeElement === editor) return
     if (richHtml && editor.innerHTML !== richHtml) {
       editor.innerHTML = richHtml
+      historyRef.current.reset(editor.innerHTML)
       return
     }
     if (editorToPlainText(editor) !== normalizeEditorText(value)) {
       editor.innerHTML = textToEditorHtml(value)
+      historyRef.current.reset(editor.innerHTML)
     }
   }, [value, richHtml])
 
-  const syncFromEditor = () => {
+  const syncFromEditor = (recordHistory = true) => {
     const editor = editorRef.current
     if (!editor) return
+    if (recordHistory) historyRef.current.record(editor.innerHTML)
     onChange(editorToPlainText(editor))
     onStructuredChange(editorToStructuredText(editor))
     onRichHtmlChange(editor.innerHTML)
+  }
+
+  const restoreEditorHtml = (html: string) => {
+    const editor = editorRef.current
+    if (!editor) return
+    editor.innerHTML = html
+    placeCaretInside(editor)
+    syncFromEditor(false)
   }
 
   const runCommand = (command: string, commandValue?: string) => {
@@ -934,6 +951,21 @@ function RichPasteEditor({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isUndoShortcut(e)) {
+      e.preventDefault()
+      const editor = editorRef.current
+      if (!editor) return
+      const previousHtml = historyRef.current.undo(editor.innerHTML)
+      if (previousHtml !== null) restoreEditorHtml(previousHtml)
+      return
+    }
+
+    if (isMarkModuleShortcut(e)) {
+      e.preventDefault()
+      markSelectionAsModule()
+      return
+    }
+
     if (e.key !== 'Enter' || e.shiftKey) return
     const editor = editorRef.current
     if (!editor) return
@@ -956,17 +988,14 @@ function RichPasteEditor({
     if (!editor) return
     const text = editorToPlainText(editor)
     editor.innerHTML = textToEditorHtml(text)
-    onChange(text)
-    onRichHtmlChange(editor.innerHTML)
+    syncFromEditor()
   }
 
   const removeEmptyModules = () => {
     const editor = editorRef.current
     if (!editor) return
     removeEmptyModuleElements(editor)
-    onChange(editorToPlainText(editor))
-    onStructuredChange(editorToStructuredText(editor))
-    onRichHtmlChange(editor.innerHTML)
+    syncFromEditor()
   }
 
   const removeDiagnosisTreatmentKeyPoints = () => {
@@ -974,9 +1003,7 @@ function RichPasteEditor({
     if (!editor) return
     const removedCards = removeKeyPointCardsFromEditor(editor)
     if (!removedCards) removeDiagnosisTreatmentKeyPointsFromEditor(editor)
-    onChange(editorToPlainText(editor))
-    onStructuredChange(editorToStructuredText(editor))
-    onRichHtmlChange(editor.innerHTML)
+    syncFromEditor()
   }
 
   const toggleCuckooExpertReview = () => {
@@ -985,9 +1012,7 @@ function RichPasteEditor({
     setCuckooExpertMode(nextMode)
     if (nextMode && editor) {
       applyCuckooExpertReviewModules(editor)
-      onChange(editorToPlainText(editor))
-      onStructuredChange(editorToStructuredText(editor))
-      onRichHtmlChange(editor.innerHTML)
+      syncFromEditor()
     }
   }
 
@@ -1018,9 +1043,7 @@ function RichPasteEditor({
 
   const clearAll = () => {
     if (editorRef.current) editorRef.current.innerHTML = ''
-    onChange('')
-    onStructuredChange('')
-    onRichHtmlChange('')
+    syncFromEditor()
   }
 
   return (
@@ -1048,7 +1071,7 @@ function RichPasteEditor({
           <span className="rich-editor-tool-dot" aria-hidden="true" />
           布谷鸟专家审核
         </button>
-        <button type="button" className="rich-editor-tool accent" title="将选中内容或当前行标记为模块标题" onClick={markSelectionAsModule}>标记模块</button>
+        <button type="button" className="rich-editor-tool accent" title="将选中内容或当前行标记为模块标题（⌘=）" onClick={markSelectionAsModule}>标记模块</button>
         <button type="button" className="rich-editor-tool accent" title="删除没有正文内容的模块" onClick={removeEmptyModules}>删除空模块</button>
         <button type="button" className="rich-editor-tool accent" title="删除诊断/治疗模块开头的要点卡片" onClick={removeDiagnosisTreatmentKeyPoints}>删除要点</button>
         <button type="button" className="rich-editor-tool danger" title="清空内容" onClick={clearAll}>清空</button>
@@ -1060,8 +1083,8 @@ function RichPasteEditor({
         contentEditable
         suppressContentEditableWarning
         data-placeholder="直接粘贴词条全文内容..."
-        onInput={syncFromEditor}
-        onBlur={syncFromEditor}
+        onInput={() => syncFromEditor()}
+        onBlur={() => syncFromEditor()}
         onPaste={handlePaste}
         onKeyDown={handleKeyDown}
       />

@@ -135,6 +135,17 @@ def _split_reference_paragraphs(text: str) -> list[str]:
     return [stripped] if stripped else []
 
 
+def _is_standalone_source_ref_marker(text: str) -> bool:
+    stripped = (text or "").strip()
+    if not stripped:
+        return False
+    remaining = stripped
+    for pattern in (_INLINE_SOURCE_REF_RE, _SUP_SOURCE_REF_RE):
+        remaining = pattern.sub("", remaining)
+    remaining = _HASH_SOURCE_REF_RE.sub("", remaining)
+    return not re.sub(r'[\s.,，。;；:：、]+', '', remaining)
+
+
 def _split_sentence_fragments(paragraph: str, paragraph_index: int) -> list[dict]:
     fragments: list[dict] = []
     start = -1
@@ -146,6 +157,11 @@ def _split_sentence_fragments(paragraph: str, paragraph_index: int) -> list[dict
             return
         text = re.sub(r'\s+', ' ', paragraph[start:end]).strip()
         if text:
+            if fragments and _is_standalone_source_ref_marker(text):
+                fragments[-1]["text"] = f"{fragments[-1]['text']} {text}".strip()
+                fragments[-1]["end"] = end
+                start = -1
+                return
             fragments.append({
                 "text": text,
                 "paragraph_index": paragraph_index,
@@ -543,6 +559,87 @@ def _rewrite_internal_chunk_citation_list(items: list, chunks: list[ReferenceChu
     ]
 
 
+def _source_ref_sort_key(citation_key: str) -> tuple[int, str]:
+    ref_id = citation_key.split("-", 1)[1] if "-" in citation_key else citation_key
+    return (int(ref_id), "") if ref_id.isdigit() else (10**9, ref_id)
+
+
+def _answer_sentence_around_citation(text: str, citation_start: int) -> str:
+    sentences = _split_sentence_fragments(text, 0)
+    for sentence in sentences:
+        if sentence["start"] <= citation_start < sentence["end"]:
+            return sentence["text"]
+    return text
+
+
+def _best_source_ref_keys_for_answer_sentence(
+    sentence: str,
+    source_id: int,
+    reference_anchors: list[ReferenceAnchor],
+) -> list[str]:
+    grouped: dict[str, list[ReferenceAnchor]] = defaultdict(list)
+    for anchor in reference_anchors:
+        if (
+            anchor.source_id == source_id
+            and anchor.source_ref_id
+            and anchor.citation_key.startswith(f"{source_id}-")
+        ):
+            grouped[anchor.quote].append(anchor)
+    if not grouped:
+        return []
+
+    best_score = 0.0
+    best_anchors: list[ReferenceAnchor] = []
+    for quote, anchors in grouped.items():
+        score = _overlap_score(sentence, quote)
+        if score > best_score:
+            best_score = score
+            best_anchors = anchors
+
+    if best_score < 0.15:
+        return []
+
+    keys = list(dict.fromkeys(anchor.citation_key for anchor in best_anchors))
+    return sorted(keys, key=_source_ref_sort_key)
+
+
+def _rewrite_source_only_citations_to_source_refs(
+    text: str,
+    reference_anchors: list[ReferenceAnchor],
+) -> str:
+    source_ids_with_ref_anchors = {
+        anchor.source_id for anchor in reference_anchors if anchor.source_ref_id
+    }
+    if not text or not source_ids_with_ref_anchors:
+        return text
+
+    citation_group_re = re.compile(
+        r'\[([0-9]+(?:\s*[、,，]\s*[0-9]+)*)\]'
+    )
+
+    def repl(match: re.Match) -> str:
+        sentence = _answer_sentence_around_citation(text, match.start())
+        raw_tokens = re.split(r'\s*[、,，]\s*', match.group(1))
+        rewritten: list[str] = []
+        changed = False
+        for raw_token in raw_tokens:
+            token = raw_token.strip()
+            if token.isdigit() and int(token) in source_ids_with_ref_anchors:
+                source_ref_keys = _best_source_ref_keys_for_answer_sentence(
+                    sentence,
+                    int(token),
+                    reference_anchors,
+                )
+                if source_ref_keys:
+                    rewritten.extend(source_ref_keys)
+                    changed = True
+                    continue
+            rewritten.append(token)
+        return f"[{'、'.join(rewritten)}]" if changed else match.group(0)
+
+    return citation_group_re.sub(repl, text)
+
+
 def _expand_source_ref_ids(raw: str) -> list[str]:
     ref_ids: list[str] = []
     parts = re.split(r'[,，、;；]\s*', raw)
@@ -891,6 +988,10 @@ async def generate_ai_integration_answer(
             for anchor in reference_anchors
             if anchor.source_id != 0
         },
+    )
+    rewritten_answer = _rewrite_source_only_citations_to_source_refs(
+        rewritten_answer,
+        [anchor for anchor in reference_anchors if anchor.source_id != 0],
     )
 
     return AiIntegrationResponse(

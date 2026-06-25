@@ -154,7 +154,7 @@ def parse_html_structured(html: str, preserve_leading_text: bool = False) -> str
     image captions and tables.  Stops before the References section.
 
     Output markers:
-        [H1] / [H2] / [H3]  – headings (original HTML tag level)
+        [H1] / [H2] / [H3] – detected headings
         [图片] <caption>     – figure captions starting with 图
         [表格] <caption>     – figure captions starting with 表
         Markdown table rows  – table cell content
@@ -212,7 +212,12 @@ def parse_html_structured(html: str, preserve_leading_text: bool = False) -> str
                     stopped[0] = True
                     return
                 level = int(tag[1])
-                lines.append(f"[H{level}] {text}")
+                if level <= 2:
+                    lines.append(f"[H{level}] {text}")
+                elif _H3_PAREN_RE.match(text):
+                    lines.append(f"[H3] {text}")
+                else:
+                    lines.append(text)
                 continue
 
             # ── Figure captions ────────────────────────────────────────
@@ -499,7 +504,6 @@ def parse_txt_structured(text: str) -> str:
     Heading detection:
         - [H2]: 一、二、三... prefixed OR standalone short CJK title (≤8 chars)
         - [H3]: （一）（二）... Chinese numeral in parentheses
-
     Table mode: activated by "表 N" caption line; exits when a 一、 or （一）
     heading is seen, or when a standalone short title follows an empty line.
     """

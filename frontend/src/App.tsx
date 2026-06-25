@@ -1026,6 +1026,8 @@ function AppContent() {
               disease={disease}
               articleContent={articleContent}
               parsedArticle={parsedArticle}
+              sectionAnalyses={sectionAnalyses}
+              gapAnalysis={gapAnalysis}
               referenceDocs={referenceDocs}
               history={aiIntegrationHistory}
               onAddRecord={addAiIntegrationRecord}

@@ -139,12 +139,37 @@ export interface AiIntegrationRecord {
   answer: string
   referencesUsed: string[]
   referenceAnchors?: ReferenceAnchor[]
+  linkedIssues?: AiIntegrationLinkedIssue[]
   selectedReferences: string[]
   priorityReferences: string[]
   originalScope: 'all' | 'sections' | 'none'
   selectedSectionIds: string[]
   originalContentSnapshot?: string
   createdAt: string
+}
+
+export type AiIntegrationIssueSource = 'quality_review' | 'user_needs'
+
+export type AiIntegrationIssueType =
+  | SectionIssue['issue_type']
+  | 'user_need_missing'
+  | 'user_need_partial'
+
+export interface AiIntegrationLinkedIssue {
+  id: string
+  source?: AiIntegrationIssueSource
+  section_id: string
+  section_heading: string
+  issue_type: AiIntegrationIssueType
+  severity: SectionIssue['severity']
+  description: string
+  examples: string[]
+  reviewer_note?: string
+  anchors?: IssueAnchor[]
+  guideline_evidence?: GuidelineEvidence[]
+  status: SectionIssue['status']
+  qa_frequency?: number
+  revision_suggestion?: string
 }
 
 // === New 7-step workflow types ===

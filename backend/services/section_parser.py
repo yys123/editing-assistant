@@ -725,13 +725,13 @@ def _parse_with_fallback(text: str) -> ParsedArticle:
 
 
 _CJK_NUMBERED_HEADING_RE = re.compile(r"^[一二三四五六七八九十百]+[、.．]\s*\S+")
-_PAREN_NUMBERED_HEADING_RE = re.compile(r"^[（(][一二三四五六七八九十百\d]+[）)]\s*\S+")
+_PAREN_CJK_NUMBERED_HEADING_RE = re.compile(r"^[（(][一二三四五六七八九十百]+[）)]\s*\S+")
 _ARABIC_LIST_ITEM_RE = re.compile(r"^\d+[、.)]\s*\S+")
 
 
 def _is_long_arabic_list_item(text: str) -> bool:
     stripped = text.strip()
-    return bool(_ARABIC_LIST_ITEM_RE.match(stripped) and len(stripped) > 36)
+    return bool(re.match(r"^\d+[.)]\s*\S+", stripped) and len(stripped) > 36)
 
 
 def _normalize_plain_heading(text: str) -> str:
@@ -764,11 +764,8 @@ def _plain_heading_level(line: str, seen_level1: bool, seen_level2: bool) -> int
         return 2
     if _is_long_arabic_list_item(stripped):
         return 0
-    if seen_level2 and _PAREN_NUMBERED_HEADING_RE.match(stripped):
+    if seen_level2 and _PAREN_CJK_NUMBERED_HEADING_RE.match(stripped):
         if len(stripped) <= 80:
-            return 3
-    if seen_level2 and _ARABIC_LIST_ITEM_RE.match(stripped):
-        if len(stripped) <= 36:
             return 3
     return 0
 

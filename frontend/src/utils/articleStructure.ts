@@ -9,13 +9,16 @@ function isLevel2Heading(text: string) {
 function isLevel3Heading(text: string) {
   const trimmed = text.trim()
   if (isLongArabicListItem(trimmed)) return false
-  if (/^\d+[、.)]\s*\S+/.test(trimmed)) return true
-  return /^[（(][一二三四五六七八九十百\d]+[）)]\s*\S+/.test(trimmed)
+  return /^[（(][一二三四五六七八九十百]+[）)]\s*\S+/.test(trimmed)
 }
 
 function isLongArabicListItem(text: string) {
   const trimmed = text.trim()
-  return /^\d+[、.)]\s*\S+/.test(trimmed) && trimmed.length > 36
+  return /^\d+[.)]\s*\S+/.test(trimmed) && trimmed.length > 36
+}
+
+function isParenthesizedArabicListItem(text: string) {
+  return /^[（(]\d+[）)]\s*\S+/.test(text.trim())
 }
 
 function isFigureOrTableCaptionLine(text: string) {
@@ -24,16 +27,15 @@ function isFigureOrTableCaptionLine(text: string) {
 
 function splitInlineLevel3Heading(text: string) {
   const trimmed = text.trim()
-  const match = trimmed.match(/^((?:\[图注\]\s*)?.+[。；;：:])\s+((?:[（(][一二三四五六七八九十百\d]+[）)]|\d+[、.)])\s*\S.*)$/)
+  const match = trimmed.match(/^((?:\[图注\]\s*)?.+[。；;：:])\s+([（(][一二三四五六七八九十百]+[）)]\s*\S.*)$/)
   if (!match) return null
   const [, body, heading] = match
-  if (/^\d+[、.)]/.test(heading.trim()) && heading.trim().length > 36) return null
   return { body, heading }
 }
 
 function splitCaptionTrailingLevel3Heading(text: string) {
   const trimmed = text.trim()
-  const match = trimmed.match(/^((?:图|表)\s*\d+[^\n]*?\]?)\s*((?:[（(][一二三四五六七八九十百\d]+[）)]|\d+[、.)])\s*\S.*)$/)
+  const match = trimmed.match(/^((?:图|表)\s*\d+[^\n]*?\]?)\s*([（(][一二三四五六七八九十百]+[）)]\s*\S.*)$/)
   if (!match) return null
   const [, body, heading] = match
   return { body: body.trim(), heading: heading.trim() }
@@ -58,7 +60,7 @@ export function articleContentToStructuredMarkers(text: string) {
     if (markerMatch) {
       const markerLevel = Number(markerMatch[1])
       const markerText = markerMatch[2].trim()
-      if (markerLevel === 3 && isLongArabicListItem(markerText)) {
+      if (markerLevel === 3 && !isLevel3Heading(markerText)) {
         prevNonEmptyLine = markerText
         return markerText
       }

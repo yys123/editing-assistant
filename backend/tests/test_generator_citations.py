@@ -204,6 +204,32 @@ class GeneratorCitationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("原文句子：静脉钙剂可迅速对抗高钾对心肌的毒性[46]。", formatted)
         self.assertNotIn("引用标记：[1-45、1-46]\n参考数据源", formatted)
 
+    def test_reference_chunks_attach_orphan_line_citation_to_previous_sentence(self):
+        chunks = _build_reference_chunks([
+            ReferenceInput(
+                id=3,
+                filename="急性中毒流行病学.html",
+                text=(
+                    "急性中毒患者约占同期急诊患者的2.7%~3.6%，近年呈上升趋势\n"
+                    "[1]\n\n"
+                    "其他背景信息。"
+                ),
+            )
+        ])
+
+        formatted = _format_reference_chunks(chunks)
+        anchors = _anchors_from_reference_chunks(chunks)
+        by_key = {anchor.citation_key: anchor for anchor in anchors}
+
+        self.assertIn("证据1｜引用标记：[3-1]", formatted)
+        self.assertIn(
+            "原文句子：急性中毒患者约占同期急诊患者的2.7%~3.6%，近年呈上升趋势 [1]",
+            formatted,
+        )
+        self.assertNotIn("原文句子：[1]", formatted)
+        self.assertIn("3-1", by_key)
+        self.assertIn("2.7%~3.6%", by_key["3-1"].quote)
+
     def test_format_reference_chunks_does_not_make_uncited_neighbor_sentences_source_only_evidence(self):
         chunks = _build_reference_chunks([
             ReferenceInput(

@@ -26,6 +26,37 @@ class HtmlStructuredParserTests(unittest.TestCase):
         self.assertIn("[H3] （二）临床地位", structured)
         self.assertIn("[H2] 二、ACEI 作用机制", structured)
         self.assertIn("[H3] （一）Ang II 的病理生理机制", structured)
+        self.assertIn("1、对血管的作用", structured)
+        self.assertNotIn("[H3] 1、对血管的作用", structured)
+
+    def test_only_chinese_parenthesized_numbers_become_h3(self):
+        html = """
+        <section class="page_disease-section">
+          <div>
+            <h2>诊断</h2>
+            <div class="ck-content">
+              <p>一、 急性中毒风险及病情评估</p>
+              <p>（一）风险评估</p>
+              <p>1、 药物中毒风险评估应与复苏和(或)支持治疗同步进行，包括“3W”和“2H”:</p>
+              <p>(1) What：中毒的药物</p>
+              <p>(2) Who：患者因素</p>
+            </div>
+          </div>
+        </section>
+        """
+
+        structured = parse_html_structured(html)
+
+        self.assertIn("[H2] 一、 急性中毒风险及病情评估", structured)
+        self.assertIn("[H3] （一）风险评估", structured)
+        self.assertIn("1、 药物中毒风险评估应与复苏和(或)支持治疗同步进行，包括“3W”和“2H”:", structured)
+        self.assertNotIn("[H3] 1、 药物中毒风险评估应与复苏和(或)支持治疗同步进行，包括“3W”和“2H”:", structured)
+        self.assertIn("(1) What：中毒的药物", structured)
+        self.assertIn("(2) Who：患者因素", structured)
+        self.assertNotIn("[H3] (1) What：中毒的药物", structured)
+        self.assertNotIn("[H3] (2) Who：患者因素", structured)
+        self.assertNotIn("[H4]", structured)
+        self.assertNotIn("[H5]", structured)
 
     def test_preserves_non_reference_superscript_and_subscript(self):
         html = """

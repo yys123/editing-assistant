@@ -13,9 +13,11 @@ const structured = articleContentToStructuredMarkers(epoInlineHeading)
 
 assert.match(
   structured,
-  /抑制剂。\n\[H3\] 1、 EPO 生成不足及活性降低/,
+  /抑制剂。 1、 EPO 生成不足及活性降低/,
 )
-assert.match(structured, /^\[H3\] \(1\) EPO 减少：/m)
+assert.doesNotMatch(structured, /^\[H3\] 1、 EPO 生成不足及活性降低/m)
+assert.doesNotMatch(structured, /^\[H3\] \(1\) EPO 减少：/m)
+assert.match(structured, /^\(1\) EPO 减少：/m)
 
 const captionFollowedByHeading = [
   '[H1] 诊断',
@@ -28,7 +30,8 @@ const captionFollowedByHeading = [
 
 const captionStructured = articleContentToStructuredMarkers(captionFollowedByHeading)
 
-assert.match(captionStructured, /图 16 不同铁状态下的机制\[892\]\n\[H3\] 3、 营养不良/)
+assert.match(captionStructured, /图 16 不同铁状态下的机制\[892\]\n3、 营养不良/)
+assert.doesNotMatch(captionStructured, /^\[H3\] 3、 营养不良/m)
 
 const inlineCaptionRemarkHeading = [
   '[H1] 治疗',
@@ -40,8 +43,9 @@ const inlineCaptionRemarkStructured = articleContentToStructuredMarkers(inlineCa
 
 assert.match(
   inlineCaptionRemarkStructured,
-  /保留方案。\n\[H3\] 2、 手术治疗策略/,
+  /保留方案。 2、 手术治疗策略/,
 )
+assert.doesNotMatch(inlineCaptionRemarkStructured, /^\[H3\] 2、 手术治疗策略/m)
 
 const separatedFigureNoteHeading = [
   '[H1] 治疗',
@@ -54,8 +58,9 @@ const separatedFigureNoteStructured = articleContentToStructuredMarkers(separate
 
 assert.match(
   separatedFigureNoteStructured,
-  /\[图注\] xiii[\s\S]*保留方案。\n\[H3\] 2、 手术治疗策略/,
+  /\[图注\] xiii[\s\S]*保留方案。\n2、 手术治疗策略/,
 )
+assert.doesNotMatch(separatedFigureNoteStructured, /^\[H3\] 2、 手术治疗策略/m)
 
 const plainRomanCaptionFollowedByHeading = [
   '[H1] 治疗',
@@ -69,8 +74,9 @@ const plainRomanCaptionStructured = articleContentToStructuredMarkers(plainRoman
 
 assert.match(
   plainRomanCaptionStructured,
-  /xiii\. EMA[\s\S]*保留方案。\n\[H3\] 2、 手术治疗策略/,
+  /xiii\. EMA[\s\S]*保留方案。\n2、 手术治疗策略/,
 )
+assert.doesNotMatch(plainRomanCaptionStructured, /^\[H3\] 2、 手术治疗策略/m)
 
 const longOrderedListItem = [
   '[H1] 诊断',
@@ -84,7 +90,8 @@ const longOrderedListStructured = articleContentToStructuredMarkers(longOrderedL
 
 assert.doesNotMatch(longOrderedListStructured, /^\[H3\] 1\) 盆底肌力测定/m)
 assert.match(longOrderedListStructured, /^1\) 盆底肌力测定/m)
-assert.match(longOrderedListStructured, /^\[H3\] 2、 Glazer 评估法/m)
+assert.doesNotMatch(longOrderedListStructured, /^\[H3\] 2、 Glazer 评估法/m)
+assert.match(longOrderedListStructured, /^2、 Glazer 评估法/m)
 
 const legacyLongOrderedListMarker = [
   '[H1] 诊断',
@@ -97,5 +104,29 @@ const legacyLongOrderedListStructured = articleContentToStructuredMarkers(legacy
 
 assert.doesNotMatch(legacyLongOrderedListStructured, /^\[H3\] 1\) 盆底肌力测定/m)
 assert.match(legacyLongOrderedListStructured, /^1\) 盆底肌力测定/m)
+assert.doesNotMatch(legacyLongOrderedListStructured, /^\[H3\] 2、 Glazer 评估法/m)
+assert.match(legacyLongOrderedListStructured, /^2、 Glazer 评估法/m)
+
+const proteinuriaMechanisms = [
+  '[H1] 诊断',
+  '[H2] 三、 发病机制',
+  '5、 蛋白尿',
+  '(1) 尿蛋白对肾小球系膜细胞和足细胞的毒性作用：大分子蛋白在系膜细胞中穿行可激活信号通路。',
+  '(2) 尿蛋白对近端肾小管上皮细胞的直接毒性作用：大量蛋白质进入肾小管腔。',
+  '6、 脂质代谢紊乱',
+  '[H3] (1) 脂蛋白沉积于肾小球系膜区。',
+].join('\n')
+
+const proteinuriaStructured = articleContentToStructuredMarkers(proteinuriaMechanisms)
+
+assert.doesNotMatch(proteinuriaStructured, /^\[H3\] 5、 蛋白尿/m)
+assert.match(proteinuriaStructured, /^5、 蛋白尿/m)
+assert.match(proteinuriaStructured, /^\(1\) 尿蛋白对肾小球系膜细胞和足细胞的毒性作用/m)
+assert.match(proteinuriaStructured, /^\(2\) 尿蛋白对近端肾小管上皮细胞的直接毒性作用/m)
+assert.doesNotMatch(proteinuriaStructured, /^\[H3\] 6、 脂质代谢紊乱/m)
+assert.match(proteinuriaStructured, /^6、 脂质代谢紊乱/m)
+assert.doesNotMatch(proteinuriaStructured, /^\[H3\] \(1\) 尿蛋白/m)
+assert.doesNotMatch(proteinuriaStructured, /^\[H3\] \(1\) 脂蛋白沉积/m)
+assert.match(proteinuriaStructured, /^\(1\) 脂蛋白沉积于肾小球系膜区。/m)
 
 console.log('articleStructure tests passed')

@@ -214,7 +214,87 @@ class SectionParserLongContentTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("基础知识", headings)
         self.assertIn("诊断", headings)
         self.assertIn("治疗", headings)
-        self.assertIn("2、 手术治疗策略", headings)
+        self.assertNotIn("2、 手术治疗策略", headings)
+        medication = next(s for s in result.sections if s.heading == "一、 药物治疗")
+        self.assertIn("2、 手术治疗策略", medication.content)
+
+    async def test_plain_fast_parser_only_promotes_chinese_parenthesized_numbers_to_h3(self):
+        text = (
+            "基础知识\n"
+            "一、 定义\n"
+            "定义正文\n"
+            "诊断\n"
+            "一、 急性中毒风险及病情评估\n"
+            "（一）风险评估\n"
+            "1、 药物中毒风险评估应与复苏和(或)支持治疗同步进行，包括“3W”和“2H”:\n"
+            "(1) What：中毒的药物\n"
+            "识别中毒药物正文\n"
+            "(2) Who：患者因素\n"
+            "患者因素正文\n"
+            "2、 根据特异性表现识别中毒药物\n"
+            "特异性表现正文\n"
+            "（二）病情评估\n"
+            "病情评估正文\n"
+            "治疗\n"
+            "一、 血液净化治疗\n"
+            "治疗正文"
+        )
+
+        async def fail_generate_text(*args, **kwargs):
+            raise AssertionError("plain structured content should not call AI parser")
+
+        with patch("services.section_parser.generate_text", side_effect=fail_generate_text):
+            result = await section_parser.parse_article_sections(text)
+
+        sections = {s.heading: s for s in result.sections}
+        self.assertEqual(sections["一、 急性中毒风险及病情评估"].level, 2)
+        self.assertEqual(sections["（一）风险评估"].level, 3)
+        self.assertEqual(sections["（二）病情评估"].level, 3)
+        self.assertNotIn("1、 药物中毒风险评估应与复苏和(或)支持治疗同步进行，包括“3W”和“2H”:", sections)
+        self.assertNotIn("2、 根据特异性表现识别中毒药物", sections)
+        self.assertNotIn("(1) What：中毒的药物", sections)
+        self.assertIn("1、 药物中毒风险评估应与复苏和(或)支持治疗同步进行，包括“3W”和“2H”:", sections["（一）风险评估"].content)
+        self.assertIn("(1) What：中毒的药物", sections["（一）风险评估"].content)
+        self.assertIn("(2) Who：患者因素", sections["（一）风险评估"].content)
+        self.assertIn("2、 根据特异性表现识别中毒药物", sections["（一）风险评估"].content)
+
+    async def test_plain_fast_parser_keeps_arabic_and_parenthesized_numbered_lines_in_h2_body(self):
+        text = (
+            "基础知识\n"
+            "一、 定义\n"
+            "定义正文\n"
+            "诊断\n"
+            "三、 发病机制\n"
+            "1、 肾小球高滤过学说\n"
+            "高滤过正文\n"
+            "5、 蛋白尿\n"
+            "(1) 尿蛋白对肾小球系膜细胞和足细胞的毒性作用：大分子蛋白在系膜细胞中穿行可激活信号通路。\n"
+            "(2) 尿蛋白对近端肾小管上皮细胞的直接毒性作用：大量蛋白质进入肾小管腔。\n"
+            "(3) 尿白蛋白通过损伤的肾小球内皮细胞发生渗漏。\n"
+            "6、 脂质代谢紊乱\n"
+            "(1) 脂蛋白沉积于肾小球系膜区。\n"
+            "治疗\n"
+            "一、 治疗原则\n"
+            "治疗正文"
+        )
+
+        async def fail_generate_text(*args, **kwargs):
+            raise AssertionError("plain structured content should not call AI parser")
+
+        with patch("services.section_parser.generate_text", side_effect=fail_generate_text):
+            result = await section_parser.parse_article_sections(text)
+
+        sections = {s.heading: s for s in result.sections}
+        self.assertEqual(sections["三、 发病机制"].level, 2)
+        self.assertNotIn("5、 蛋白尿", sections)
+        self.assertNotIn("6、 脂质代谢紊乱", sections)
+        self.assertNotIn("(1) 尿蛋白对肾小球系膜细胞和足细胞的毒性作用：大分子蛋白在系膜细胞中穿行可激活信号通路。", sections)
+        self.assertIn("5、 蛋白尿", sections["三、 发病机制"].content)
+        self.assertIn("(1) 尿蛋白对肾小球系膜细胞和足细胞的毒性作用", sections["三、 发病机制"].content)
+        self.assertIn("(2) 尿蛋白对近端肾小管上皮细胞的直接毒性作用", sections["三、 发病机制"].content)
+        self.assertIn("(3) 尿白蛋白通过损伤的肾小球内皮细胞发生渗漏", sections["三、 发病机制"].content)
+        self.assertIn("6、 脂质代谢紊乱", sections["三、 发病机制"].content)
+        self.assertIn("(1) 脂蛋白沉积于肾小球系膜区", sections["三、 发病机制"].content)
 
     async def test_plain_fast_parser_handles_inline_trailing_numbered_heading(self):
         text = (
