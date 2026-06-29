@@ -25,6 +25,30 @@ assert.equal(
     draftHistoryCount: 0,
     gapItemsCount: 0,
   }),
+  false,
+)
+
+assert.equal(
+  canOpenWorkflowStep(7, {
+    disease: '糖尿病',
+    articleContent: '原文',
+    hasParsedArticle: true,
+    hasGapAnalysis: true,
+    draftHistoryCount: 1,
+    gapItemsCount: 1,
+  }),
+  false,
+)
+
+assert.equal(
+  canOpenWorkflowStep(8, {
+    disease: '糖尿病',
+    articleContent: '原文',
+    hasParsedArticle: true,
+    hasGapAnalysis: false,
+    draftHistoryCount: 0,
+    gapItemsCount: 0,
+  }),
   true,
 )
 

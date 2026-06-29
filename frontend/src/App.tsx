@@ -4,8 +4,9 @@ import StepRefReview from './components/StepRefReview'
 import StepSectionPreview from './components/StepSectionPreview'
 import StepSectionAnalysis, { getSectionAnalysisTargetIds } from './components/StepSectionAnalysis'
 import StepGapAnalysis from './components/StepGapAnalysis'
-import StepPlanReview from './components/StepPlanReview'
-import StepGenerate from './components/StepGenerate'
+// Temporarily disabled: review/iteration plan and draft generation.
+// import StepPlanReview from './components/StepPlanReview'
+// import StepGenerate from './components/StepGenerate'
 import StepAiIntegration from './components/StepAiIntegration'
 import AdminSettingsModal from './components/AdminSettingsModal'
 import HistoryView from './components/HistoryView'
@@ -43,6 +44,8 @@ const STEP_ICONS: Record<Step, string> = {
   7: 'auto_awesome',
   8: 'hub',
 }
+
+const TEMP_DISABLED_STEPS = new Set<Step>([6, 7])
 
 function isFreshSectionAnalysis(analysis: SectionAnalysis, sourceHash?: string, parserVersion?: number): boolean {
   return !!sourceHash
@@ -511,15 +514,27 @@ function AppContent() {
     let maxSafeStep: Step = 1
     if (session.articleContent) maxSafeStep = 2
     if (session.refEvalResult || (session.referenceDocs && session.referenceDocs.length === 0)) maxSafeStep = 3
-    if (hasValidParsedArticle) maxSafeStep = 6
-    if (sessionHasFreshSectionAnalyses && session.draftHistory?.length) maxSafeStep = 7
+    if (hasValidParsedArticle) maxSafeStep = 5
+    // Temporarily disabled: review/iteration plan and draft generation resume targets.
+    // if (hasValidParsedArticle) maxSafeStep = 6
+    // if (sessionHasFreshSectionAnalyses && session.draftHistory?.length) maxSafeStep = 7
     const rawTarget = session.currentStep ?? (session.plan ? 7 : 1)
     // If session was saved with old 6-step numbering (max 6 and no refEvalResult field),
     // remap; otherwise use as-is
     const isOldFormat = rawTarget <= 6 && !('refEvalResult' in session)
     const target: Step = isOldFormat ? remapStep(rawTarget) : (rawTarget as Step)
     if (session.aiIntegrationHistory?.length || session.articleContent) maxSafeStep = Math.max(maxSafeStep, 8) as Step
-    const resumeStep: Step = (Math.min(target, maxSafeStep) as Step)
+    const boundedTarget = Math.min(target, maxSafeStep) as Step
+    const resumeStep: Step = TEMP_DISABLED_STEPS.has(boundedTarget)
+      ? (canOpenWorkflowStep(8, {
+        disease: session.disease,
+        articleContent: session.articleContent ?? '',
+        hasParsedArticle: hasValidParsedArticle,
+        hasGapAnalysis: !!restoredGapAnalysis,
+        draftHistoryCount: session.draftHistory?.length ?? 0,
+        gapItemsCount: session.gapItems?.length ?? 0,
+      }) ? 8 : (hasValidParsedArticle ? 5 : 1))
+      : boundedTarget
     if (resumeStep === 6 && hasValidParsedArticle && !restoredGapAnalysis) {
       setGapAnalysis(createEmptyGapAnalysis((session.qaItems ?? []).length || session.qaCount || 0))
     }
@@ -674,8 +689,8 @@ function AppContent() {
       case 5:
         return {
           backLabel: '返回质量审评', backAction: () => setStep(4),
-          nextLabel: canClick(6) ? '下一步：审核与迭代计划' : null,
-          nextAction: canClick(6) ? () => goToStep(6) : null,
+          nextLabel: canClick(8) ? '下一步：AI整合' : null,
+          nextAction: canClick(8) ? () => goToStep(8) : null,
         }
       case 6: {
         const ungeneratedCount = gapItems.filter(g =>
@@ -719,8 +734,8 @@ function AppContent() {
         }
       case 8:
         return {
-          backLabel: canClick(7) ? '返回生成稿件' : '返回上传',
-          backAction: () => setStep(canClick(7) ? 7 : 1),
+          backLabel: canClick(5) ? '返回用户需求分析' : '返回上传',
+          backAction: () => setStep(canClick(5) ? 5 : 1),
           nextLabel: null, nextAction: null,
         }
       default:
@@ -728,11 +743,13 @@ function AppContent() {
     }
   }
 
-  const steps = Object.entries(STEP_LABELS).map(([k, label]) => ({
-    key: parseInt(k) as Step,
-    label,
-    icon: STEP_ICONS[parseInt(k) as Step],
-  }))
+  const steps = Object.entries(STEP_LABELS)
+    .map(([k, label]) => ({
+      key: parseInt(k) as Step,
+      label,
+      icon: STEP_ICONS[parseInt(k) as Step],
+    }))
+    .filter(s => !TEMP_DISABLED_STEPS.has(s.key))
 
   if (authLoading) {
     return (
@@ -814,7 +831,7 @@ function AppContent() {
         <nav className="app-sidebar">
           <div style={{ padding: '20px 20px 12px' }}>
             <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--m3-on-surface)' }}>任务进度</div>
-            <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>8步临床工作流</div>
+            <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginTop: 2 }}>核心临床工作流</div>
           </div>
           <div style={{ padding: '0 12px' }}>
             {steps.map(s => {
@@ -989,6 +1006,8 @@ function AppContent() {
             />
           )}
 
+          {/*
+          Temporarily disabled: review/iteration plan.
           {step === 6 && parsedArticle && gapAnalysis && (
             <StepPlanReview
               disease={disease}
@@ -1003,7 +1022,10 @@ function AppContent() {
               onBack={() => setStep(5)}
             />
           )}
+          */}
 
+          {/*
+          Temporarily disabled: draft generation.
           {step === 7 && (selectedGap || selectedGaps.length > 0 || draftHistory.length > 0) && (
             <StepGenerate
               disease={disease}
@@ -1020,6 +1042,7 @@ function AppContent() {
               onBack={() => setStep(6)}
             />
           )}
+          */}
 
           {step === 8 && (
             <StepAiIntegration

@@ -39,6 +39,38 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("引用标记：[1]", calls[0]["prompt"])
         self.assertIn("引用参考资料时必须使用每条证据列出的“引用标记”", calls[0]["prompt"])
         self.assertIn("优先以重点指南为准", calls[0]["prompt"])
+        self.assertIn("不要沿用原词条或参考资料中的原有条目序号", calls[0]["prompt"])
+        self.assertIn("除非用户明确要求编号列表", calls[0]["prompt"])
+
+    async def test_ai_integration_forces_priority_reference_chunks_into_prompt(self):
+        captured = {}
+
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            captured["prompt"] = prompt
+            return "整合结果。"
+
+        dominant_chunks = "\n\n".join(
+            f"糖尿病 神经病变 发病机制 普通资料片段 {index}。"
+            for index in range(220)
+        )
+        req = AiIntegrationRequest(
+            disease="糖尿病周围神经病变",
+            user_request="请整理糖尿病周围神经病变的发病机制",
+            reference_inputs=[
+                ReferenceInput(id=1, filename="普通指南.pdf", text=dominant_chunks),
+                ReferenceInput(
+                    id=2,
+                    filename="重点指南.pdf",
+                    text="PRIORITY_ONLY_SENTENCE_XYZ.",
+                ),
+            ],
+            priority_reference_ids=[2],
+        )
+
+        await generate_ai_integration_answer(req, text_generator=fake_generate_text)
+
+        self.assertIn("参考数据源 2：重点指南.pdf（重点指南）", captured["prompt"])
+        self.assertIn("PRIORITY_ONLY_SENTENCE_XYZ", captured["prompt"])
 
     async def test_ai_integration_uses_source_ref_citation_keys_with_stable_chunk_anchors(self):
         calls = []

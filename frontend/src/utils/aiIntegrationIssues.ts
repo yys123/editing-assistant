@@ -16,6 +16,23 @@ const SEVERITY_LABELS: Record<SectionIssue['severity'], string> = {
   low: '低',
 }
 
+export function getLinkedIssuePanelLayout(issueCount: number) {
+  return {
+    outer: {
+      overflowY: 'visible' as const,
+    },
+    inner: issueCount > 3
+      ? {
+        maxHeight: 360,
+        overflowY: 'auto' as const,
+      }
+      : {
+        maxHeight: 'none' as const,
+        overflowY: 'visible' as const,
+      },
+  }
+}
+
 export function issueTypeLabel(issueType: AiIntegrationIssueType | string): string {
   return ISSUE_TYPE_LABELS[issueType as AiIntegrationIssueType] ?? issueType
 }
@@ -26,16 +43,18 @@ export function issueSeverityLabel(severity: SectionIssue['severity'] | string):
 
 export function collectAiIntegrationLinkedIssues(
   sectionAnalyses: SectionAnalysis[] = [],
-  options: { includeUnconfirmed?: boolean } = {},
+  options: { includeUnconfirmed?: boolean; sectionOrder?: string[] } = {},
 ): AiIntegrationLinkedIssue[] {
   const allowedStatuses = options.includeUnconfirmed
     ? new Set<SectionIssue['status']>(['confirmed', 'added', 'ai'])
     : new Set<SectionIssue['status']>(['confirmed', 'added'])
+  const sectionOrder = new Map((options.sectionOrder ?? []).map((id, index) => [id, index]))
 
-  return sectionAnalyses.flatMap(analysis =>
+  const issues = sectionAnalyses.flatMap((analysis, analysisIndex) =>
     (analysis.issues ?? [])
-      .filter(issue => allowedStatuses.has(issue.status))
-      .map(issue => ({
+      .map((issue, issueIndex) => ({ issue, analysisIndex, issueIndex }))
+      .filter(item => allowedStatuses.has(item.issue.status))
+      .map(({ issue, analysisIndex, issueIndex }) => ({
         id: issue.id,
         source: 'quality_review' as const,
         section_id: analysis.section_id,
@@ -48,8 +67,20 @@ export function collectAiIntegrationLinkedIssues(
         anchors: issue.anchors,
         guideline_evidence: issue.guideline_evidence,
         status: issue.status,
+        _sortIndex: analysisIndex,
+        _issueIndex: issueIndex,
       })),
   )
+
+  return issues
+    .sort((a, b) => {
+      const sectionA = sectionOrder.get(a.section_id) ?? Number.MAX_SAFE_INTEGER
+      const sectionB = sectionOrder.get(b.section_id) ?? Number.MAX_SAFE_INTEGER
+      return sectionA - sectionB
+        || a._sortIndex - b._sortIndex
+        || a._issueIndex - b._issueIndex
+    })
+    .map(({ _sortIndex, _issueIndex, ...issue }) => issue)
 }
 
 export function collectNeedsAnalysisLinkedIssues(

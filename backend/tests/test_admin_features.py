@@ -188,6 +188,20 @@ class AdminActivityMiddlewareTests(unittest.TestCase):
         self.assertTrue(main._should_track_activity("/api/generate/draft"))
 
 
+class TemporaryDisabledDraftRouteTests(unittest.TestCase):
+    def test_plan_and_draft_generation_routes_are_temporarily_disabled_but_ai_integration_remains(self):
+        route_paths = {
+            getattr(route, "path", None)
+            for route in main.app.routes
+        }
+
+        self.assertNotIn("/api/analyze/plan", route_paths)
+        self.assertNotIn("/api/analyze/plan-from-gap", route_paths)
+        self.assertNotIn("/api/generate/draft", route_paths)
+        self.assertNotIn("/api/generate/batch-draft", route_paths)
+        self.assertIn("/api/generate/ai-integration", route_paths)
+
+
 class AdminAiRequestPayloadTests(unittest.TestCase):
     def test_ai_call_logs_hide_unreadable_request_paths(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -944,12 +944,24 @@ def _build_priority_reference_block(
             max_total_chars=max_total_chars,
         )
         refs_for_prompt = []
-        for ref_idx, chunk in selected:
+        included_ref_idxs: set[int] = set()
+
+        def append_priority_chunk(ref_idx: int, chunk: str) -> None:
             label = _reference_source_label(clean_refs[ref_idx - 1], ref_idx)
             if re.match(r"^###\s*参考数据源\s*\d+", chunk):
                 refs_for_prompt.append(chunk)
             else:
                 refs_for_prompt.append(f"### {label}（重点指南相关片段）\n{chunk}")
+
+        for ref_idx, chunk in selected:
+            included_ref_idxs.add(ref_idx)
+            append_priority_chunk(ref_idx, chunk)
+        for ref_idx, text in enumerate(clean_refs, 1):
+            if ref_idx in included_ref_idxs:
+                continue
+            fallback_chunk = (_chunk_reference_text(text[:2000]) or [text[:2000]])[0].strip()
+            if fallback_chunk:
+                append_priority_chunk(ref_idx, fallback_chunk)
     else:
         refs_for_prompt = clean_refs
     return (

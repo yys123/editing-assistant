@@ -2,7 +2,8 @@ import re
 import base64
 import httpx
 from bs4 import BeautifulSoup, Tag, NavigableString
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from services.document import _mark_inline_sentence_citations
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -49,7 +50,8 @@ def _normalize_reference_sup_text(text: str) -> str:
         compact = compact[1:-1]
     if not re.fullmatch(r"\d+(?:[,，、;；\-~～至–—]\d+)*", compact):
         return ""
-    return re.sub(r"[，、;；]", ",", compact)
+    normalized = re.sub(r"[，、;；]", ",", compact)
+    return re.sub(r"[~～至–—]", "-", normalized)
 
 
 def _is_reference_sup_text(text: str) -> bool:
@@ -96,13 +98,85 @@ def _looks_like_reference_sup(tag: Tag) -> bool:
     # superscripts. Citation superscripts are usually attached to prose.
     if prev_char and re.match(r"[\d×*/+\-=]", prev_char):
         return False
-    if next_char and re.match(r"[A-Za-z0-9/]", next_char):
+    if next_char and re.match(r"[a-z0-9/]", next_char):
         return False
 
     return True
 
 
-def _extract_text_with_refs(tag: Tag) -> str:
+def _reference_id_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (value or "").strip().lstrip("#").lower())
+
+
+def _is_common_reference_target_id(value: str) -> bool:
+    key = _reference_id_key(value)
+    return bool(re.fullmatch(r"(?:r|ref|refs|bib|bibr|cit|citation)\d+", key))
+
+
+def _is_reference_container(tag: Tag) -> bool:
+    values = [
+        str(tag.get("id") or ""),
+        " ".join(tag.get("class") or []),
+        str(tag.get("aria-label") or ""),
+        str(tag.get("role") or ""),
+    ]
+    joined = " ".join(values).lower()
+    return bool(re.search(r"references?|ref[-_\s]?list|bibliograph|citations?", joined))
+
+
+def _collect_reference_target_ids(root: Tag) -> set[str]:
+    targets: set[str] = set()
+    for tag in root.find_all(True):
+        tag_id = str(tag.get("id") or "")
+        tag_name = str(tag.get("name") or "")
+        if _is_common_reference_target_id(tag_id):
+            targets.add(_reference_id_key(tag_id))
+        if _is_common_reference_target_id(tag_name):
+            targets.add(_reference_id_key(tag_name))
+
+    for container in root.find_all(_is_reference_container):
+        for tag in container.find_all(True):
+            tag_id = str(tag.get("id") or "")
+            tag_name = str(tag.get("name") or "")
+            if tag_id:
+                targets.add(_reference_id_key(tag_id))
+            if tag_name:
+                targets.add(_reference_id_key(tag_name))
+    return targets
+
+
+def _anchor_target_key(tag: Tag) -> str:
+    href = str(tag.get("href") or "")
+    rid = str(tag.get("rid") or "")
+    if rid:
+        return _reference_id_key(rid)
+    if "#" in href:
+        return _reference_id_key(href.rsplit("#", 1)[-1])
+    return ""
+
+
+def _looks_like_reference_anchor(tag: Tag, reference_targets: Optional[set[str]] = None) -> bool:
+    text = tag.get_text(" ", strip=True)
+    if not _is_reference_sup_text(text):
+        return False
+
+    target = _anchor_target_key(tag)
+    if reference_targets and target:
+        return target in reference_targets
+
+    classes = " ".join(tag.get("class") or []).lower()
+    href = str(tag.get("href") or "").lower()
+    rid = str(tag.get("rid") or "").lower()
+    if any(key in classes for key in ("xref", "bibr", "citation", "reference", "ref")):
+        return True
+    if re.search(r"(?:^#|ref|bibr|citation|^javascript)", href):
+        return True
+    if re.search(r"^r\d+$|^ref", rid):
+        return True
+    return False
+
+
+def _extract_text_with_refs(tag: Tag, reference_targets: Optional[set[str]] = None) -> str:
     """Recursively extract text, converting literature-sup elements to [N] notation.
 
     <sup class="literature-sup">2,3</sup> → [2,3]
@@ -122,10 +196,13 @@ def _extract_text_with_refs(tag: Tag) -> str:
             elif child.name == "sup" and _looks_like_reference_sup(child):
                 ref = _normalize_reference_sup_text(child.get_text(" ", strip=True))
                 parts.append(f"[{ref}]")
+            elif child.name == "a" and _looks_like_reference_anchor(child, reference_targets):
+                ref = _normalize_reference_sup_text(child.get_text(" ", strip=True))
+                parts.append(f"[{ref}]")
             elif child.name in {"sup", "sub"}:
                 parts.append(_script_text(child.get_text(" ", strip=True), child.name))
             else:
-                parts.append(_extract_text_with_refs(child))
+                parts.append(_extract_text_with_refs(child, reference_targets))
     return re.sub(r"\s+", " ", "".join(parts)).strip()
 
 
@@ -625,8 +702,31 @@ def parse_html_to_text(html: str) -> str:
         or soup.find("body")
     )
 
-    text = (main or soup).get_text(separator="\n", strip=True)
-    lines = [line for line in text.splitlines() if line.strip()]
+    root = main or soup
+    reference_targets = _collect_reference_target_ids(root)
+    block_tags = _HEADING_TAGS | _TEXT_BLOCK_TAGS
+    blocks = [root] if isinstance(root, Tag) and root.name in block_tags else list(root.find_all(block_tags))
+
+    lines = []
+    for tag in blocks:
+        parent = tag.parent
+        nested = False
+        while isinstance(parent, Tag) and parent is not root:
+            if parent.name in block_tags:
+                nested = True
+                break
+            parent = parent.parent
+        if nested:
+            continue
+        text = _extract_text_with_refs(tag, reference_targets)
+        text = _mark_inline_sentence_citations(text)
+        if text:
+            lines.append(text)
+
+    if not lines:
+        text = _extract_text_with_refs(root, reference_targets)
+        text = _mark_inline_sentence_citations(text)
+        lines = [text] if text else []
     return "\n".join(lines)
 
 

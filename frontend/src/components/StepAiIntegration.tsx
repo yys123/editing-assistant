@@ -20,6 +20,7 @@ import {
   buildAiIntegrationIssueRequest,
   collectAiIntegrationLinkedIssues,
   collectNeedsAnalysisLinkedIssues,
+  getLinkedIssuePanelLayout,
   issueSeverityLabel,
   issueTypeLabel,
   sectionIdsForLinkedIssues,
@@ -144,11 +145,16 @@ export default function StepAiIntegration({
   const [error, setError] = useState('')
   const [activeId, setActiveId] = useState<string | null>(history[history.length - 1]?.id ?? null)
   const [activeCitationKey, setActiveCitationKey] = useState<string | null>(null)
-  const [selectedIssueKey, setSelectedIssueKey] = useState<string | null>(null)
+  const [selectedIssueKeys, setSelectedIssueKeys] = useState<string[]>([])
+  const [expandedIssueSections, setExpandedIssueSections] = useState<Record<string, boolean>>({})
 
+  const reviewIssueSectionOrder = useMemo(
+    () => parsedArticle?.sections.map(section => section.id) ?? [],
+    [parsedArticle],
+  )
   const reviewIssues = useMemo(
-    () => collectAiIntegrationLinkedIssues(sectionAnalyses),
-    [sectionAnalyses],
+    () => collectAiIntegrationLinkedIssues(sectionAnalyses, { sectionOrder: reviewIssueSectionOrder }),
+    [sectionAnalyses, reviewIssueSectionOrder],
   )
   const needsIssues = useMemo(
     () => collectNeedsAnalysisLinkedIssues(gapAnalysis),
@@ -165,9 +171,10 @@ export default function StepAiIntegration({
   }, [referenceDocs])
 
   useEffect(() => {
-    setSelectedIssueKey(prev => {
-      if (prev && allLinkedIssues.some(issue => linkedIssueKey(issue) === prev)) return prev
-      return null
+    setSelectedIssueKeys(prev => {
+      const validKeys = new Set(allLinkedIssues.map(linkedIssueKey))
+      const next = prev.filter(key => validKeys.has(key))
+      return next.length === prev.length ? prev : next
     })
   }, [allLinkedIssues])
 
@@ -182,35 +189,38 @@ export default function StepAiIntegration({
 
   const selectedRefSet = useMemo(() => new Set(selectedRefs), [selectedRefs])
   const priorityRefSet = useMemo(() => new Set(priorityRefs), [priorityRefs])
+  const selectedIssueKeySet = useMemo(() => new Set(selectedIssueKeys), [selectedIssueKeys])
   const selectedLinkedIssues = useMemo(
-    () => allLinkedIssues.filter(issue => linkedIssueKey(issue) === selectedIssueKey),
-    [allLinkedIssues, selectedIssueKey],
+    () => allLinkedIssues.filter(issue => selectedIssueKeySet.has(linkedIssueKey(issue))),
+    [allLinkedIssues, selectedIssueKeySet],
   )
   const selectedReviewIssues = useMemo(
-    () => reviewIssues.filter(issue => linkedIssueKey(issue) === selectedIssueKey),
-    [reviewIssues, selectedIssueKey],
+    () => reviewIssues.filter(issue => selectedIssueKeySet.has(linkedIssueKey(issue))),
+    [reviewIssues, selectedIssueKeySet],
   )
   const selectedNeedsIssues = useMemo(
-    () => needsIssues.filter(issue => linkedIssueKey(issue) === selectedIssueKey),
-    [needsIssues, selectedIssueKey],
+    () => needsIssues.filter(issue => selectedIssueKeySet.has(linkedIssueKey(issue))),
+    [needsIssues, selectedIssueKeySet],
   )
   const reviewIssuesBySection = useMemo(() => {
-    const groups = new Map<string, AiIntegrationLinkedIssue[]>()
+    const groups = new Map<string, { heading: string; issues: AiIntegrationLinkedIssue[] }>()
     for (const issue of reviewIssues) {
-      const list = groups.get(issue.section_heading) ?? []
-      list.push(issue)
-      groups.set(issue.section_heading, list)
+      const key = `quality_review:${issue.section_id}`
+      const group = groups.get(key) ?? { heading: issue.section_heading, issues: [] }
+      group.issues.push(issue)
+      groups.set(key, group)
     }
-    return [...groups.entries()]
+    return [...groups.entries()].map(([key, group]) => ({ key, ...group }))
   }, [reviewIssues])
   const needsIssuesBySection = useMemo(() => {
-    const groups = new Map<string, AiIntegrationLinkedIssue[]>()
+    const groups = new Map<string, { heading: string; issues: AiIntegrationLinkedIssue[] }>()
     for (const issue of needsIssues) {
-      const list = groups.get(issue.section_heading) ?? []
-      list.push(issue)
-      groups.set(issue.section_heading, list)
+      const key = `user_needs:${issue.section_id}`
+      const group = groups.get(key) ?? { heading: issue.section_heading, issues: [] }
+      group.issues.push(issue)
+      groups.set(key, group)
     }
-    return [...groups.entries()]
+    return [...groups.entries()].map(([key, group]) => ({ key, ...group }))
   }, [needsIssues])
   const activeRecord = activeId ? history.find(r => r.id === activeId) ?? null : null
   const activeRecordSelectedRefSet = useMemo(
@@ -326,12 +336,18 @@ export default function StepAiIntegration({
 
   const toggleReviewIssue = (issue: AiIntegrationLinkedIssue) => {
     const key = linkedIssueKey(issue)
-    setSelectedIssueKey(prev => prev === key ? null : key)
+    setSelectedIssueKeys(prev => prev.includes(key) ? prev.filter(item => item !== key) : [...prev, key])
   }
 
   const clearLinkedIssues = () => {
-    setSelectedIssueKey(null)
+    setSelectedIssueKeys([])
   }
+
+  const toggleIssueSection = (key: string) => {
+    setExpandedIssueSections(prev => ({ ...prev, [key]: !(prev[key] ?? true) }))
+  }
+
+  const isIssueSectionExpanded = (key: string) => expandedIssueSections[key] ?? false
 
   const generateRequestFromIssues = (
     issues: AiIntegrationLinkedIssue[],
@@ -460,7 +476,7 @@ export default function StepAiIntegration({
             <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-primary)' }}>fact_check</span>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)' }}>质量评审问题</span>
             <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
-              已选 {selectedReviewIssues.length} 个，每次仅可选择 1 个
+              已选 {selectedReviewIssues.length} 个
             </span>
             <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', flexWrap: 'wrap' }}>
               <button className="btn btn-sm" style={{ padding: '3px 10px', fontSize: 12, color: 'var(--gray-500)' }} onClick={clearLinkedIssues}>清空</button>
@@ -471,17 +487,45 @@ export default function StepAiIntegration({
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
-            {reviewIssuesBySection.map(([heading, issues]) => (
-              <div key={heading} style={{ border: '0.5px solid var(--dui-divider)', borderRadius: 8, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: 'var(--m3-surface-container-low)', fontSize: 12 }}>
-                  <span style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>{heading}</span>
-                  <span style={{ color: 'var(--m3-on-surface-variant)' }}>{issues.length} 个问题</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, ...getLinkedIssuePanelLayout(reviewIssues.length).outer }}>
+            {reviewIssuesBySection.map(({ key: groupKey, heading, issues }) => {
+              const expanded = isIssueSectionExpanded(groupKey)
+              const layout = getLinkedIssuePanelLayout(issues.length)
+              const groupIssueKeys = issues.map(linkedIssueKey)
+              const selectedInGroup = groupIssueKeys.filter(key => selectedIssueKeySet.has(key)).length
+              return (
+              <div key={groupKey} style={{ border: '0.5px solid var(--dui-divider)', borderRadius: 8, overflow: 'hidden' }}>
+                <button
+                  type="button"
+                  onClick={() => toggleIssueSection(groupKey)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    padding: '7px 10px',
+                    background: 'var(--m3-surface-container-low)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    textAlign: 'left',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 17, color: 'var(--m3-on-surface-variant)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>chevron_right</span>
+                    <span style={{ fontWeight: 600, color: 'var(--m3-on-surface)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{heading}</span>
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, color: 'var(--m3-on-surface-variant)' }}>
+                    <span>{issues.length} 个问题</span>
+                    {selectedInGroup > 0 && <span style={{ color: 'var(--m3-primary)' }}>已选 {selectedInGroup}</span>}
+                  </span>
+                </button>
+                {expanded && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0, ...layout.inner }}>
                   {issues.map(issue => {
                     const key = linkedIssueKey(issue)
-                    const checked = selectedIssueKey === key
+                    const checked = selectedIssueKeySet.has(key)
                     const severityColor = issue.severity === 'high' ? 'var(--dui-danger)' : issue.severity === 'medium' ? 'var(--dui-warning)' : 'var(--dui-primary)'
                     return (
                       <label
@@ -498,8 +542,7 @@ export default function StepAiIntegration({
                         }}
                       >
                         <input
-                          type="radio"
-                          name="ai-integration-linked-issue"
+                          type="checkbox"
                           checked={checked}
                           onChange={() => toggleReviewIssue(issue)}
                           style={{ marginTop: 3, flexShrink: 0 }}
@@ -509,7 +552,7 @@ export default function StepAiIntegration({
                             <span style={{ color: severityColor, fontWeight: 600 }}>{issueSeverityLabel(issue.severity)}优先</span>
                             <span style={{ color: 'var(--m3-on-surface-variant)' }}>{issueTypeLabel(issue.issue_type)}</span>
                           </span>
-                          <span style={{ display: 'block', color: 'var(--m3-on-surface)', lineHeight: 1.55, wordBreak: 'break-word' }}>
+                          <span style={{ display: 'block', color: 'var(--m3-on-surface)', lineHeight: 1.65, whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                             {issue.description}
                           </span>
                           {issue.reviewer_note && (
@@ -522,8 +565,10 @@ export default function StepAiIntegration({
                     )
                   })}
                 </div>
+                )}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -534,7 +579,7 @@ export default function StepAiIntegration({
             <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-primary)' }}>groups</span>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)' }}>用户需求问题</span>
             <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
-              已选 {selectedNeedsIssues.length} 个，每次仅可选择 1 个
+              已选 {selectedNeedsIssues.length} 个
             </span>
             <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', flexWrap: 'wrap' }}>
               <button className="btn btn-sm" style={{ padding: '3px 10px', fontSize: 12, color: 'var(--gray-500)' }} onClick={clearLinkedIssues}>清空</button>
@@ -545,17 +590,45 @@ export default function StepAiIntegration({
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
-            {needsIssuesBySection.map(([heading, issues]) => (
-              <div key={heading} style={{ border: '0.5px solid var(--dui-divider)', borderRadius: 8, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: 'var(--m3-surface-container-low)', fontSize: 12 }}>
-                  <span style={{ fontWeight: 600, color: 'var(--m3-on-surface)' }}>{heading}</span>
-                  <span style={{ color: 'var(--m3-on-surface-variant)' }}>{issues.length} 个问题</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, ...getLinkedIssuePanelLayout(needsIssues.length).outer }}>
+            {needsIssuesBySection.map(({ key: groupKey, heading, issues }) => {
+              const expanded = isIssueSectionExpanded(groupKey)
+              const layout = getLinkedIssuePanelLayout(issues.length)
+              const groupIssueKeys = issues.map(linkedIssueKey)
+              const selectedInGroup = groupIssueKeys.filter(key => selectedIssueKeySet.has(key)).length
+              return (
+              <div key={groupKey} style={{ border: '0.5px solid var(--dui-divider)', borderRadius: 8, overflow: 'hidden' }}>
+                <button
+                  type="button"
+                  onClick={() => toggleIssueSection(groupKey)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    padding: '7px 10px',
+                    background: 'var(--m3-surface-container-low)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    textAlign: 'left',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 17, color: 'var(--m3-on-surface-variant)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>chevron_right</span>
+                    <span style={{ fontWeight: 600, color: 'var(--m3-on-surface)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{heading}</span>
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, color: 'var(--m3-on-surface-variant)' }}>
+                    <span>{issues.length} 个问题</span>
+                    {selectedInGroup > 0 && <span style={{ color: 'var(--m3-primary)' }}>已选 {selectedInGroup}</span>}
+                  </span>
+                </button>
+                {expanded && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0, ...layout.inner }}>
                   {issues.map(issue => {
                     const key = linkedIssueKey(issue)
-                    const checked = selectedIssueKey === key
+                    const checked = selectedIssueKeySet.has(key)
                     const severityColor = issue.severity === 'high' ? 'var(--dui-danger)' : issue.severity === 'medium' ? 'var(--dui-warning)' : 'var(--dui-primary)'
                     return (
                       <label
@@ -572,8 +645,7 @@ export default function StepAiIntegration({
                         }}
                       >
                         <input
-                          type="radio"
-                          name="ai-integration-linked-issue"
+                          type="checkbox"
                           checked={checked}
                           onChange={() => toggleReviewIssue(issue)}
                           style={{ marginTop: 3, flexShrink: 0 }}
@@ -586,7 +658,7 @@ export default function StepAiIntegration({
                               <span style={{ color: 'var(--m3-on-surface-variant)' }}>{issue.qa_frequency} 次提问</span>
                             )}
                           </span>
-                          <span style={{ display: 'block', color: 'var(--m3-on-surface)', lineHeight: 1.55, wordBreak: 'break-word' }}>
+                          <span style={{ display: 'block', color: 'var(--m3-on-surface)', lineHeight: 1.65, whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                             {issue.description}
                           </span>
                           {(issue.examples ?? []).length > 0 && (
@@ -604,8 +676,10 @@ export default function StepAiIntegration({
                     )
                   })}
                 </div>
+                )}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -722,6 +796,22 @@ export default function StepAiIntegration({
               {item.label}
             </button>
           ))}
+          {originalScope === 'sections' && parsedArticle && (
+            <button
+              type="button"
+              className="btn-m3-outline"
+              onClick={() => setSelectedSectionIds([])}
+              disabled={selectedSectionIds.length === 0}
+              style={{
+                fontSize: 12,
+                padding: '5px 12px',
+                color: selectedSectionIds.length > 0 ? 'var(--gray-500)' : 'var(--gray-400)',
+                cursor: selectedSectionIds.length > 0 ? 'pointer' : 'not-allowed',
+              }}
+            >
+              全部取消
+            </button>
+          )}
           <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', alignSelf: 'center' }}>
             {originalContent ? `${originalContent.length.toLocaleString()} 字符` : '未选择'}
           </span>

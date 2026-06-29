@@ -26,8 +26,9 @@ export function canOpenWorkflowStep(step: Step, context: WorkflowStepContext): b
   if (step === 3) return !!(context.disease && context.articleContent)
   if (step === 4) return context.hasParsedArticle
   if (step === 5) return context.hasParsedArticle
-  if (step === 6) return context.hasParsedArticle
-  if (step === 7) return context.draftHistoryCount > 0 || context.gapItemsCount > 0
+  // Temporarily disabled: review/iteration plan and draft generation.
+  if (step === 6) return false
+  if (step === 7) return false
   if (step === 8) return !!(context.disease && context.articleContent)
   return false
 }

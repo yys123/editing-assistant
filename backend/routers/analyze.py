@@ -162,23 +162,24 @@ async def run_gap_analysis(req: GapAnalyzeRequest):
         raise HTTPException(500, f"差距分析失败: {str(e)}")
 
 
-class PlanFromGapRequest(BaseModel):
-    disease: str
-    section_analyses: List[SectionAnalysis]
-    gap_analysis: GapAnalysis
-    parsed_article: Optional[ParsedArticle] = None
-
-
-@router.post("/plan-from-gap")
-async def generate_plan_from_gap_endpoint(req: PlanFromGapRequest):
-    """Step 5: Generate iteration plan from confirmed quality issues + need gaps."""
-    try:
-        items = await generate_plan_from_gap(
-            req.disease, req.section_analyses, req.gap_analysis, req.parsed_article
-        )
-        return {"gap_items": [g.model_dump() for g in items]}
-    except Exception as e:
-        raise HTTPException(500, f"计划生成失败: {str(e)}")
+# Temporarily disabled: review/iteration plan generation.
+# class PlanFromGapRequest(BaseModel):
+#     disease: str
+#     section_analyses: List[SectionAnalysis]
+#     gap_analysis: GapAnalysis
+#     parsed_article: Optional[ParsedArticle] = None
+#
+#
+# @router.post("/plan-from-gap")
+# async def generate_plan_from_gap_endpoint(req: PlanFromGapRequest):
+#     """Step 5: Generate iteration plan from confirmed quality issues + need gaps."""
+#     try:
+#         items = await generate_plan_from_gap(
+#             req.disease, req.section_analyses, req.gap_analysis, req.parsed_article
+#         )
+#         return {"gap_items": [g.model_dump() for g in items]}
+#     except Exception as e:
+#         raise HTTPException(500, f"计划生成失败: {str(e)}")
 
 
 # ── Legacy endpoints (kept for backward compatibility) ───────────────────────
@@ -189,10 +190,11 @@ class AnalyzeRequest(BaseModel):
     qa_items: List[QAItem] = []
 
 
-class PlanRequest(BaseModel):
-    disease: str
-    quality_report: QualityReport
-    needs_analysis: NeedsAnalysis
+# Temporarily disabled: legacy iteration plan generation.
+# class PlanRequest(BaseModel):
+#     disease: str
+#     quality_report: QualityReport
+#     needs_analysis: NeedsAnalysis
 
 
 @router.post("/full")
@@ -219,13 +221,14 @@ async def run_full_analysis(req: AnalyzeRequest):
         raise HTTPException(500, f"分析失败: {str(e)}")
 
 
-@router.post("/plan")
-async def generate_plan(req: PlanRequest):
-    try:
-        plan = await generate_iteration_plan(req.disease, req.quality_report, req.needs_analysis)
-        return plan.model_dump()
-    except Exception as e:
-        raise HTTPException(500, f"计划生成失败: {str(e)}")
+# Temporarily disabled: legacy iteration plan generation.
+# @router.post("/plan")
+# async def generate_plan(req: PlanRequest):
+#     try:
+#         plan = await generate_iteration_plan(req.disease, req.quality_report, req.needs_analysis)
+#         return plan.model_dump()
+#     except Exception as e:
+#         raise HTTPException(500, f"计划生成失败: {str(e)}")
 
 
 @router.post("/quality")

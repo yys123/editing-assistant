@@ -349,10 +349,13 @@ def _select_reference_chunks(
     query: str,
     max_total_chars: int = 60000,
     max_chunks: int = 80,
+    priority_source_ids: Optional[set[int]] = None,
+    priority_chunks_per_source: int = 20,
 ) -> list[ReferenceChunk]:
     chunks = _build_reference_chunks(ref_inputs)
     if not chunks:
         return []
+    priority_source_ids = priority_source_ids or set()
 
     scored: list[ReferenceChunk] = []
     for chunk in chunks:
@@ -367,14 +370,44 @@ def _select_reference_chunks(
         scored.sort(key=lambda chunk: chunk.score, reverse=True)
 
     selected: list[ReferenceChunk] = []
+    selected_keys: set[tuple[int, str]] = set()
     total = 0
+
+    def add_chunk(chunk: ReferenceChunk, *, force: bool = False) -> bool:
+        nonlocal total
+        key = (chunk.source_id, chunk.chunk_id)
+        if key in selected_keys or len(selected) >= max_chunks:
+            return False
+        if not force and total + len(chunk.text) > max_total_chars and selected:
+            return False
+        selected.append(chunk)
+        selected_keys.add(key)
+        total += len(chunk.text)
+        return True
+
+    if priority_source_ids:
+        per_source_limit = max(
+            1,
+            min(priority_chunks_per_source, max_chunks // max(1, len(priority_source_ids))),
+        )
+        for source_id in sorted(priority_source_ids):
+            priority_chunks = [chunk for chunk in chunks if chunk.source_id == source_id]
+            priority_chunks.sort(key=lambda chunk: (-chunk.score, chunk.paragraph_index, chunk.chunk_id))
+            added = 0
+            for chunk in priority_chunks:
+                if added >= per_source_limit:
+                    break
+                if add_chunk(chunk, force=True):
+                    added += 1
+
     for chunk in scored:
         if len(selected) >= max_chunks:
             break
+        if (chunk.source_id, chunk.chunk_id) in selected_keys:
+            continue
         if total + len(chunk.text) > max_total_chars and selected:
             break
-        selected.append(chunk)
-        total += len(chunk.text)
+        add_chunk(chunk)
 
     return sorted(selected, key=lambda chunk: (chunk.source_id, chunk.paragraph_index, chunk.chunk_id))
 
@@ -934,14 +967,20 @@ async def generate_ai_integration_answer(
     reference_chunks = _select_reference_chunks(
         req.reference_inputs,
         f"{req.disease} {req.user_request} {req.original_content[:2000]}",
-        max_total_chars=80000,
-        max_chunks=100,
+        max_total_chars=160000,
+        max_chunks=200,
+        priority_source_ids=priority_ids,
     )
     reference_text = (
         "（未选择参考文献）"
         if not req.reference_inputs
         else _format_reference_chunks(reference_chunks, priority_ids)
     )
+    priority_reference_text = "\n".join(
+        f"- [{ref.id}] {ref.filename}"
+        for ref in req.reference_inputs
+        if ref.id in priority_ids
+    ) or "（未设置重点指南）"
     reference_anchors = [
         *original_anchors,
         *_extract_reference_anchors(req.reference_inputs),
@@ -964,12 +1003,17 @@ async def generate_ai_integration_answer(
 ## 已选择参考文献
 {reference_text}
 
+## 重点指南清单
+{priority_reference_text}
+
 ## 回答要求
-- 优先以重点指南为准；若重点指南与其他资料冲突，说明冲突并采用重点指南结论。
+- 必须优先以重点指南为准，采用“重点指南清单”中的资料作为主体依据；若重点指南与其他资料冲突，说明冲突并采用重点指南结论。
+- 不要因为普通参考资料数量更多就覆盖重点指南；普通资料只用于补充重点指南未覆盖的内容。
 - 只使用上方提供的原词条内容和参考文献，不要引入未提供的数据或指南。
 - 如证据不足，明确说明“现有材料不足以判断”，并说明还需要哪类资料。
 - 引用原词条内容时必须使用[0-原文献号]，例如原词条句子原本标注[18]，回答中应写作[0-18]；只有原词条可引用证据列出的编号才能这样使用。
 - 涉及事实性结论时必须标注来源。引用参考资料时必须使用每条证据列出的“引用标记”，例如[3-22]；如果证据没有源内文献号，引用标记会是[1]、[2]这类参考数据源号。不要使用其他未列出的标记。
+- 不要沿用原词条或参考资料中的原有条目序号，例如“4.”、“（3）”、“2、”。除非用户明确要求编号列表，列举要点时统一使用 Markdown 无序列表“-”；如必须编号，应从 1 开始连续编号，且同一级编号样式保持一致。
 - 直接回答用户问题，使用 Markdown，语言专业、清晰、便于医学编辑继续使用。"""
 
     answer = await text_generator(

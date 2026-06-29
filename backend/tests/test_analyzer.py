@@ -142,6 +142,23 @@ class ReferenceBlockTests(unittest.TestCase):
         self.assertIn("alpha 治疗建议", block)
         self.assertLess(len(block), 2200)
 
+    def test_priority_reference_block_keeps_each_priority_source_visible(self):
+        block = analyzer._build_priority_reference_block(
+            [
+                "### 参考数据源 12：重点指南A\n"
+                + "\n\n".join(f"alpha 命中片段 {index}。" for index in range(80)),
+                "### 参考数据源 18：重点指南B\n"
+                "PRIORITY_ONLY_QUALITY_XYZ.",
+            ],
+            section_heading="alpha治疗",
+            section_content="本章节讨论alpha治疗。",
+            max_total_chars=1200,
+        )
+
+        self.assertIn("参考数据源 12", block)
+        self.assertIn("参考数据源 18", block)
+        self.assertIn("PRIORITY_ONLY_QUALITY_XYZ", block)
+
     def test_reference_block_uses_relevant_chunks_for_section_analysis(self):
         block = analyzer._build_reference_block(
             [

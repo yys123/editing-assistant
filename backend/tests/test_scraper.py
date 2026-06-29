@@ -1,6 +1,6 @@
 import unittest
 
-from services.scraper import parse_html_structured
+from services.scraper import parse_html_structured, parse_html_to_text
 
 
 class HtmlStructuredParserTests(unittest.TestCase):
@@ -108,6 +108,70 @@ class HtmlStructuredParserTests(unittest.TestCase):
         self.assertIn("具有重要意义[64,65,66]。", structured)
         self.assertNotIn("<sup", structured)
         self.assertNotIn("<a ", structured)
+
+
+class HtmlReferenceParserTests(unittest.TestCase):
+    def test_reference_html_converts_sup_citations_to_markers(self):
+        html = """
+        <article>
+          <p>The diabetes population could reach 1.31 billion by 2050.<sup>4,5</sup>
+          DPN causes lower-limb amputations.<sup>1,4,6</sup></p>
+          <p>Further research is needed.<sup>6,10–12</sup></p>
+        </article>
+        """
+
+        text = parse_html_to_text(html)
+
+        self.assertIn("2050.[4,5] DPN causes lower-limb amputations.[1,4,6]", text)
+        self.assertIn("Further research is needed.[6,10-12]", text)
+
+    def test_reference_html_converts_numeric_xref_anchors_to_markers(self):
+        html = """
+        <article>
+          <p>Treatment evidence remains limited<a class="xref bibr" href="#R17">17</a>,
+          and adverse effects are frequent<a class="xref bibr" href="#R18">18</a>.</p>
+        </article>
+        """
+
+        text = parse_html_to_text(html)
+
+        self.assertIn("limited[17], and adverse effects are frequent[18].", text)
+
+    def test_reference_html_confirms_anchor_targets_in_reference_list(self):
+        html = """
+        <article>
+          <p>Treatment evidence remains limited<a href="#R17">17</a>,
+          and adverse effects are frequent<a href="#ref18">18</a>.</p>
+          <figure id="fig1"><figcaption>Figure 1. Mechanism</figcaption></figure>
+          <p>See Figure <a href="#fig1">1</a> for the mechanism.</p>
+          <section id="references">
+            <ol>
+              <li id="R17">Reference 17 details.</li>
+              <li id="ref18">Reference 18 details.</li>
+            </ol>
+          </section>
+        </article>
+        """
+
+        text = parse_html_to_text(html)
+
+        self.assertIn("limited[17], and adverse effects are frequent[18].", text)
+        self.assertIn("See Figure 1 for the mechanism.", text)
+        self.assertNotIn("Figure [1]", text)
+
+    def test_reference_html_falls_back_to_inline_sentence_citations(self):
+        html = """
+        <article>
+          <p>DN contributes to mortality rates.1,2 The number of patients may reach 783 million by 2045.3
+          Further research is needed.6,10–12 Serum potassium of 3.5 mmol/L remains a body value.</p>
+        </article>
+        """
+
+        text = parse_html_to_text(html)
+
+        self.assertIn("rates.[1,2] The number of patients may reach 783 million by 2045.[3]", text)
+        self.assertIn("Further research is needed.[6,10-12]", text)
+        self.assertIn("3.5 mmol/L", text)
 
 
 if __name__ == "__main__":

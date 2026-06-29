@@ -3,6 +3,7 @@ import {
   buildAiIntegrationIssueRequest,
   collectAiIntegrationLinkedIssues,
   collectNeedsAnalysisLinkedIssues,
+  getLinkedIssuePanelLayout,
   sectionIdsForLinkedIssues,
 } from './aiIntegrationIssues.ts'
 
@@ -73,6 +74,11 @@ assert.equal(linkedIssues[0].guideline_evidence?.[0].source, '指南A')
 assert.deepEqual(
   collectAiIntegrationLinkedIssues(sectionAnalyses, { includeUnconfirmed: true }).map(issue => issue.id),
   ['i1', 'i3', 'i4'],
+)
+
+assert.deepEqual(
+  collectAiIntegrationLinkedIssues([...sectionAnalyses].reverse(), { sectionOrder: ['s1', 's2'] }).map(issue => issue.id),
+  ['i1', 'i3'],
 )
 
 assert.deepEqual(
@@ -157,5 +163,15 @@ assert.match(needsRequest, /【类型】用户需求缺失/)
 assert.match(needsRequest, /【需求频次】42 次提问/)
 assert.match(needsRequest, /急性中毒患者什么时候需要血液净化/)
 assert.match(needsRequest, /补充血液灌流、血液透析和 CRRT 的适用情境/)
+
+assert.deepEqual(getLinkedIssuePanelLayout(2), {
+  outer: { overflowY: 'visible' },
+  inner: { maxHeight: 'none', overflowY: 'visible' },
+})
+
+assert.deepEqual(getLinkedIssuePanelLayout(6), {
+  outer: { overflowY: 'visible' },
+  inner: { maxHeight: 360, overflowY: 'auto' },
+})
 
 console.log('ai integration issue tests passed')

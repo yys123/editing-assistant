@@ -12,7 +12,7 @@ from typing import Dict, List
 from services.scraper import fetch_article_from_url, parse_html_to_text, parse_html_structured, parse_txt_structured, extract_images_from_html
 from services.gemini import analyze_image
 from services.pdf import extract_pdf_text
-from services.document import extract_word_text
+from services.document import extract_reference_word_text
 from services.section_parser import parse_article_sections
 from models import ReferenceDoc
 from pydantic import BaseModel
@@ -1049,7 +1049,7 @@ def _extract_reference_source_text(content_bytes: bytes, filename: str) -> str:
     if lower.endswith(".pdf"):
         return extract_pdf_text(content_bytes)
     if lower.endswith((".doc", ".docx")):
-        return extract_word_text(content_bytes, filename)
+        return extract_reference_word_text(content_bytes, filename)
     try:
         html = content_bytes.decode("utf-8-sig")
     except Exception:
