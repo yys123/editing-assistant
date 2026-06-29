@@ -2557,6 +2557,82 @@ body {
   border-top: 0.5px solid var(--dui-divider);
   background: var(--dui-surface);
 }
+.ai-history-compare {
+  margin-bottom: 12px;
+  padding: 5px 12px;
+  font-size: 12px;
+}
+.ai-diff-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ai-diff-note {
+  font-size: 12px;
+  color: var(--m3-on-surface-variant);
+}
+.ai-diff-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+.ai-diff-grid-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--m3-on-surface);
+}
+.ai-diff-block {
+  border: 0.5px solid var(--dui-divider);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--dui-surface);
+}
+.ai-diff-heading {
+  padding: 8px 10px;
+  background: var(--m3-surface-container-low);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--m3-on-surface);
+}
+.ai-diff-panel {
+  min-height: 72px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ai-diff-panel-original {
+  border-right: 0.5px solid var(--dui-divider);
+  color: var(--m3-on-surface-variant);
+}
+.ai-diff-panel-revised {
+  color: var(--m3-on-surface);
+}
+.ai-diff-token-insert {
+  background: rgba(46, 125, 50, 0.16);
+  color: #1b5e20;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.ai-diff-token-delete {
+  background: rgba(198, 40, 40, 0.12);
+  color: #b3261e;
+  border-radius: 3px;
+  padding: 0 2px;
+  text-decoration: line-through;
+}
+.ai-diff-muted,
+.ai-diff-empty {
+  color: var(--m3-on-surface-variant);
+  font-size: 13px;
+}
+.ai-diff-empty {
+  padding: 16px;
+  border: 0.5px solid var(--dui-divider);
+  border-radius: 8px;
+  background: var(--m3-surface-container-low);
+}
 .ai-history-reference-list {
   display: flex;
   gap: 6px;
@@ -2586,6 +2662,13 @@ body {
   .ai-history-actions {
     align-items: flex-end;
     flex-direction: column;
+  }
+  .ai-diff-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ai-diff-panel-original {
+    border-right: none;
+    border-bottom: 0.5px solid var(--dui-divider);
   }
 }
 

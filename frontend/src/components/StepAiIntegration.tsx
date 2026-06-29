@@ -15,7 +15,8 @@ import {
   mergeReferenceAnchors,
   splitCitationTokens,
 } from '../utils/citations'
-import { getAiIntegrationDisplayText, getNextAiIntegrationActiveId } from '../utils/aiIntegrationHistory'
+import { canCompareAiIntegrationRecord, getAiIntegrationDisplayText, getNextAiIntegrationActiveId } from '../utils/aiIntegrationHistory'
+import { buildAiIntegrationDiff, type DiffToken } from '../utils/aiIntegrationDiff'
 import {
   buildAiIntegrationIssueRequest,
   collectAiIntegrationLinkedIssues,
@@ -133,6 +134,68 @@ function AiCitationPanel({
   )
 }
 
+function DiffTokenList({ tokens, side }: { tokens: DiffToken[]; side: 'original' | 'revised' }) {
+  return (
+    <>
+      {tokens.map((token, index) => {
+        if (side === 'revised' && token.type === 'delete') return null
+        if (side === 'original' && token.type === 'insert') return null
+        const className = token.type === 'equal'
+          ? 'ai-diff-token'
+          : token.type === 'insert'
+            ? 'ai-diff-token ai-diff-token-insert'
+            : 'ai-diff-token ai-diff-token-delete'
+        return <span key={`${index}-${token.type}`} className={className}>{token.text}</span>
+      })}
+    </>
+  )
+}
+
+function AiIntegrationDiffView({
+  originalText,
+  revisionText,
+}: {
+  originalText: string
+  revisionText: string
+}) {
+  const diff = useMemo(() => buildAiIntegrationDiff(originalText, revisionText), [originalText, revisionText])
+
+  if (!originalText.trim()) {
+    return <div className="ai-diff-empty">本条记录没有可对比的原文快照</div>
+  }
+  if (!revisionText.trim()) {
+    return <div className="ai-diff-empty">本条记录没有可对比的修订正文</div>
+  }
+  if (diff.blocks.length === 0) {
+    return <div className="ai-diff-empty">未发现明显正文差异</div>
+  }
+
+  return (
+    <div className="ai-diff-view">
+      <div className="ai-diff-note">仅显示发生变化的段落</div>
+      <div className="ai-diff-grid ai-diff-grid-header">
+        <div>原文相关片段</div>
+        <div>修订后正文</div>
+      </div>
+      {diff.blocks.map(block => (
+        <section key={block.id} className="ai-diff-block">
+          {block.heading && <div className="ai-diff-heading">{block.heading}</div>}
+          <div className="ai-diff-grid">
+            <div className="ai-diff-panel ai-diff-panel-original">
+              {block.originalTokens.length > 0
+                ? <DiffTokenList tokens={block.originalTokens} side="original" />
+                : <span className="ai-diff-muted">原文无对应段落</span>}
+            </div>
+            <div className="ai-diff-panel ai-diff-panel-revised">
+              <DiffTokenList tokens={block.revisedTokens} side="revised" />
+            </div>
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
 export default function StepAiIntegration({
   disease, articleContent, parsedArticle, sectionAnalyses = [], gapAnalysis = null, referenceDocs = [], history, onAddRecord, onDeleteRecord,
 }: Props) {
@@ -145,6 +208,7 @@ export default function StepAiIntegration({
   const [error, setError] = useState('')
   const [activeId, setActiveId] = useState<string | null>(history[history.length - 1]?.id ?? null)
   const [activeCitationKey, setActiveCitationKey] = useState<string | null>(null)
+  const [compareRecordId, setCompareRecordId] = useState<string | null>(null)
   const [selectedIssueKeys, setSelectedIssueKeys] = useState<string[]>([])
   const [expandedIssueSections, setExpandedIssueSections] = useState<Record<string, boolean>>({})
 
@@ -372,10 +436,15 @@ export default function StepAiIntegration({
     const nextActiveId = getNextAiIntegrationActiveId(history, id, activeId)
     onDeleteRecord(id)
     setActiveId(nextActiveId)
+    setCompareRecordId(prev => prev === id ? null : prev)
   }
 
   const toggleRecord = (id: string) => {
     setActiveId(prev => prev === id ? null : id)
+  }
+
+  const toggleCompareRecord = (id: string) => {
+    setCompareRecordId(prev => prev === id ? null : id)
   }
 
   const runIntegration = async () => {
@@ -857,6 +926,8 @@ export default function StepAiIntegration({
           <div className="ai-history-list">
             {[...history].reverse().map(record => {
               const expanded = activeRecord?.id === record.id
+              const canCompare = canCompareAiIntegrationRecord(record)
+              const comparing = compareRecordId === record.id
               return (
                 <article key={record.id} className={`ai-history-item${expanded ? ' expanded' : ''}`}>
                   <div className="ai-history-item-header">
@@ -913,19 +984,38 @@ export default function StepAiIntegration({
                           </div>
                         </div>
                       )}
-                      <div className={`draft-preview-shell${activeCitation ? ' has-citation-panel' : ''}`}>
-                        <div className="diff-content md draft-preview-content" style={{ maxHeight: 'none', minHeight: 160 }}>
-                          <ReactMarkdown remarkPlugins={markdownRemarkPlugins} components={markdownComponents}>
-                            {renderedAnswer}
-                          </ReactMarkdown>
+                      {canCompare && (
+                        <button
+                          type="button"
+                          className="btn-m3-outline ai-history-compare"
+                          onClick={() => toggleCompareRecord(record.id)}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                            {comparing ? 'article' : 'difference'}
+                          </span>
+                          {comparing ? '返回清洁版' : '对比原文'}
+                        </button>
+                      )}
+                      {comparing ? (
+                        <AiIntegrationDiffView
+                          originalText={record.originalContentSnapshot ?? ''}
+                          revisionText={record.revisionText ?? ''}
+                        />
+                      ) : (
+                        <div className={`draft-preview-shell${activeCitation ? ' has-citation-panel' : ''}`}>
+                          <div className="diff-content md draft-preview-content" style={{ maxHeight: 'none', minHeight: 160 }}>
+                            <ReactMarkdown remarkPlugins={markdownRemarkPlugins} components={markdownComponents}>
+                              {renderedAnswer}
+                            </ReactMarkdown>
+                          </div>
+                          {activeCitation && (
+                            <AiCitationPanel
+                              anchor={activeCitation}
+                              onClose={() => setActiveCitationKey(null)}
+                            />
+                          )}
                         </div>
-                        {activeCitation && (
-                          <AiCitationPanel
-                            anchor={activeCitation}
-                            onClose={() => setActiveCitationKey(null)}
-                          />
-                        )}
-                      </div>
+                      )}
                       {record.referencesUsed.length > 0 && (
                         <div className="ai-history-reference-list">
                           {record.referencesUsed.map((ref, index) => (

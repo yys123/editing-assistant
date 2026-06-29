@@ -7,8 +7,22 @@ export type AiIntegrationDisplayLike = {
   revisionText?: string
 }
 
+export type AiIntegrationCompareLike = {
+  originalContentSnapshot?: string
+  originalScope?: string
+  revisionText?: string
+}
+
 export function getAiIntegrationDisplayText(record: AiIntegrationDisplayLike | null | undefined) {
   return record?.revisionText?.trim() || record?.answer || ''
+}
+
+export function canCompareAiIntegrationRecord(record: AiIntegrationCompareLike | null | undefined) {
+  return Boolean(
+    record?.originalContentSnapshot?.trim()
+    && record?.revisionText?.trim()
+    && record?.originalScope !== 'none',
+  )
 }
 
 export function getNextAiIntegrationActiveId(
