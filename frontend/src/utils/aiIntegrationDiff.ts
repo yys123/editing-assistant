@@ -57,6 +57,8 @@ function splitBlocks(text: string): TextBlock[] {
     buffer = []
   }
 
+  const isListItemLine = (line: string) => /^\s*(?:[-*+]\s+|\d{1,3}\s*[、.)．]\s*)/.test(line)
+
   for (const line of lines) {
     const headingMatch = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*$/)
     if (headingMatch) {
@@ -67,6 +69,9 @@ function splitBlocks(text: string): TextBlock[] {
     if (!line.trim()) {
       flush()
       continue
+    }
+    if (isListItemLine(line) && buffer.length > 0) {
+      flush()
     }
     buffer.push(line)
   }
