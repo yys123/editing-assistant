@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { canCompareAiIntegrationRecord, getAiIntegrationDisplayText, getNextAiIntegrationActiveId } from './aiIntegrationHistory.ts'
+import { canCompareAiIntegrationRecord, getAiIntegrationDisplayText, getAiIntegrationRevisionText, getNextAiIntegrationActiveId } from './aiIntegrationHistory.ts'
 
 const records = [
   { id: 'r1' },
@@ -43,6 +43,34 @@ assert.equal(
   '完整回答',
 )
 
+const nestedRevisionAnswer = [
+  '## 修订后正文',
+  '',
+  '## 基础知识',
+  '',
+  '我国横断面研究结果显示，CKD患病率为8.2%~10.8%，知晓率仅10%。',
+  '',
+  '## 修改说明',
+  '',
+  '- 补充 CKD 知晓率具体数据。',
+].join('\n')
+
+assert.equal(
+  getAiIntegrationRevisionText({
+    answer: nestedRevisionAnswer,
+    revisionText: '',
+  }),
+  '## 基础知识\n\n我国横断面研究结果显示，CKD患病率为8.2%~10.8%，知晓率仅10%。',
+)
+
+assert.equal(
+  getAiIntegrationDisplayText({
+    answer: nestedRevisionAnswer,
+    revisionText: '',
+  }),
+  '## 基础知识\n\n我国横断面研究结果显示，CKD患病率为8.2%~10.8%，知晓率仅10%。',
+)
+
 assert.equal(
   canCompareAiIntegrationRecord({
     originalContentSnapshot: '原文',
@@ -68,6 +96,16 @@ assert.equal(
     revisionText: '',
   }),
   false,
+)
+
+assert.equal(
+  canCompareAiIntegrationRecord({
+    answer: nestedRevisionAnswer,
+    originalContentSnapshot: '原文',
+    originalScope: 'sections',
+    revisionText: '',
+  }),
+  true,
 )
 
 console.log('ai integration history tests passed')

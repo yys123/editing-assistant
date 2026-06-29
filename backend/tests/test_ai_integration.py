@@ -36,6 +36,35 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.revision_text, "急性中毒患者约占同期急诊患者的2.7%~3.6%[1]。")
         self.assertEqual(result.change_summary, ["补充国内急诊占比数据。", "保留原有疾病负担描述。"])
 
+    async def test_ai_integration_revision_text_allows_nested_markdown_headings(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            return (
+                "## 修订后正文\n\n"
+                "## 基础知识\n\n"
+                "我国横断面研究结果显示，CKD患病率为8.2%~10.8%，知晓率仅10%[7-2]。\n\n"
+                "## 修改说明\n\n"
+                "- 补充 CKD 知晓率具体数据。"
+            )
+
+        req = AiIntegrationRequest(
+            disease="慢性肾脏病",
+            user_request="补充知晓率数据",
+            original_content="我国CKD的知晓率和诊断率普遍较低。",
+            reference_inputs=[
+                ReferenceInput(
+                    id=7,
+                    filename="中国慢性肾脏病筛查指南.pdf",
+                    text="我国横断面研究结果显示，CKD患病率为8.2%~10.8%，但知晓率仅10%。",
+                ),
+            ],
+        )
+
+        result = await generate_ai_integration_answer(req, text_generator=fake_generate_text)
+
+        self.assertIn("## 基础知识", result.revision_text)
+        self.assertIn("知晓率仅10%[7-2]", result.revision_text)
+        self.assertNotIn("## 修改说明", result.revision_text)
+
     async def test_ai_integration_keeps_plain_answer_when_revision_section_missing(self):
         async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
             return "仅基于问题回答。"

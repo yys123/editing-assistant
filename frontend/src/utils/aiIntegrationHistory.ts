@@ -8,19 +8,32 @@ export type AiIntegrationDisplayLike = {
 }
 
 export type AiIntegrationCompareLike = {
+  answer?: string
   originalContentSnapshot?: string
   originalScope?: string
   revisionText?: string
 }
 
+export function extractAiIntegrationRevisionText(answer: string | null | undefined) {
+  const text = (answer || '').trim()
+  const match = text.match(
+    /^##\s*修订后正文\s*\n(?<body>[\s\S]*?)(?=\n##\s*(?:修改说明|已解决的问题|仍需人工确认的问题|待确认事项|参考文献)\s*(?:\n|$)|$)/i,
+  )
+  return match?.groups?.body?.trim() ?? ''
+}
+
+export function getAiIntegrationRevisionText(record: AiIntegrationDisplayLike | null | undefined) {
+  return record?.revisionText?.trim() || extractAiIntegrationRevisionText(record?.answer)
+}
+
 export function getAiIntegrationDisplayText(record: AiIntegrationDisplayLike | null | undefined) {
-  return record?.revisionText?.trim() || record?.answer || ''
+  return getAiIntegrationRevisionText(record) || record?.answer || ''
 }
 
 export function canCompareAiIntegrationRecord(record: AiIntegrationCompareLike | null | undefined) {
   return Boolean(
     record?.originalContentSnapshot?.trim()
-    && record?.revisionText?.trim()
+    && getAiIntegrationRevisionText(record)
     && record?.originalScope !== 'none',
   )
 }

@@ -15,7 +15,7 @@ import {
   mergeReferenceAnchors,
   splitCitationTokens,
 } from '../utils/citations'
-import { canCompareAiIntegrationRecord, getAiIntegrationDisplayText, getNextAiIntegrationActiveId } from '../utils/aiIntegrationHistory'
+import { canCompareAiIntegrationRecord, getAiIntegrationDisplayText, getAiIntegrationRevisionText, getNextAiIntegrationActiveId } from '../utils/aiIntegrationHistory'
 import { buildAiIntegrationDiff, type DiffToken } from '../utils/aiIntegrationDiff'
 import {
   buildAiIntegrationIssueRequest,
@@ -928,6 +928,7 @@ export default function StepAiIntegration({
               const expanded = activeRecord?.id === record.id
               const canCompare = canCompareAiIntegrationRecord(record)
               const comparing = compareRecordId === record.id
+              const recordRevisionText = getAiIntegrationRevisionText(record)
               return (
                 <article key={record.id} className={`ai-history-item${expanded ? ' expanded' : ''}`}>
                   <div className="ai-history-item-header">
@@ -999,7 +1000,7 @@ export default function StepAiIntegration({
                       {comparing ? (
                         <AiIntegrationDiffView
                           originalText={record.originalContentSnapshot ?? ''}
-                          revisionText={record.revisionText ?? ''}
+                          revisionText={recordRevisionText}
                         />
                       ) : (
                         <div className={`draft-preview-shell${activeCitation ? ' has-citation-panel' : ''}`}>

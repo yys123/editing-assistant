@@ -136,7 +136,7 @@ def _parse_ai_integration_output(raw_answer: str) -> tuple[str, str, list[str]]:
         pass
 
     revision_match = re.search(
-        r"(?ims)^##\s*修订后正文\s*\n(?P<body>.*?)(?=^##\s+|\Z)",
+        r"(?ims)^##\s*修订后正文\s*\n(?P<body>.*?)(?=^##\s*(?:修改说明|已解决的问题|仍需人工确认的问题|待确认事项|参考文献)\s*$|\Z)",
         answer,
     )
     summary_match = re.search(
