@@ -1,3 +1,4 @@
+import json
 import re
 from collections import defaultdict
 from dataclasses import dataclass
@@ -98,6 +99,53 @@ def _chunk_reference(text: str, chunk_size: int = 500) -> list:
     if buf:
         chunks.append(buf)
     return chunks
+
+
+def _strip_markdown_fence(text: str) -> str:
+    value = (text or "").strip()
+    if value.startswith("```"):
+        value = re.sub(r"^```(?:json|markdown|md)?\s*", "", value, flags=re.IGNORECASE)
+        value = re.sub(r"\s*```$", "", value)
+    return value.strip()
+
+
+def _parse_bullet_summary(text: str) -> list[str]:
+    items = []
+    for line in (text or "").splitlines():
+        item = re.sub(r"^\s*[-*]\s+", "", line).strip()
+        if item:
+            items.append(item)
+    return items
+
+
+def _parse_ai_integration_output(raw_answer: str) -> tuple[str, str, list[str]]:
+    answer = (raw_answer or "").strip()
+    stripped = _strip_markdown_fence(answer)
+    try:
+        parsed = json.loads(stripped)
+        revision = str(parsed.get("revision_text") or parsed.get("修订后正文") or "").strip()
+        summary_value = parsed.get("change_summary") or parsed.get("修改说明") or []
+        if isinstance(summary_value, str):
+            summary = _parse_bullet_summary(summary_value)
+        elif isinstance(summary_value, list):
+            summary = [str(item).strip() for item in summary_value if str(item).strip()]
+        else:
+            summary = []
+        return answer, revision, summary
+    except Exception:
+        pass
+
+    revision_match = re.search(
+        r"(?ims)^##\s*修订后正文\s*\n(?P<body>.*?)(?=^##\s+|\Z)",
+        answer,
+    )
+    summary_match = re.search(
+        r"(?ims)^##\s*修改说明\s*\n(?P<body>.*?)(?=^##\s+|\Z)",
+        answer,
+    )
+    revision = revision_match.group("body").strip() if revision_match else ""
+    summary = _parse_bullet_summary(summary_match.group("body")) if summary_match else []
+    return answer, revision, summary
 
 
 _SOURCE_REF_BODY_CHARS = r'0-9\s,，、;；\-–—'
@@ -899,6 +947,30 @@ def _rewrite_original_content_citations(
     return citation_group_re.sub(repl, text)
 
 
+def _rewrite_ai_integration_citations(
+    text: str,
+    reference_chunks: list[ReferenceChunk],
+    original_anchors: list[ReferenceAnchor],
+    reference_anchors: list[ReferenceAnchor],
+    reference_source_ids: set[int],
+) -> str:
+    rewritten = _rewrite_internal_chunk_citations((text or "").strip(), reference_chunks)
+    rewritten = _rewrite_original_content_citations(
+        rewritten,
+        original_anchors,
+        reference_source_ids,
+        {
+            anchor.citation_key
+            for anchor in reference_anchors
+            if anchor.source_id != 0
+        },
+    )
+    return _rewrite_source_only_citations_to_source_refs(
+        rewritten,
+        [anchor for anchor in reference_anchors if anchor.source_id != 0],
+    )
+
+
 def _extract_relevant_chunks(
     ref_inputs: list,
     section: str,
@@ -1014,6 +1086,9 @@ async def generate_ai_integration_answer(
 - 引用原词条内容时必须使用[0-原文献号]，例如原词条句子原本标注[18]，回答中应写作[0-18]；只有原词条可引用证据列出的编号才能这样使用。
 - 涉及事实性结论时必须标注来源。引用参考资料时必须使用每条证据列出的“引用标记”，例如[3-22]；如果证据没有源内文献号，引用标记会是[1]、[2]这类参考数据源号。不要使用其他未列出的标记。
 - 不要沿用原词条或参考资料中的原有条目序号，例如“4.”、“（3）”、“2、”。除非用户明确要求编号列表，列举要点时统一使用 Markdown 无序列表“-”；如必须编号，应从 1 开始连续编号，且同一级编号样式保持一致。
+- 必须包含“## 修订后正文”区块，区块内只放可直接粘贴到词条中的清洁修订正文。
+- 修订后正文应是可直接粘贴到词条中的清洁文本，不要混入修改说明、证据不足提示、待确认事项。
+- 必须包含“## 修改说明”区块，用 Markdown 无序列表简要说明本次修改了哪些内容。
 - 直接回答用户问题，使用 Markdown，语言专业、清晰、便于医学编辑继续使用。"""
 
     answer = await text_generator(
@@ -1022,24 +1097,32 @@ async def generate_ai_integration_answer(
         context="ai_integration",
     )
 
-    rewritten_answer = _rewrite_internal_chunk_citations(answer.strip(), reference_chunks)
-    rewritten_answer = _rewrite_original_content_citations(
-        rewritten_answer,
+    parsed_answer, revision_text, change_summary = _parse_ai_integration_output(answer)
+    reference_source_ids = {ref.id for ref in req.reference_inputs}
+
+    rewritten_answer = _rewrite_ai_integration_citations(
+        parsed_answer,
+        reference_chunks,
         original_anchors,
-        {ref.id for ref in req.reference_inputs},
-        {
-            anchor.citation_key
-            for anchor in reference_anchors
-            if anchor.source_id != 0
-        },
+        reference_anchors,
+        reference_source_ids,
     )
-    rewritten_answer = _rewrite_source_only_citations_to_source_refs(
-        rewritten_answer,
-        [anchor for anchor in reference_anchors if anchor.source_id != 0],
+    rewritten_revision_text = (
+        _rewrite_ai_integration_citations(
+            revision_text,
+            reference_chunks,
+            original_anchors,
+            reference_anchors,
+            reference_source_ids,
+        )
+        if revision_text
+        else ""
     )
 
     return AiIntegrationResponse(
         answer=rewritten_answer,
+        revision_text=rewritten_revision_text,
+        change_summary=change_summary,
         references_used=references_used,
         reference_anchors=reference_anchors,
     )

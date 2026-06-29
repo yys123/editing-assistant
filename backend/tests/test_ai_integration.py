@@ -5,6 +5,50 @@ from services.generator import generate_ai_integration_answer
 
 
 class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_ai_integration_extracts_revision_text_and_change_summary(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            self.assertIn("## 修订后正文", prompt)
+            self.assertIn("修订后正文应是可直接粘贴到词条中的清洁文本", prompt)
+            return (
+                "## 修订后正文\n"
+                "急性中毒患者约占同期急诊患者的2.7%~3.6%[1]。\n\n"
+                "## 修改说明\n"
+                "- 补充国内急诊占比数据。\n"
+                "- 保留原有疾病负担描述。"
+            )
+
+        req = AiIntegrationRequest(
+            disease="急性中毒",
+            user_request="补充流行病学数据",
+            original_content="急性中毒是常见急症。",
+            reference_inputs=[
+                ReferenceInput(
+                    id=1,
+                    filename="急性中毒指南.pdf",
+                    text="急性中毒患者约占同期急诊患者的2.7%~3.6%。",
+                ),
+            ],
+        )
+
+        result = await generate_ai_integration_answer(req, text_generator=fake_generate_text)
+
+        self.assertIn("## 修订后正文", result.answer)
+        self.assertEqual(result.revision_text, "急性中毒患者约占同期急诊患者的2.7%~3.6%[1]。")
+        self.assertEqual(result.change_summary, ["补充国内急诊占比数据。", "保留原有疾病负担描述。"])
+
+    async def test_ai_integration_keeps_plain_answer_when_revision_section_missing(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            return "仅基于问题回答。"
+
+        result = await generate_ai_integration_answer(
+            AiIntegrationRequest(disease="克罗恩病", user_request="帮我拟一个章节提纲"),
+            text_generator=fake_generate_text,
+        )
+
+        self.assertEqual(result.answer, "仅基于问题回答。")
+        self.assertEqual(result.revision_text, "")
+        self.assertEqual(result.change_summary, [])
+
     async def test_builds_answer_from_question_selected_references_and_original_content(self):
         calls = []
 

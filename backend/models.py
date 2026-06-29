@@ -307,5 +307,7 @@ class AiIntegrationRequest(BaseModel):
 
 class AiIntegrationResponse(BaseModel):
     answer: str
+    revision_text: str = ""
+    change_summary: List[str] = []
     references_used: List[str] = []
     reference_anchors: List[ReferenceAnchor] = []
