@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { getNextAiIntegrationActiveId } from './aiIntegrationHistory.ts'
+import { getAiIntegrationDisplayText, getNextAiIntegrationActiveId } from './aiIntegrationHistory.ts'
 
 const records = [
   { id: 'r1' },
@@ -25,6 +25,22 @@ assert.equal(
 assert.equal(
   getNextAiIntegrationActiveId([{ id: 'r1' }], 'r1', 'r1'),
   null,
+)
+
+assert.equal(
+  getAiIntegrationDisplayText({
+    answer: '## 修订后正文\n旧展示',
+    revisionText: '清洁修订正文',
+  }),
+  '清洁修订正文',
+)
+
+assert.equal(
+  getAiIntegrationDisplayText({
+    answer: '完整回答',
+    revisionText: '   ',
+  }),
+  '完整回答',
 )
 
 console.log('ai integration history tests passed')

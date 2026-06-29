@@ -15,7 +15,7 @@ import {
   mergeReferenceAnchors,
   splitCitationTokens,
 } from '../utils/citations'
-import { getNextAiIntegrationActiveId } from '../utils/aiIntegrationHistory'
+import { getAiIntegrationDisplayText, getNextAiIntegrationActiveId } from '../utils/aiIntegrationHistory'
 import {
   buildAiIntegrationIssueRequest,
   collectAiIntegrationLinkedIssues,
@@ -286,9 +286,10 @@ export default function StepAiIntegration({
       return <a href={href}>{children}</a>
     },
   }), [activeCitationKey])
+  const activeDisplayText = getAiIntegrationDisplayText(activeRecord)
   const renderedAnswer = useMemo(
-    () => activeRecord ? linkifyCitationMarkers(activeRecord.answer, resolveCitation) : '',
-    [activeRecord, resolveCitation],
+    () => activeRecord ? linkifyCitationMarkers(activeDisplayText, resolveCitation) : '',
+    [activeDisplayText, activeRecord, resolveCitation],
   )
 
   useEffect(() => {
@@ -418,6 +419,8 @@ export default function StepAiIntegration({
         id: `ai-integration-${Date.now()}`,
         request,
         answer: data.answer || '',
+        revisionText: data.revision_text || '',
+        changeSummary: Array.isArray(data.change_summary) ? data.change_summary : [],
         referencesUsed: data.references_used || [],
         referenceAnchors: data.reference_anchors || [],
         selectedReferences: selectedRefs,

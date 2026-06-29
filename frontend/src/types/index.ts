@@ -137,6 +137,8 @@ export interface AiIntegrationRecord {
   id: string
   request: string
   answer: string
+  revisionText?: string
+  changeSummary?: string[]
   referencesUsed: string[]
   referenceAnchors?: ReferenceAnchor[]
   linkedIssues?: AiIntegrationLinkedIssue[]

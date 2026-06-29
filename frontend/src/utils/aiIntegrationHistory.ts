@@ -2,6 +2,15 @@ export type AiIntegrationHistoryLike = {
   id: string
 }
 
+export type AiIntegrationDisplayLike = {
+  answer?: string
+  revisionText?: string
+}
+
+export function getAiIntegrationDisplayText(record: AiIntegrationDisplayLike | null | undefined) {
+  return record?.revisionText?.trim() || record?.answer || ''
+}
+
 export function getNextAiIntegrationActiveId(
   history: AiIntegrationHistoryLike[],
   deletedId: string,
