@@ -305,9 +305,16 @@ class AiIntegrationRequest(BaseModel):
     priority_reference_ids: List[int] = []
 
 
+class PriorityGuidelineUsage(BaseModel):
+    status: str = "not_configured"  # not_configured/used/not_covered/not_used/unknown
+    used_sources: List[str] = []
+    warnings: List[str] = []
+
+
 class AiIntegrationResponse(BaseModel):
     answer: str
     revision_text: str = ""
     change_summary: List[str] = []
     references_used: List[str] = []
     reference_anchors: List[ReferenceAnchor] = []
+    priority_guideline_usage: Optional[PriorityGuidelineUsage] = None

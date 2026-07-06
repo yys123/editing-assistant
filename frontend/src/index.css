@@ -2584,6 +2584,41 @@ body {
   border-top: 0.5px solid var(--dui-divider);
   background: var(--dui-surface);
 }
+.priority-guideline-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.priority-guideline-status .material-symbols-outlined {
+  font-size: 17px;
+  flex: 0 0 auto;
+}
+.priority-guideline-status small {
+  color: inherit;
+  opacity: 0.82;
+  overflow-wrap: anywhere;
+}
+.priority-guideline-status.success {
+  background: #ecfdf3;
+  color: #166534;
+}
+.priority-guideline-status.info {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.priority-guideline-status.warning {
+  background: #fffbeb;
+  color: #92400e;
+}
+.priority-guideline-status.neutral {
+  background: #f3f4f6;
+  color: #374151;
+}
 .ai-history-compare {
   margin-bottom: 12px;
   padding: 5px 12px;

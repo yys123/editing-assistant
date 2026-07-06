@@ -5,6 +5,92 @@ from services.generator import generate_ai_integration_answer
 
 
 class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_ai_integration_returns_priority_guideline_usage_metadata(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            return (
+                "## 修订后正文\n"
+                "治疗方案应以重点指南为准[2]。\n\n"
+                "## 重点指南使用情况\n"
+                "- 已采用：参考数据源 2：重点指南.pdf，用于治疗方案，引用：[2]\n\n"
+                "## 修改说明\n"
+                "- 按重点指南修订治疗方案。"
+            )
+
+        result = await generate_ai_integration_answer(
+            AiIntegrationRequest(
+                disease="测试病种",
+                user_request="修订治疗方案",
+                reference_inputs=[
+                    ReferenceInput(id=1, filename="普通综述.pdf", text="普通资料。"),
+                    ReferenceInput(id=2, filename="重点指南.pdf", text="治疗方案应以重点指南为准。"),
+                ],
+                priority_reference_ids=[2],
+            ),
+            text_generator=fake_generate_text,
+        )
+
+        self.assertIsNotNone(result.priority_guideline_usage)
+        self.assertEqual(result.priority_guideline_usage.status, "used")
+        self.assertIn("参考数据源 2", result.priority_guideline_usage.used_sources[0])
+
+    async def test_ai_integration_detects_priority_guideline_inside_grouped_citations(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            return (
+                "## 修订后正文\n"
+                "治疗方案综合引用重点指南和普通资料[1、2]。\n\n"
+                "## 重点指南使用情况\n"
+                "- 已采用：参考数据源 2：重点指南.pdf，用于治疗方案，引用：[1、2]\n\n"
+                "## 修改说明\n"
+                "- 综合资料修订。"
+            )
+
+        result = await generate_ai_integration_answer(
+            AiIntegrationRequest(
+                disease="测试病种",
+                user_request="修订治疗方案",
+                reference_inputs=[
+                    ReferenceInput(id=1, filename="普通综述.pdf", text="普通资料。"),
+                    ReferenceInput(id=2, filename="重点指南.pdf", text="重点资料。"),
+                ],
+                priority_reference_ids=[2],
+            ),
+            text_generator=fake_generate_text,
+        )
+
+        self.assertEqual(result.priority_guideline_usage.status, "used")
+        self.assertIn("参考数据源 2", result.priority_guideline_usage.used_sources[0])
+
+    async def test_ai_integration_marks_priority_guideline_not_used_when_no_priority_citation(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            return "## 修订后正文\n仅引用普通资料[1]。\n\n## 修改说明\n- 未使用重点指南。"
+
+        result = await generate_ai_integration_answer(
+            AiIntegrationRequest(
+                disease="测试病种",
+                user_request="修订",
+                reference_inputs=[
+                    ReferenceInput(id=1, filename="普通综述.pdf", text="普通资料。"),
+                    ReferenceInput(id=2, filename="重点指南.pdf", text="重点资料。"),
+                ],
+                priority_reference_ids=[2],
+            ),
+            text_generator=fake_generate_text,
+        )
+
+        self.assertEqual(result.priority_guideline_usage.status, "not_used")
+        self.assertTrue(result.priority_guideline_usage.warnings)
+
+    async def test_ai_integration_marks_priority_guideline_not_configured_without_priority_ids(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            return "普通回答。"
+
+        result = await generate_ai_integration_answer(
+            AiIntegrationRequest(disease="测试病种", user_request="修订"),
+            text_generator=fake_generate_text,
+        )
+
+        self.assertEqual(result.priority_guideline_usage.status, "not_configured")
+
     async def test_ai_integration_extracts_revision_text_and_change_summary(self):
         async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
             self.assertIn("## 修订后正文", prompt)
@@ -112,6 +198,13 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("引用标记：[1]", calls[0]["prompt"])
         self.assertIn("引用参考资料时必须使用每条证据列出的“引用标记”", calls[0]["prompt"])
         self.assertIn("优先以重点指南为准", calls[0]["prompt"])
+        self.assertIn("## 重点指南主证据区", calls[0]["prompt"])
+        self.assertIn("## 普通参考资料补充区", calls[0]["prompt"])
+        self.assertLess(
+            calls[0]["prompt"].index("## 重点指南主证据区"),
+            calls[0]["prompt"].index("## 普通参考资料补充区"),
+        )
+        self.assertIn("必须包含“## 重点指南使用情况”区块", calls[0]["prompt"])
         self.assertIn("不要沿用原词条或参考资料中的原有条目序号", calls[0]["prompt"])
         self.assertIn("除非用户明确要求编号列表", calls[0]["prompt"])
 
@@ -144,6 +237,9 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("参考数据源 2：重点指南.pdf（重点指南）", captured["prompt"])
         self.assertIn("PRIORITY_ONLY_SENTENCE_XYZ", captured["prompt"])
+        primary_start = captured["prompt"].index("## 重点指南主证据区")
+        supplementary_start = captured["prompt"].index("## 普通参考资料补充区")
+        self.assertIn("PRIORITY_ONLY_SENTENCE_XYZ", captured["prompt"][primary_start:supplementary_start])
 
     async def test_ai_integration_uses_source_ref_citation_keys_with_stable_chunk_anchors(self):
         calls = []
@@ -407,7 +503,8 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_allows_empty_original_content_and_no_references(self):
         async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
             self.assertIn("（未选择原词条内容）", prompt)
-            self.assertIn("（未选择参考文献）", prompt)
+            self.assertIn("（未设置重点指南）", prompt)
+            self.assertIn("（未选择普通参考资料）", prompt)
             return "仅基于问题回答。"
 
         req = AiIntegrationRequest(
