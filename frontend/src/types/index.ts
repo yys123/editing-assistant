@@ -133,6 +133,19 @@ export interface BatchGeneratedDraft {
   coordination_notes: string
 }
 
+export type PriorityGuidelineUsageStatus =
+  | 'not_configured'
+  | 'used'
+  | 'not_covered'
+  | 'not_used'
+  | 'unknown'
+
+export interface PriorityGuidelineUsage {
+  status: PriorityGuidelineUsageStatus
+  used_sources?: string[]
+  warnings?: string[]
+}
+
 export interface AiIntegrationRecord {
   id: string
   request: string
@@ -144,6 +157,7 @@ export interface AiIntegrationRecord {
   linkedIssues?: AiIntegrationLinkedIssue[]
   selectedReferences: string[]
   priorityReferences: string[]
+  priorityGuidelineUsage?: PriorityGuidelineUsage
   originalScope: 'all' | 'sections' | 'none'
   selectedSectionIds: string[]
   originalContentSnapshot?: string

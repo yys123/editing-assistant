@@ -119,6 +119,17 @@ class TableBodyIssueFilterTests(unittest.TestCase):
 
 
 class ReferenceBlockTests(unittest.TestCase):
+    def test_priority_reference_block_declares_primary_evidence(self):
+        block = analyzer._build_priority_reference_block(
+            ["### 参考数据源 2：重点指南\n诊断标准应包括A。"],
+            section_heading="诊断",
+            section_content="原文诊断内容。",
+        )
+
+        self.assertIn("重点指南主证据区", block)
+        self.assertIn("主判断依据", block)
+        self.assertIn("必须优先引用重点指南", block)
+
     def test_priority_reference_block_sets_conflict_rule(self):
         block = analyzer._build_priority_reference_block(["重点指南内容"])
         self.assertIn("重点指南", block)

@@ -17,6 +17,7 @@ import {
 } from '../utils/citations'
 import { canCompareAiIntegrationRecord, getAiIntegrationDisplayText, getAiIntegrationRevisionText, getNextAiIntegrationActiveId } from '../utils/aiIntegrationHistory'
 import { buildAiIntegrationDiff, type DiffToken } from '../utils/aiIntegrationDiff'
+import { getPriorityGuidelineUsageDisplay } from '../utils/priorityGuidelineUsage'
 import {
   buildAiIntegrationIssueRequest,
   collectAiIntegrationLinkedIssues,
@@ -494,6 +495,7 @@ export default function StepAiIntegration({
         referenceAnchors: data.reference_anchors || [],
         selectedReferences: selectedRefs,
         priorityReferences: priorityRefs,
+        priorityGuidelineUsage: data.priority_guideline_usage,
         linkedIssues: selectedLinkedIssues,
         originalScope,
         selectedSectionIds,
@@ -929,6 +931,7 @@ export default function StepAiIntegration({
               const canCompare = canCompareAiIntegrationRecord(record)
               const comparing = compareRecordId === record.id
               const recordRevisionText = getAiIntegrationRevisionText(record)
+              const priorityGuidelineDisplay = getPriorityGuidelineUsageDisplay(record.priorityGuidelineUsage)
               return (
                 <article key={record.id} className={`ai-history-item${expanded ? ' expanded' : ''}`}>
                   <div className="ai-history-item-header">
@@ -959,6 +962,15 @@ export default function StepAiIntegration({
 
                   {expanded && (
                     <div className="ai-history-answer">
+                      {priorityGuidelineDisplay && (
+                        <div className={`priority-guideline-status ${priorityGuidelineDisplay.tone}`}>
+                          <span className="material-symbols-outlined">policy</span>
+                          <span>{priorityGuidelineDisplay.label}</span>
+                          {priorityGuidelineDisplay.detail && (
+                            <small>{priorityGuidelineDisplay.detail}</small>
+                          )}
+                        </div>
+                      )}
                       {(record.linkedIssues?.length ?? 0) > 0 && (
                         <div style={{
                           marginBottom: 12,
