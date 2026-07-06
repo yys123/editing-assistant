@@ -109,7 +109,7 @@ const EMPTY_CONFIG: RuntimeConfig = {
   deepseek_presence_penalty: 0,
   deepseek_frequency_penalty: 0,
   deepseek_response_format: 'text',
-  deepseek_thinking_type: 'disabled',
+  deepseek_thinking_type: 'enabled',
   deepseek_reasoning_effort: 'high',
   deepseek_timeout_seconds: 60,
   deepseek_context_window_tokens: 64000,
@@ -306,7 +306,7 @@ export default function AdminSettingsModal({ onClose }: Props) {
               </div>
               {thinkingEnabled && (
                 <div style={{ gridColumn: '1 / -1', padding: '10px 12px', borderRadius: 10, background: 'var(--dui-warning-container)', color: 'var(--dui-warning)', fontSize: 12, lineHeight: 1.6 }}>
-                  思考模式开启时，DeepSeek 的 temperature、top_p、presence_penalty、frequency_penalty 不生效，后端会自动不发送这些参数。
+                  DeepSeek 官方默认开启思考模式。开启时，temperature、top_p、presence_penalty、frequency_penalty 不生效，后端会自动不发送这些参数。
                 </div>
               )}
               <div>

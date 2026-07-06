@@ -47,6 +47,8 @@ class AdminRuntimeConfigTests(unittest.TestCase):
                 loaded = admin_runtime.load_runtime_config()
             self.assertEqual(loaded["scope"], "admin_only")
             self.assertEqual(loaded["deepseek_temperature"], 0.4)
+            self.assertEqual(loaded["deepseek_thinking_type"], "enabled")
+            self.assertEqual(loaded["deepseek_reasoning_effort"], "high")
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["deepseek_model"], "deepseek-chat")
 
     def test_effective_text_config_only_applies_to_admin_when_scope_is_admin_only(self):
@@ -58,6 +60,8 @@ class AdminRuntimeConfigTests(unittest.TestCase):
             deepseek_top_p=1.0,
             deepseek_max_tokens=0,
             deepseek_api_key="secret",
+            deepseek_thinking_type="enabled",
+            deepseek_reasoning_effort="high",
         )
         runtime = {
             "scope": "admin_only",
@@ -75,7 +79,11 @@ class AdminRuntimeConfigTests(unittest.TestCase):
             user_effective = admin_runtime.get_effective_text_config({"is_admin": False})
         self.assertEqual(admin_effective["text_model_provider"], "deepseek")
         self.assertEqual(admin_effective["deepseek_model"], "deepseek-reasoner")
+        self.assertEqual(admin_effective["deepseek_thinking_type"], "enabled")
+        self.assertEqual(admin_effective["deepseek_reasoning_effort"], "high")
         self.assertEqual(user_effective["text_model_provider"], "gemini")
+        self.assertEqual(user_effective["deepseek_thinking_type"], "enabled")
+        self.assertEqual(user_effective["deepseek_reasoning_effort"], "high")
 
 
 class AiCallLogDbTests(unittest.TestCase):

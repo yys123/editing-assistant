@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     deepseek_top_p: float = 1.0
     deepseek_max_tokens: int = 0
     deepseek_context_window_tokens: int = 64000
+    deepseek_thinking_type: str = "enabled"
+    deepseek_reasoning_effort: str = "high"
     jwt_secret: str = "editing-assistant-secret-change-in-production"
     jwt_expire_days: int = 7
     guide_app_id: str = ""
