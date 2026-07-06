@@ -26,6 +26,23 @@ _H2_NUM_RE = re.compile(r'^[' + _CN_NUMS + r']+[、]')
 _H3_PAREN_RE = re.compile(r'^（[' + _CN_NUMS + r']+）')
 _SUPERSCRIPT_MAP = str.maketrans("0123456789+-=()n", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿ")
 _SUBSCRIPT_MAP = str.maketrans("0123456789+-=()aeioruvxhklmnpst", "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑᵢₒᵣᵤᵥₓₕₖₗₘₙₚₛₜ")
+_SUPERSCRIPT_REF_DIGITS = "⁰¹²³⁴⁵⁶⁷⁸⁹"
+_SUPERSCRIPT_REF_TRANSLATION = str.maketrans({
+    "⁰": "0",
+    "¹": "1",
+    "²": "2",
+    "³": "3",
+    "⁴": "4",
+    "⁵": "5",
+    "⁶": "6",
+    "⁷": "7",
+    "⁸": "8",
+    "⁹": "9",
+    "⁻": "-",
+})
+_UNICODE_SUP_REF_RE = re.compile(
+    rf"[{_SUPERSCRIPT_REF_DIGITS}]+(?:\s*[,，、;；\-–—⁻]\s*[{_SUPERSCRIPT_REF_DIGITS}]+)*"
+)
 
 
 def _script_text(text: str, script: str) -> str:
@@ -38,6 +55,425 @@ def _script_text(text: str, script: str) -> str:
         return converted
     marker = "^" if script == "sup" else "_"
     return f"{marker}({compact})"
+
+
+def _looks_like_unicode_reference_sup_text(text: str, start: int, end: int) -> bool:
+    before = (text or "")[:start].rstrip()
+    after = (text or "")[end:].lstrip()
+    if not before:
+        return False
+
+    prev_char = before[-1:]
+    next_char = after[:1]
+    normalized = (text or "")[start:end].translate(_SUPERSCRIPT_REF_TRANSLATION)
+    digits = re.sub(r"\D+", "", normalized)
+    if prev_char and re.match(r"[\d×*/+\-=^]", prev_char):
+        return False
+    if next_char and re.match(r"[\d/]", next_char):
+        return False
+    if len(digits) >= 2 and re.match(r"[A-Za-z\u4e00-\u9fff]", prev_char):
+        return True
+    return bool(prev_char and re.match(r"[.,;:，。；、)\]）】]", prev_char))
+
+
+def _mark_unicode_superscript_citations(text: str) -> str:
+    def replace(match: re.Match) -> str:
+        if not _looks_like_unicode_reference_sup_text(text, match.start(), match.end()):
+            return match.group(0)
+        normalized = match.group(0).translate(_SUPERSCRIPT_REF_TRANSLATION)
+        normalized = re.sub(r"\s+", "", normalized)
+        normalized = normalized.replace("，", ",").replace("、", ",")
+        normalized = normalized.replace("；", ",").replace(";", ",")
+        normalized = normalized.replace("–", "-").replace("—", "-").replace("⁻", "-")
+        return f"[{normalized}]"
+
+    return _UNICODE_SUP_REF_RE.sub(replace, text or "")
+
+
+def _clean_extracted_text(text: str) -> str:
+    text = re.sub(r"\s+", " ", text or "").strip()
+    text = re.sub(r"^\s*null\s+", "", text, flags=re.I)
+    return text
+
+
+def _append_line(lines: list[str], text: str) -> None:
+    text = _clean_extracted_text(text)
+    if text:
+        lines.append(text)
+
+
+def _meta_values(soup: BeautifulSoup, *names: str) -> list[str]:
+    values: list[str] = []
+    seen: set[str] = set()
+    wanted = {name.lower() for name in names}
+    for meta in soup.find_all("meta"):
+        name = str(meta.get("name") or "").lower()
+        if name not in wanted:
+            continue
+        value = _clean_extracted_text(str(meta.get("content") or ""))
+        if value and value not in seen:
+            values.append(value)
+            seen.add(value)
+    return values
+
+
+def _first_cjk_value(values: list[str]) -> str:
+    for value in values:
+        if re.search(r"[\u4e00-\u9fff]", value):
+            return value
+    return values[0] if values else ""
+
+
+def _split_keyword_values(values: list[str]) -> list[str]:
+    keywords: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        for part in re.split(r"[;；]", value):
+            keyword = _clean_extracted_text(part)
+            if keyword and keyword not in seen:
+                keywords.append(keyword)
+                seen.add(keyword)
+    return keywords
+
+
+def _looks_like_cma_journal_page(soup: BeautifulSoup) -> bool:
+    if not soup.select_one(".body_content"):
+        return False
+    has_title = bool(_meta_values(soup, "citation_title", "eprints.title", "DC.title"))
+    if not has_title:
+        return False
+    identifiers = " ".join(
+        _meta_values(
+            soup,
+            "citation_doi",
+            "citation_journal_title",
+            "eprints.institution",
+            "eprints.publisher",
+            "DC.publisher",
+            "DC.relation",
+        )
+    )
+    return bool(
+        re.search(r"中华医学会|中华医学|Chinese Medical|cma\.j|rs\.yiigle\.com", identifiers, re.I)
+    )
+
+
+def _append_cma_front_matter(soup: BeautifulSoup, lines: list[str], structured: bool) -> None:
+    titles = _meta_values(soup, "citation_title", "eprints.title", "DC.title")
+    title = _first_cjk_value(titles)
+    if title:
+        _append_line(lines, f"[H1] {title}" if structured else title)
+
+    english_titles = [value for value in titles if value != title]
+    if english_titles:
+        _append_line(lines, f"英文题名：{english_titles[0]}")
+
+    authors = _meta_values(soup, "citation_author", "eprints.creators_name", "DC.creator")
+    if authors:
+        _append_line(lines, f"作者：{'；'.join(authors)}")
+
+    journal = _first_cjk_value(_meta_values(soup, "citation_journal_title", "jour-name", "eprints.publication"))
+    if journal:
+        _append_line(lines, f"期刊：{journal}")
+
+    date = _first_cjk_value(_meta_values(soup, "citation_publication_date", "eprints.date", "DC.date"))
+    if date:
+        _append_line(lines, f"出版日期：{date}")
+
+    volume = _first_cjk_value(_meta_values(soup, "citation_volume", "eprints.volume"))
+    issue = _first_cjk_value(_meta_values(soup, "citation_issue", "eprints.number"))
+    first_page = _first_cjk_value(_meta_values(soup, "citation_firstpage"))
+    last_page = _first_cjk_value(_meta_values(soup, "citation_lastpage"))
+    if volume or issue or first_page or last_page:
+        page_range = ""
+        if first_page and last_page:
+            page_range = f"，页码：{first_page}-{last_page}"
+        elif first_page:
+            page_range = f"，页码：{first_page}"
+        _append_line(lines, f"卷期：{volume or ''}({issue or ''}){page_range}".strip())
+
+    doi = _first_cjk_value(_meta_values(soup, "citation_doi", "eprints.doi"))
+    if doi:
+        _append_line(lines, f"DOI：{doi}")
+
+
+def _append_cma_abstracts(soup: BeautifulSoup, lines: list[str], structured: bool) -> None:
+    abstracts = [
+        _extract_text_with_refs(tag)
+        for tag in soup.select(".abstract_sec_main .abstract_content")
+    ]
+    if not abstracts:
+        abstracts = _meta_values(soup, "citation_abstract", "eprints.abstract", "DC.description")
+
+    chinese_abstract = _first_cjk_value(abstracts)
+    if chinese_abstract:
+        if structured:
+            _append_line(lines, "[H2] 摘要")
+        else:
+            _append_line(lines, "摘要")
+        _append_line(lines, chinese_abstract)
+
+    keywords = _split_keyword_values(_meta_values(soup, "citation_keyword", "eprints.keywords", "DC.subject"))
+    chinese_keywords = [value for value in keywords if re.search(r"[\u4e00-\u9fff]", value)]
+    if chinese_keywords:
+        _append_line(lines, f"关键词：{'；'.join(chinese_keywords)}")
+
+    for abstract in abstracts:
+        if abstract and abstract != chinese_abstract and not re.search(r"[\u4e00-\u9fff]", abstract):
+            _append_line(lines, "ABSTRACT" if not structured else "[H2] ABSTRACT")
+            _append_line(lines, abstract)
+            break
+
+    english_keywords = [value for value in keywords if not re.search(r"[\u4e00-\u9fff]", value)]
+    if english_keywords:
+        _append_line(lines, f"KEYWORDS：{'; '.join(english_keywords)}")
+
+
+def _append_cma_body_section(sec: Tag, lines: list[str], structured: bool) -> None:
+    title_tag = sec.find(
+        lambda tag: isinstance(tag, Tag)
+        and "title" in (tag.get("class") or []),
+        recursive=False,
+    )
+    title = _extract_text_with_refs(title_tag) if title_tag else ""
+    if title:
+        _append_line(lines, f"[H2] {title}" if structured else title)
+
+    for child in sec.children:
+        if isinstance(child, NavigableString):
+            _append_line(lines, str(child))
+            continue
+        if not isinstance(child, Tag) or child is title_tag:
+            continue
+        if child.name in _SKIP_TAGS:
+            continue
+        if child.name == "table":
+            _append_line(lines, _table_to_markdown(child))
+            continue
+        if "title" in (child.get("class") or []):
+            continue
+        text = _extract_text_with_refs(child)
+        if text:
+            _append_line(lines, text)
+
+
+def _append_cma_body(soup: BeautifulSoup, lines: list[str], structured: bool) -> None:
+    body = soup.select_one(".body_content")
+    if not body:
+        return
+    for sec in body.find_all(
+        lambda tag: isinstance(tag, Tag)
+        and tag.name == "div"
+        and "sec" in (tag.get("class") or []),
+        recursive=False,
+    ):
+        _append_cma_body_section(sec, lines, structured)
+
+
+def _append_cma_references_and_notes(soup: BeautifulSoup, lines: list[str], structured: bool) -> None:
+    ref_sec = soup.select_one(".back .ref_sec")
+    if ref_sec:
+        if structured:
+            _append_line(lines, "[H2] 参考文献")
+        else:
+            _append_line(lines, "参考文献")
+        ref_items = ref_sec.find_all(
+            lambda child: isinstance(child, Tag)
+            and child.name in {"div", "li"}
+            and "ref" in (child.get("class") or [])
+            and re.fullmatch(r"R\d+", str(child.get("id") or "")),
+        )
+        if ref_items:
+            for ref in ref_items:
+                ref_no = str(ref.get("id") or "").lstrip("R")
+                contents = ref.select(".ref_content")
+                if not contents:
+                    contents = [ref]
+                for index, content_tag in enumerate(contents):
+                    text = _extract_text_with_refs(content_tag)
+                    text = re.sub(r"\s*返回引文位置.*$", "", text).strip()
+                    if not text:
+                        continue
+                    prefix = f"[{ref_no}] " if index == 0 and ref_no else ""
+                    _append_line(lines, f"{prefix}{text}")
+        else:
+            for tag in ref_sec.find_all(
+                lambda child: isinstance(child, Tag)
+                and child.name in {"div", "li", "p"}
+                and child is not ref_sec,
+            ):
+                classes = tag.get("class") or []
+                text = _extract_text_with_refs(tag)
+                if not text or text == "参考文献" or "ref_title" in classes:
+                    continue
+                text = re.sub(r"\s*返回引文位置.*$", "", text).strip()
+                _append_line(lines, text)
+
+    note_sec = soup.select_one(".back .foot_note_sec")
+    if note_sec:
+        if structured:
+            _append_line(lines, "[H2] 备注信息")
+        else:
+            _append_line(lines, "备注信息")
+        for tag in note_sec.find_all(["div", "p"], recursive=False):
+            text = _extract_text_with_refs(tag)
+            if text and text != "备注信息":
+                _append_line(lines, text)
+
+
+def _dedupe_lines(lines: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen_consecutive = None
+    for line in lines:
+        clean = _clean_extracted_text(line)
+        if not clean or clean == seen_consecutive:
+            continue
+        deduped.append(clean)
+        seen_consecutive = clean
+    return deduped
+
+
+def _parse_cma_journal_page(soup: BeautifulSoup, structured: bool) -> Optional[str]:
+    if not _looks_like_cma_journal_page(soup):
+        return None
+
+    lines: list[str] = []
+    _append_cma_front_matter(soup, lines, structured)
+    _append_cma_abstracts(soup, lines, structured)
+    _append_cma_body(soup, lines, structured)
+    _append_cma_references_and_notes(soup, lines, structured)
+    return "\n".join(_dedupe_lines(lines))
+
+
+def _clean_cnki_text(text: str) -> str:
+    text = _clean_extracted_text(text)
+    text = text.replace("解决无障碍阅读Errors", " ")
+    text = re.sub(r"^(?:删除\s*)+(?:颜色\s*)?(?:笔记\s*)?(?:摘录\s*)?", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _extract_cnki_text(tag: Optional[Tag]) -> str:
+    if not tag:
+        return ""
+    return _clean_cnki_text(_extract_text_with_refs(tag))
+
+
+def _looks_like_cnki_reader_page(soup: BeautifulSoup) -> bool:
+    root = soup.select_one("#paperRead")
+    if not root:
+        return False
+    if root.select_one(".js-studyAchievement"):
+        return True
+    title = soup.find("title")
+    return bool(title and "HTML阅读-" in title.get_text("", strip=True))
+
+
+def _append_cnki_front_matter(root: Tag, lines: list[str], structured: bool) -> None:
+    title_tag = root.select_one(".js-studyAchievement .ChapterH1 h1, .js-studyAchievement h1.Chapter")
+    title = _extract_cnki_text(title_tag)
+    if title:
+        _append_line(lines, f"[H1] {title}" if structured else title)
+
+    source = _extract_cnki_text(root.select_one(".source-info"))
+    if source:
+        _append_line(lines, f"来源：{source}")
+
+    msg = root.select_one(".js-studyAchievement .ChapterMsg")
+    people_groups = msg.select("ul.Chapter-people") if msg else []
+    if people_groups:
+        authors = [
+            _extract_cnki_text(item)
+            for item in people_groups[0].find_all("li", recursive=False)
+        ]
+        authors = [author for author in authors if author]
+        if authors:
+            _append_line(lines, f"作者：{'；'.join(authors)}")
+
+    if len(people_groups) > 1:
+        units = [
+            _extract_cnki_text(item)
+            for item in people_groups[1].find_all("li", recursive=False)
+        ]
+        units = [unit for unit in units if unit]
+        if units:
+            _append_line(lines, f"单位：{'；'.join(units)}")
+
+    front_wrap = root.select_one(".js-studyAchievement > .wrap")
+    if front_wrap:
+        for meta in front_wrap.select(".ChapterP"):
+            text = _extract_cnki_text(meta)
+            if text:
+                _append_line(lines, text)
+
+
+def _append_cnki_body(root: Tag, lines: list[str], structured: bool) -> None:
+    body_wraps = root.select(".js-studyAchievement > .wrap")
+    for body in body_wraps[1:]:
+        for block in body.select(".ChapterWrap"):
+            heading = block.find(_HEADING_TAGS)
+            if heading:
+                text = _extract_cnki_text(heading)
+                if text:
+                    _append_line(lines, f"[H2] {text}" if structured else text)
+                continue
+            text = _extract_cnki_text(block)
+            if text:
+                _append_line(lines, text)
+
+
+def _cnki_reference_lines_from_right_panel(soup: BeautifulSoup) -> list[str]:
+    ref_panel = soup.select_one(".pdf-right-content .liter-scrolltop")
+    if not ref_panel:
+        return []
+    lines: list[str] = []
+    for item in ref_panel.select(".note-list > li"):
+        text = _extract_cnki_text(item)
+        if not text:
+            continue
+        text = re.sub(r"^\[?(\d+)\]?\s*", r"[\1] ", text)
+        lines.append(text)
+    return _dedupe_lines(lines)
+
+
+def _cnki_reference_lines_from_article(root: Tag) -> list[str]:
+    ref_box = root.select_one(".references-box")
+    if not ref_box:
+        return []
+    lines: list[str] = []
+    for item in ref_box.find_all(["p", "li"], recursive=True):
+        text = _extract_cnki_text(item)
+        if not text or text == "参考文献":
+            continue
+        text = re.sub(r"^\[?(\d+)\]?\s*", r"[\1] ", text)
+        lines.append(text)
+    return _dedupe_lines(lines)
+
+
+def _append_cnki_references(soup: BeautifulSoup, root: Tag, lines: list[str], structured: bool) -> None:
+    refs = _cnki_reference_lines_from_right_panel(soup)
+    if not refs:
+        refs = _cnki_reference_lines_from_article(root)
+    if not refs:
+        return
+    _append_line(lines, "[H2] 参考文献" if structured else "参考文献")
+    for ref in refs:
+        _append_line(lines, ref)
+
+
+def _parse_cnki_reader_page(soup: BeautifulSoup, structured: bool) -> Optional[str]:
+    if not _looks_like_cnki_reader_page(soup):
+        return None
+
+    root = soup.select_one("#paperRead")
+    if not root:
+        return None
+
+    lines: list[str] = []
+    _append_cnki_front_matter(root, lines, structured)
+    _append_cnki_body(root, lines, structured)
+    _append_cnki_references(soup, root, lines, structured)
+    return "\n".join(_dedupe_lines(lines))
 
 
 def _normalize_reference_sup_text(text: str) -> str:
@@ -98,6 +534,8 @@ def _looks_like_reference_sup(tag: Tag) -> bool:
     # superscripts. Citation superscripts are usually attached to prose.
     if prev_char and re.match(r"[\d×*/+\-=]", prev_char):
         return False
+    if prev_char and re.match(r"[.,;:，。；、)\]）】]", prev_char):
+        return True
     if next_char and re.match(r"[a-z0-9/]", next_char):
         return False
 
@@ -203,7 +641,7 @@ def _extract_text_with_refs(tag: Tag, reference_targets: Optional[set[str]] = No
                 parts.append(_script_text(child.get_text(" ", strip=True), child.name))
             else:
                 parts.append(_extract_text_with_refs(child, reference_targets))
-    return re.sub(r"\s+", " ", "".join(parts)).strip()
+    return _mark_unicode_superscript_citations(re.sub(r"\s+", " ", "".join(parts)).strip())
 
 
 def _append_structured_text(lines: list[str], text: str) -> None:
@@ -251,6 +689,14 @@ def parse_html_structured(html: str, preserve_leading_text: bool = False) -> str
         for k in ("sidebar", "right__", "rightaside", "footer", "aside", "banner", "ad_")
     )):
         tag.decompose()
+
+    cnki_text = _parse_cnki_reader_page(soup, structured=True)
+    if cnki_text:
+        return cnki_text
+
+    cma_text = _parse_cma_journal_page(soup, structured=True)
+    if cma_text:
+        return cma_text
 
     lines: list[str] = []
     stopped = [False]
@@ -692,6 +1138,14 @@ def parse_html_to_text(html: str) -> str:
 
     for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
         tag.decompose()
+
+    cnki_text = _parse_cnki_reader_page(soup, structured=False)
+    if cnki_text:
+        return cnki_text
+
+    cma_text = _parse_cma_journal_page(soup, structured=False)
+    if cma_text:
+        return cma_text
 
     main = (
         soup.find("article")

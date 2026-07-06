@@ -199,14 +199,31 @@ def _infer_priority_guideline_usage(
     )
 
 
-_SOURCE_REF_BODY_CHARS = r'0-9\s,，、;；\-–—'
+_SUPERSCRIPT_REF_DIGITS = "⁰¹²³⁴⁵⁶⁷⁸⁹"
+_SOURCE_REF_DIGIT_TRANSLATION = str.maketrans({
+    "⁰": "0",
+    "¹": "1",
+    "²": "2",
+    "³": "3",
+    "⁴": "4",
+    "⁵": "5",
+    "⁶": "6",
+    "⁷": "7",
+    "⁸": "8",
+    "⁹": "9",
+    "⁻": "-",
+})
+_SOURCE_REF_BODY_CHARS = rf'0-9{_SUPERSCRIPT_REF_DIGITS}\s,，、;；\-–—⁻'
 _INLINE_SOURCE_REF_RE = re.compile(
-    rf'\^?\s*(?:<sup>\s*)?[\[［【]\s*([{_SOURCE_REF_BODY_CHARS}]*\d[{_SOURCE_REF_BODY_CHARS}]*)\s*[\]］】]\s*(?:</sup>)?',
+    rf'\^?\s*(?:<sup>\s*)?[\[［【]\s*([{_SOURCE_REF_BODY_CHARS}]*[0-9{_SUPERSCRIPT_REF_DIGITS}][{_SOURCE_REF_BODY_CHARS}]*)\s*[\]］】]\s*(?:</sup>)?',
     flags=re.IGNORECASE,
 )
 _SUP_SOURCE_REF_RE = re.compile(
-    rf'<sup>\s*([{_SOURCE_REF_BODY_CHARS}]*\d[{_SOURCE_REF_BODY_CHARS}]*)\s*</sup>',
+    rf'<sup>\s*([{_SOURCE_REF_BODY_CHARS}]*[0-9{_SUPERSCRIPT_REF_DIGITS}][{_SOURCE_REF_BODY_CHARS}]*)\s*</sup>',
     flags=re.IGNORECASE,
+)
+_UNICODE_SUP_SOURCE_REF_RE = re.compile(
+    rf'[{_SUPERSCRIPT_REF_DIGITS}]+(?:\s*[,，、;；\-–—⁻]\s*[{_SUPERSCRIPT_REF_DIGITS}]+)*'
 )
 _HASH_SOURCE_REF_RE = re.compile(r'#R(\d+)\b', flags=re.IGNORECASE)
 
@@ -783,7 +800,8 @@ def _rewrite_source_only_citations_to_source_refs(
 
 def _expand_source_ref_ids(raw: str) -> list[str]:
     ref_ids: list[str] = []
-    parts = re.split(r'[,，、;；]\s*', raw)
+    normalized = (raw or "").translate(_SOURCE_REF_DIGIT_TRANSLATION)
+    parts = re.split(r'[,，、;；]\s*', normalized)
     for part in parts:
         part = part.strip()
         if not part:
@@ -806,6 +824,26 @@ def _expand_source_ref_ids(raw: str) -> list[str]:
     return deduped
 
 
+def _looks_like_unicode_sup_source_ref_context(text: str, start: int, end: int) -> bool:
+    before = (text or "")[:start].rstrip()
+    after = (text or "")[end:].lstrip()
+    if not before:
+        return False
+
+    prev_char = before[-1]
+    next_char = after[:1]
+    normalized = (text or "")[start:end].translate(_SOURCE_REF_DIGIT_TRANSLATION)
+    digits = re.sub(r"\D+", "", normalized)
+    if re.match(r"[\d×*/+\-=^]", prev_char):
+        return False
+    if next_char and re.match(r"[\d/]", next_char):
+        return False
+    if len(digits) >= 2 and re.match(r"[A-Za-z\u4e00-\u9fff]", prev_char):
+        return True
+
+    return bool(re.match(r"[.,;:，。；、)\]）】]", prev_char))
+
+
 def _citation_keys_for_chunk(chunk: ReferenceChunk) -> list[str]:
     if chunk.source_ref_ids:
         return [f"{chunk.source_id}-{source_ref_id}" for source_ref_id in chunk.source_ref_ids]
@@ -823,6 +861,12 @@ def _iter_source_ref_matches(text: str) -> list[tuple[int, list[str]]]:
             ref_ids = _expand_source_ref_ids(match.group(1))
             if ref_ids:
                 matches.append((match.start(), ref_ids))
+    for match in _UNICODE_SUP_SOURCE_REF_RE.finditer(text or ""):
+        if not _looks_like_unicode_sup_source_ref_context(text or "", match.start(), match.end()):
+            continue
+        ref_ids = _expand_source_ref_ids(match.group(0))
+        if ref_ids:
+            matches.append((match.start(), ref_ids))
     for match in _HASH_SOURCE_REF_RE.finditer(text or ""):
         matches.append((match.start(), [str(int(match.group(1)))]))
     return sorted(matches, key=lambda item: item[0])

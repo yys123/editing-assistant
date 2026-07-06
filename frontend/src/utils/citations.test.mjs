@@ -39,6 +39,18 @@ assert.equal(byKey.get('1-3')?.context_before, '前文背景。')
 assert.equal(byKey.get('1-3')?.context_after, '后文补充。')
 assert.match(byKey.get('1-3')?.quote ?? '', /治疗推荐/)
 
+const unicodeSuperscriptAnchors = buildReferenceAnchorsFromDocs([
+  {
+    filename: '隐匿性阴茎指南.pdf',
+    text: 'Hadidi et al.²⁷ suggested that abnormal attachment points can cause CCP. Patients may have infection²¹, ³⁴ and so forth. 白细胞计数为 10⁹/L，面积单位为 cm²。',
+    char_count: 80,
+  },
+])
+assert.deepEqual(
+  unicodeSuperscriptAnchors.map(anchor => anchor.citation_key),
+  ['1-27', '1-21', '1-34'],
+)
+
 const sentenceAnchors = buildReferenceAnchorsFromDocs([
   {
     filename: '句子级指南.pdf',
@@ -107,6 +119,36 @@ assert.equal(
 assert.equal(
   linkifyCitationMarkers('常见原因包括[1–22]。', enDashResolver),
   '常见原因包括[[1-22]](#citation-1-22)。',
+)
+
+const unresolvedSourceRefLikeRangeResolver = createCitationResolver([
+  {
+    citation_key: '3',
+    source_id: 3,
+    source_filename: '重点指南C.pdf',
+    source_ref_id: '',
+    quote: '资料摘要',
+    context_before: '',
+    context_after: '',
+    paragraph_index: -1,
+  },
+  ...Array.from({ length: 25 }, (_, index) => {
+    const sourceRefId = String(index + 3)
+    return {
+      citation_key: `1-${sourceRefId}`,
+      source_id: 1,
+      source_filename: '重点指南A.pdf',
+      source_ref_id: sourceRefId,
+      quote: `源内参考文献 ${sourceRefId}`,
+      context_before: '',
+      context_after: '',
+      paragraph_index: index,
+    }
+  }),
+])
+assert.equal(
+  linkifyCitationMarkers('附着异常导致阴茎隐匿[3-27]。', unresolvedSourceRefLikeRangeResolver),
+  '附着异常导致阴茎隐匿[3-27]。',
 )
 
 const chunkResolver = createCitationResolver([

@@ -3,6 +3,7 @@ import type { ReferenceAnchor, ReferenceDoc } from '../types'
 export type CitationLink = {
   key: string
   label: string
+  kind?: 'direct' | 'source-ref-fallback'
 }
 
 export type CitationResolver = (token: string, context?: string) => CitationLink | null
@@ -86,6 +87,11 @@ function sentenceAround(text: string, index: number): string {
 function resolveCitationToken(token: string, context: string, resolveCitation: CitationResolver) {
   const direct = resolveCitation(token, context)
   if (direct) return [{ token, link: direct }]
+  const rangeStart = token.match(/^(\d+)\s*-\s*\d+$/)?.[1]
+  if (rangeStart) {
+    const startLink = resolveCitation(rangeStart, context)
+    if (startLink?.kind === 'direct') return [{ token, link: null }]
+  }
   const expanded = expandBareNumericRangeToken(token)
   if (expanded.length === 1) return [{ token, link: null }]
   const expandedResolved = expanded.map(expandedToken => ({
@@ -417,6 +423,23 @@ function expandOriginalContentRefIds(raw: string): string[] {
   return [...new Set(refIds.filter(refId => refId !== '0'))]
 }
 
+const UNICODE_SUPERSCRIPT_REF_RE = /[⁰¹²³⁴⁵⁶⁷⁸⁹]+(?:\s*[,，、;；\-–—⁻]\s*[⁰¹²³⁴⁵⁶⁷⁸⁹]+)*/g
+
+function looksLikeUnicodeSuperscriptRefContext(text: string, start: number, end: number): boolean {
+  const before = text.slice(0, start).trimEnd()
+  const after = text.slice(end).trimStart()
+  if (!before) return false
+
+  const prevChar = before.slice(-1)
+  const nextChar = after.slice(0, 1)
+  const digits = normalizeCitationGlyphs(text.slice(start, end)).replace(/\D+/g, '')
+  if (/[\d×*/+\-=^]/.test(prevChar)) return false
+  if (nextChar && /[\d/]/.test(nextChar)) return false
+  if (digits.length >= 2 && /[A-Za-z\u4e00-\u9fff]/.test(prevChar)) return true
+
+  return /[.,;:，。；、)\]）】]/.test(prevChar)
+}
+
 export function buildReferenceAnchorsFromDocs(referenceDocs: ReferenceDoc[]): ReferenceAnchor[] {
   const anchors: ReferenceAnchor[] = []
   const seen = new Set<string>()
@@ -428,11 +451,9 @@ export function buildReferenceAnchorsFromDocs(referenceDocs: ReferenceDoc[]): Re
     const sentenceGroups = paragraphs.map((paragraph, paragraphIndex) => splitSentenceFragments(paragraph, paragraphIndex))
     const allSentences = sentenceGroups.flat()
     paragraphs.forEach((paragraph, paragraphIndex) => {
-      inlineRefRe.lastIndex = 0
-      let match: RegExpExecArray | null
-      while ((match = inlineRefRe.exec(paragraph)) !== null) {
-        const matchIndex = match.index
-        const sourceRefIds = expandSourceRefIds(match[1])
+      const pushAnchor = (matchIndex: number, sourceRefId: string) => {
+        const citationKey = `${sourceId}-${sourceRefId}`
+        if (seen.has(citationKey)) return
         const paragraphSentences = sentenceGroups[paragraphIndex] ?? []
         const localSentence = paragraphSentences.find(sentence => matchIndex >= sentence.start && matchIndex < sentence.end)
           ?? paragraphSentences[0]
@@ -441,20 +462,36 @@ export function buildReferenceAnchorsFromDocs(referenceDocs: ReferenceDoc[]): Re
           ? sentenceContext(allSentences, sentenceIndex)
           : { context_before: '', context_after: '' }
         const quote = localSentence?.text || paragraph.replace(/\s+/g, ' ').trim()
+        seen.add(citationKey)
+        anchors.push({
+          citation_key: citationKey,
+          source_id: sourceId,
+          source_filename: doc.filename,
+          source_ref_id: sourceRefId,
+          quote,
+          context_before: context.context_before,
+          context_after: context.context_after,
+          paragraph_index: paragraphIndex,
+        })
+      }
+
+      inlineRefRe.lastIndex = 0
+      let match: RegExpExecArray | null
+      while ((match = inlineRefRe.exec(paragraph)) !== null) {
+        const matchIndex = match.index
+        const sourceRefIds = expandSourceRefIds(match[1])
         for (const sourceRefId of sourceRefIds) {
-          const citationKey = `${sourceId}-${sourceRefId}`
-          if (seen.has(citationKey)) continue
-          seen.add(citationKey)
-          anchors.push({
-            citation_key: citationKey,
-            source_id: sourceId,
-            source_filename: doc.filename,
-            source_ref_id: sourceRefId,
-            quote,
-            context_before: context.context_before,
-            context_after: context.context_after,
-            paragraph_index: paragraphIndex,
-          })
+          pushAnchor(matchIndex, sourceRefId)
+        }
+      }
+
+      UNICODE_SUPERSCRIPT_REF_RE.lastIndex = 0
+      while ((match = UNICODE_SUPERSCRIPT_REF_RE.exec(paragraph)) !== null) {
+        if (!looksLikeUnicodeSuperscriptRefContext(paragraph, match.index, match.index + match[0].length)) {
+          continue
+        }
+        for (const sourceRefId of expandSourceRefIds(match[0])) {
+          pushAnchor(match.index, sourceRefId)
         }
       }
     })
@@ -496,7 +533,7 @@ export function createCitationResolver(referenceAnchors: ReferenceAnchor[]): Cit
     }
     if (anchorsByCitationKey.has(token)) {
       const anchor = bestAnchorForContext(anchorsByCitationKey.get(token) ?? [], context)
-      return anchor ? { key: anchor.anchor_key ?? anchor.citation_key, label: token } : null
+      return anchor ? { key: anchor.anchor_key ?? anchor.citation_key, label: token, kind: 'direct' } : null
     }
     if (/^\d+$/.test(token)) {
       const anchor = firstBySourceRef.get(String(Number(token)))
@@ -504,6 +541,7 @@ export function createCitationResolver(referenceAnchors: ReferenceAnchor[]): Cit
         return {
           key: anchor.anchor_key ?? anchor.citation_key,
           label: anchor.source_id === 0 ? anchor.citation_key : String(Number(token)),
+          kind: 'source-ref-fallback',
         }
       }
     }
