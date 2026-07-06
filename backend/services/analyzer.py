@@ -198,6 +198,234 @@ def _drop_false_abbreviation_full_name_issues(
     return filtered
 
 
+_COVERAGE_TERM_SUFFIX_RE = re.compile(
+    r"[\u4e00-\u9fffA-Za-z0-9\-]{0,12}"
+    r"(?:障碍|异常|减少|降低|增高|感染|敏感|退化|萎缩|纤维化|紊乱|不全|延缓|"
+    r"患病率|发病率|危险因素|临床表现|诊断标准|治疗方案|禁忌证|不良反应)"
+)
+_COVERAGE_NUMBER_RE = re.compile(r"(?:≥|≤|>|<)?\s*\d+(?:\.\d+)?\s*%?")
+_COVERAGE_STOP_TERMS = {
+    "发病因素",
+    "主要因素",
+    "危险因素",
+    "临床表现",
+    "治疗方案",
+    "不良反应",
+}
+
+
+def _compact_for_coverage(text: str) -> str:
+    compact = re.sub(r"\[[^\]]+\]", "", str(text or ""))
+    compact = re.sub(r"\s+", "", compact)
+    compact = re.sub(r"[，,。；;：:、（）()《》“”\"'`·/\\]", "", compact)
+    return compact.lower()
+
+
+def _coverage_numbers(text: str) -> set[str]:
+    numbers: set[str] = set()
+    for match in _COVERAGE_NUMBER_RE.findall(text or ""):
+        normalized = re.sub(r"\s+", "", match)
+        if not normalized:
+            continue
+        if re.fullmatch(r"\d{4}", normalized):
+            continue
+        numbers.add(normalized)
+    return numbers
+
+
+def _coverage_terms(text: str) -> set[str]:
+    terms: set[str] = set()
+    clean = re.sub(r"\[[^\]]+\]", "", str(text or "")).lower()
+    fragments = re.split(
+        r"[\s，,。；;：:、（）()《》“”\"'`/\\]+|(?:以及|并且|和|及|与)",
+        clean,
+    )
+    for fragment in fragments:
+        compact = _compact_for_coverage(fragment)
+        for match in _COVERAGE_TERM_SUFFIX_RE.findall(compact):
+            term = re.sub(r"^.*(?:包括|缺少|补充|总结|提示|显示|指出|例如|如)", "", match)
+            term = re.sub(r"^(?:老年人|患者|fd|的|其|该|相关)+", "", term).strip("-")
+            if len(term) < 4 or term in _COVERAGE_STOP_TERMS:
+                continue
+            terms.add(term)
+    return terms
+
+
+def _has_covered_guideline_evidence(issue: SectionIssue, section_content: str) -> bool:
+    evidence_text = " ".join(
+        part for evidence in issue.guideline_evidence
+        for part in (evidence.quote, evidence.relevance)
+        if part
+    )
+    issue_text = " ".join([
+        issue.description or "",
+        " ".join(issue.examples or []),
+        evidence_text,
+    ])
+    section_compact = _compact_for_coverage(section_content)
+
+    evidence_numbers = _coverage_numbers(evidence_text)
+    if len(evidence_numbers) >= 2:
+        covered_numbers = {
+            number for number in evidence_numbers
+            if number in section_content or number.replace("%", "") in section_content
+        }
+        if len(covered_numbers) >= 2 and len(covered_numbers) / len(evidence_numbers) >= 0.5:
+            return True
+
+    terms = _coverage_terms(issue_text)
+    if len(terms) < 3:
+        return False
+    covered_terms = {term for term in terms if term in section_compact}
+    return len(covered_terms) >= 3 and len(covered_terms) / len(terms) >= 0.55
+
+
+def _drop_false_covered_missing_content_issues(
+    issues: List[SectionIssue],
+    section_content: str,
+) -> List[SectionIssue]:
+    filtered: List[SectionIssue] = []
+    for issue in issues:
+        if (
+            issue.issue_type == "missing_content"
+            and issue.guideline_evidence
+            and _has_covered_guideline_evidence(issue, section_content)
+        ):
+            continue
+        filtered.append(issue)
+    return filtered
+
+
+_ARABIC_HEADING_CLAIM_RE = re.compile(r"[“\"「『']\s*([1-9]\d*)\s*[、.．]\s*([^”\"」』']{2,40})[”\"」』']")
+_PAREN_HEADING_LINE_RE = re.compile(r"^\s*(?:#{1,6}\s*)?[（(][一二三四五六七八九十百]+[）)]\s*(.+?)\s*$")
+
+
+def _issue_text(issue: SectionIssue) -> str:
+    return " ".join([
+        issue.description or "",
+        " ".join(issue.examples or []),
+        " ".join(anchor.quote for anchor in issue.anchors if anchor.quote),
+    ])
+
+
+def _claims_false_heading_numbering(issue: SectionIssue, section_content: str) -> bool:
+    text = _issue_text(issue)
+    if not ("标题" in text and ("序号" in text or "层级" in text or "编号" in text)):
+        return False
+    if not any(word in text for word in ("不规范", "不一致", "混乱", "混合")):
+        return False
+
+    parenthesized_titles = {
+        _compact_for_coverage(match.group(1))
+        for line in section_content.splitlines()
+        if (match := _PAREN_HEADING_LINE_RE.match(line.strip()))
+    }
+    if not parenthesized_titles:
+        return False
+
+    for _number, title in _ARABIC_HEADING_CLAIM_RE.findall(text):
+        compact_title = _compact_for_coverage(title)
+        if compact_title and compact_title in parenthesized_titles:
+            return True
+    return False
+
+
+def _claims_reference_marker_format_only(issue: SectionIssue) -> bool:
+    text = _issue_text(issue)
+    if "参考文献" not in text and "引用序号" not in text:
+        return False
+    if not any(word in text for word in ("格式不一致", "上标", "方括号", "普通字符", "普通方括号")):
+        return False
+    if any(word in text for word in ("缺失", "缺少", "无法定位", "错误引用", "引用错误", "来源不明")):
+        return False
+    return True
+
+
+def _drop_false_numbering_and_reference_style_issues(
+    issues: List[SectionIssue],
+    section_content: str,
+) -> List[SectionIssue]:
+    filtered: List[SectionIssue] = []
+    for issue in issues:
+        if issue.issue_type == "style" and (
+            _claims_false_heading_numbering(issue, section_content)
+            or _claims_reference_marker_format_only(issue)
+        ):
+            continue
+        filtered.append(issue)
+    return filtered
+
+
+def _is_functional_dyspepsia_topic(disease: str) -> bool:
+    normalized = _compact_for_coverage(disease)
+    return "功能性消化不良" in normalized or normalized in {"fd"}
+
+
+def _claims_out_of_scope_od_diagnostic_path(issue: SectionIssue) -> bool:
+    text = _issue_text(issue)
+    if not any(marker in text for marker in ("器质性消化不良", "OD", "organic dyspepsia")):
+        return False
+    if not any(word in text for word in ("诊断流程", "诊断路径", "诊断步骤", "评估步骤", "评估与诊断")):
+        return False
+    if any(phrase in text for phrase in ("排除器质性", "排除OD", "排除 OD", "鉴别OD", "鉴别 OD")):
+        return False
+    return True
+
+
+def _drop_out_of_scope_disease_issues(
+    issues: List[SectionIssue],
+    disease: str,
+) -> List[SectionIssue]:
+    if not _is_functional_dyspepsia_topic(disease):
+        return issues
+
+    filtered: List[SectionIssue] = []
+    for issue in issues:
+        if (
+            issue.issue_type in {"missing_content", "structure"}
+            and _claims_out_of_scope_od_diagnostic_path(issue)
+        ):
+            continue
+        filtered.append(issue)
+    return filtered
+
+
+_ROME_V_REFERENCE_RE = re.compile(r"(?:rome\s*[vⅤ]|罗马\s*[vⅤ五])", re.IGNORECASE)
+
+
+def _references_include_rome_v(reference_texts: List[str]) -> bool:
+    return any(_ROME_V_REFERENCE_RE.search(text or "") for text in reference_texts)
+
+
+def _claims_rome_v_unpublished(issue: SectionIssue) -> bool:
+    text = _issue_text(issue)
+    if not _ROME_V_REFERENCE_RE.search(text):
+        return False
+    return any(phrase in text for phrase in (
+        "未正式发布",
+        "尚未正式发布",
+        "尚未发布",
+        "未发布",
+        "未公布",
+        "尚未公布",
+    ))
+
+
+def _drop_false_rome_v_unpublished_issues(
+    issues: List[SectionIssue],
+    reference_texts: List[str],
+) -> List[SectionIssue]:
+    if not _references_include_rome_v(reference_texts):
+        return issues
+
+    filtered: List[SectionIssue] = []
+    for issue in issues:
+        if issue.issue_type in {"accuracy", "outdated"} and _claims_rome_v_unpublished(issue):
+            continue
+        filtered.append(issue)
+    return filtered
+
+
 def _parse_issue_anchors(item: dict) -> List[IssueAnchor]:
     anchors: List[IssueAnchor] = []
     for raw in item.get("anchors", []) or []:
@@ -229,6 +457,97 @@ def _parse_guideline_evidence(item: dict) -> List[GuidelineEvidence]:
                 relevance=relevance,
             ))
     return evidence
+
+
+_REFERENCE_ID_RE = re.compile(r"参考数据源\s*(\d+)")
+_REFERENCE_FILENAME_RE = re.compile(r"文件名[：:]\s*([^\n]+)")
+_REFERENCE_HEADER_RE = re.compile(
+    r"^\s*#{0,6}\s*参考数据源\s*(\d+)(?:（[^）]*）)?(?:[：:]\s*([^\n]+))?",
+    re.MULTILINE,
+)
+
+
+def _compact_reference_name(text: str) -> str:
+    compact = re.sub(r"\s+", "", str(text or ""))
+    compact = re.sub(r"[：:（）()【】\[\]《》“”\"'`]", "", compact)
+    return compact.lower()
+
+
+def _allowed_reference_sources(reference_texts: List[str]) -> dict[int, str]:
+    allowed: dict[int, str] = {}
+    for fallback_idx, text in enumerate(reference_texts, 1):
+        clean = str(text or "").strip()
+        if not clean:
+            continue
+        ref_id = fallback_idx
+        header_filename = ""
+        header_match = _REFERENCE_HEADER_RE.search(clean)
+        if header_match:
+            try:
+                ref_id = int(header_match.group(1))
+            except ValueError:
+                ref_id = fallback_idx
+            header_filename = (header_match.group(2) or "").strip()
+        filename_match = _REFERENCE_FILENAME_RE.search(clean)
+        filename = (filename_match.group(1) if filename_match else header_filename).strip()
+        allowed[ref_id] = filename
+    return allowed
+
+
+def _guideline_evidence_matches_uploaded_source(
+    evidence: GuidelineEvidence,
+    allowed_sources: dict[int, str],
+) -> bool:
+    source = (evidence.source or "").strip()
+    if not source:
+        return False
+
+    id_match = _REFERENCE_ID_RE.search(source)
+    if id_match:
+        try:
+            ref_id = int(id_match.group(1))
+        except ValueError:
+            return False
+        if ref_id not in allowed_sources:
+            return False
+        filename = allowed_sources.get(ref_id, "").strip()
+        if not filename:
+            return True
+        source_tail = re.sub(
+            r"^.*?参考数据源\s*\d+(?:（[^）]*）)?[：:]?",
+            "",
+            source,
+        ).strip()
+        if not source_tail:
+            return True
+        compact_filename = _compact_reference_name(filename)
+        compact_tail = _compact_reference_name(source_tail)
+        compact_source = _compact_reference_name(source)
+        return compact_filename in compact_source or compact_tail in compact_filename
+
+    compact_source = _compact_reference_name(source)
+    return any(
+        _compact_reference_name(filename) in compact_source
+        for filename in allowed_sources.values()
+        if filename
+    )
+
+
+def _sanitize_guideline_evidence_sources(
+    issues: List[SectionIssue],
+    reference_texts: List[str],
+    priority_reference_texts: Optional[List[str]] = None,
+) -> List[SectionIssue]:
+    allowed_sources = _allowed_reference_sources([
+        *(reference_texts or []),
+        *((priority_reference_texts or [])),
+    ])
+    for issue in issues:
+        issue.guideline_evidence = [
+            evidence for evidence in issue.guideline_evidence
+            if _guideline_evidence_matches_uploaded_source(evidence, allowed_sources)
+        ]
+    return issues
 
 
 def _build_section_issue(item: dict) -> SectionIssue:
@@ -1338,8 +1657,18 @@ async def analyze_section(
             )
             print(f"[analyze_section] 第 {i+1}/{len(chunks)} 块分析完毕，发现 {len(chunk_issues)} 个问题")
             all_issues.extend(chunk_issues)
+        _sanitize_guideline_evidence_sources(
+            all_issues,
+            reference_texts,
+            priority_reference_texts or [],
+        )
         merged_issues, summary = await _merge_chunk_issues(
             disease, section.heading, all_issues,
+        )
+        _sanitize_guideline_evidence_sources(
+            merged_issues,
+            reference_texts,
+            priority_reference_texts or [],
         )
         if not merged_issues:
             ref_block = _build_reference_block(reference_texts, section.heading, section.content)
@@ -1352,6 +1681,11 @@ async def analyze_section(
                 merged_issues, empty_summary = await _recheck_empty_section_issues(
                     disease, section, quality_standard, content_spec, ref_block, priority_ref_block,
                 )
+                _sanitize_guideline_evidence_sources(
+                    merged_issues,
+                    reference_texts,
+                    priority_reference_texts or [],
+                )
                 summary = "\n".join(part for part in (summary, empty_summary) if part)
                 if merged_issues:
                     guideline_reference_block = _build_guideline_reference_block_for_verify([ref_block], priority_ref_block)
@@ -1359,8 +1693,17 @@ async def analyze_section(
                         disease, section, merged_issues, quality_standard, content_spec,
                         guideline_reference_block=guideline_reference_block,
                     )
+                    _sanitize_guideline_evidence_sources(
+                        merged_issues,
+                        reference_texts,
+                        priority_reference_texts or [],
+                    )
                     summary = "\n".join(part for part in (summary, verify_summary) if part)
         merged_issues = _drop_false_table_body_missing_issues(merged_issues, section.content)
+        merged_issues = _drop_false_covered_missing_content_issues(merged_issues, section.content)
+        merged_issues = _drop_false_numbering_and_reference_style_issues(merged_issues, section.content)
+        merged_issues = _drop_out_of_scope_disease_issues(merged_issues, disease)
+        merged_issues = _drop_false_rome_v_unpublished_issues(merged_issues, reference_texts)
         _attach_issue_anchors(merged_issues, section.content)
         merged_issues = _drop_false_abbreviation_full_name_issues(merged_issues)
         merged_issues = _drop_unlocated_required_anchor_issues(merged_issues)
@@ -1387,10 +1730,20 @@ async def analyze_section(
             context="section_analysis",
             batch_note=_reference_batch_note(batch_idx, len(reference_blocks)),
         ))
+    _sanitize_guideline_evidence_sources(
+        issues,
+        reference_texts,
+        priority_reference_texts or [],
+    )
 
     if len(reference_blocks) > 1:
         issues, _merge_summary = await _merge_chunk_issues(
             disease, section.heading, issues,
+        )
+        _sanitize_guideline_evidence_sources(
+            issues,
+            reference_texts,
+            priority_reference_texts or [],
         )
 
     empty_review_summary = ""
@@ -1399,6 +1752,11 @@ async def analyze_section(
         if _should_recheck_empty_section(section, ref_block, priority_ref_block):
             issues, empty_review_summary = await _recheck_empty_section_issues(
                 disease, section, quality_standard, content_spec, ref_block, priority_ref_block,
+            )
+            _sanitize_guideline_evidence_sources(
+                issues,
+                reference_texts,
+                priority_reference_texts or [],
             )
 
     if not issues:
@@ -1414,11 +1772,20 @@ async def analyze_section(
         disease, section, issues, quality_standard, content_spec,
         guideline_reference_block=guideline_reference_block,
     )
+    _sanitize_guideline_evidence_sources(
+        verified_issues,
+        reference_texts,
+        priority_reference_texts or [],
+    )
     if empty_review_summary:
         verification_summary = "\n".join(
             part for part in (empty_review_summary, verification_summary) if part
         )
     verified_issues = _drop_false_table_body_missing_issues(verified_issues, section.content)
+    verified_issues = _drop_false_covered_missing_content_issues(verified_issues, section.content)
+    verified_issues = _drop_false_numbering_and_reference_style_issues(verified_issues, section.content)
+    verified_issues = _drop_out_of_scope_disease_issues(verified_issues, disease)
+    verified_issues = _drop_false_rome_v_unpublished_issues(verified_issues, reference_texts)
     _attach_issue_anchors(verified_issues, section.content)
     verified_issues = _drop_false_abbreviation_full_name_issues(verified_issues)
     verified_issues = _drop_unlocated_required_anchor_issues(verified_issues)

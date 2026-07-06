@@ -1353,6 +1353,33 @@ body {
   border-color: transparent;
   background: var(--dui-primary-container);
 }
+.entry-library-paste-toggle {
+  min-height: 31px;
+  margin: 0 0 6px 6px;
+  padding: 0 12px;
+  border: 0.5px solid rgba(119, 83, 255, 0.28);
+  border-radius: 999px;
+  background: var(--dui-surface);
+  color: var(--dui-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.entry-library-paste-toggle .material-symbols-outlined {
+  font-size: 16px;
+}
+.entry-library-paste-toggle:hover,
+.entry-library-paste-toggle.active {
+  border-color: transparent;
+  background: var(--dui-primary-container);
+}
 .reference-source-action-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

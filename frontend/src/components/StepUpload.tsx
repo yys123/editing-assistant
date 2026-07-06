@@ -12,6 +12,16 @@ import {
   type GuideSearchItem,
 } from '../api'
 import { articleContentToStructuredMarkers } from '../utils/articleStructure'
+import { shouldPrependRecoveredNumbering } from '../utils/entryLibraryNumbering'
+import {
+  extractLeadingEntryTitleFromText,
+  isEntryTitleCandidate,
+  isEntryTitleText,
+  isStructuredContentHeading,
+  normalizeEntryTitleText,
+  normalizeModuleHeading,
+  resolveEntryLibraryDiseaseName,
+} from '../utils/entryLibraryTitle'
 import {
   createRichEditorHistory,
   isMarkModuleShortcut,
@@ -351,44 +361,10 @@ function cleanElementText(node: HTMLElement) {
     .trim()
 }
 
-function normalizeModuleHeading(text: string) {
-  return text
-    .replace(/\u00a0/g, ' ')
-    .replace(/\s+/g, '')
-    .replace(/^[#*\-—_\s]+|[#*\-—_\s]+$/g, '')
-    .replace(/^【(.+)】$/, '$1')
-    .replace(/^［(.+)］$/, '$1')
-    .replace(/^\[(.+)\]$/, '$1')
-    .replace(/^（(.+)）$/, '$1')
-    .replace(/^\((.+)\)$/, '$1')
-    .replace(/字段$/, '')
-}
-
-function normalizeEntryTitleText(text: string) {
-  return normalizeModuleHeading(text).replace(/[：:。；;，,]+$/g, '')
-}
-
 function entryDetailDisplayName(detail: EntryDetail, entry: EntrySearchItem) {
   const detailName = (detail.name || '').trim()
   if (detailName && detailName !== `词条-${detail.id}`) return detailName
   return entry.name.trim()
-}
-
-function isEntryTitleText(text: string, entryName: string) {
-  const title = normalizeEntryTitleText(text)
-  const name = normalizeEntryTitleText(entryName)
-  return Boolean(title && name && title === name)
-}
-
-function stripLeadingEntryTitleFromText(text: string, entryName: string) {
-  const normalized = text.replace(/\r\n?/g, '\n').trim()
-  if (!normalized || !entryName.trim()) return normalized
-  const lines = normalized.split('\n')
-  const firstContentIndex = lines.findIndex(line => line.trim())
-  if (firstContentIndex < 0) return normalized
-  if (!isEntryTitleText(lines[firstContentIndex], entryName)) return normalized
-  lines.splice(firstContentIndex, 1)
-  return normalizeEditorText(lines.join('\n'))
 }
 
 function isModuleElement(node: Node) {
@@ -468,12 +444,6 @@ function isKeyPointDetailLine(line: string) {
   return /^(?:\d+[、.)]|[（(]\d+[）)]|[a-zA-Z][、.)]|[①②③④⑤⑥⑦⑧⑨⑩])/.test(text)
 }
 
-function isStructuredContentHeading(line: string) {
-  const text = line.trim()
-  if (!text) return false
-  return /^(?:[一二三四五六七八九十百]+、|[（(][一二三四五六七八九十百\d]+[）)]|\d+[、.])\S+/.test(text)
-}
-
 function isEntryFieldHeadingCandidate(node: HTMLElement) {
   if (!/^H[12]$/.test(node.tagName)) return false
   const text = cleanElementText(node)
@@ -487,6 +457,72 @@ function replaceElementTag(element: HTMLElement, tagName: string) {
   while (element.firstChild) replacement.appendChild(element.firstChild)
   element.replaceWith(replacement)
   return replacement
+}
+
+function removeEmptyAncestors(element: HTMLElement, root: HTMLElement) {
+  let current: HTMLElement | null = element
+  while (current && current !== root && !cleanElementText(current)) {
+    const ancestorParent: HTMLElement | null = current.parentElement
+    current.remove()
+    current = ancestorParent
+  }
+}
+
+function extractLeadingTitleFromNode(node: Node, root: HTMLElement): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const text = node.textContent || ''
+    const lineMatch = text.match(/^(\s*)([^\n\r]+)([\s\S]*)$/)
+    if (!lineMatch) return ''
+
+    const title = lineMatch[2].trim()
+    if (!isEntryTitleCandidate(title)) return ''
+
+    const rest = lineMatch[3].replace(/^[\r\n\s]+/, '')
+    if (rest) {
+      node.textContent = `${lineMatch[1]}${rest}`
+    } else {
+      const parent = node.parentElement
+      node.parentNode?.removeChild(node)
+      if (parent) removeEmptyAncestors(parent, root)
+    }
+    return normalizeEntryTitleText(title)
+  }
+
+  if (!(node instanceof HTMLElement)) return ''
+  if (node.tagName === 'BR') {
+    node.remove()
+    return ''
+  }
+
+  const title = cleanElementText(node)
+  if (isEntryTitleCandidate(title)) {
+    node.remove()
+    return normalizeEntryTitleText(title)
+  }
+
+  const firstChild = Array.from(node.childNodes).find(child => {
+    return child instanceof HTMLElement ? cleanElementText(child) || child.tagName === 'BR' : Boolean((child.textContent || '').trim())
+  })
+  if (!firstChild) return ''
+
+  const extractedTitle = extractLeadingTitleFromNode(firstChild, root)
+  if (extractedTitle) removeEmptyAncestors(node, root)
+  return extractedTitle
+}
+
+function extractLeadingEntryTitleFromEditorHtml(html: string) {
+  if (!html.trim()) return { title: '', html: '' }
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const firstContentNode = Array.from(doc.body.childNodes).find(node => {
+    return node instanceof HTMLElement ? cleanElementText(node) : Boolean((node.textContent || '').trim())
+  })
+
+  if (firstContentNode) {
+    const title = extractLeadingTitleFromNode(firstContentNode, doc.body)
+    if (title) return { title, html: doc.body.innerHTML }
+  }
+
+  return { title: '', html }
 }
 
 function normalizeEntryLibraryEditorHtml(html: string, entryName: string) {
@@ -849,7 +885,10 @@ function recoverNumberingInEditorHtml(html: string) {
           if (Number(key) > level) state.sectionCounters[Number(key)] = 0
         })
         state.orderedCounters = {}
-        prependTextToElement(node, `${sectionPrefix(level, state.sectionCounters[level])} `)
+        const prefix = `${sectionPrefix(level, state.sectionCounters[level])} `
+        if (shouldPrependRecoveredNumbering(elementText, prefix)) {
+          prependTextToElement(node, prefix)
+        }
       }
       node.removeAttribute('data-section-index')
       return
@@ -860,7 +899,10 @@ function recoverNumberingInEditorHtml(html: string) {
         if (Number(key) > Number(orderedIndex)) state.orderedCounters[key] = 0
       })
       state.orderedCounters[orderedIndex] = (state.orderedCounters[orderedIndex] || 0) + 1
-      prependTextToElement(node, `${orderedPrefix(orderedIndex, state.orderedCounters[orderedIndex])} `)
+      const prefix = `${orderedPrefix(orderedIndex, state.orderedCounters[orderedIndex])} `
+      if (shouldPrependRecoveredNumbering(elementText, prefix)) {
+        prependTextToElement(node, prefix)
+      }
       node.removeAttribute('data-orderedlist-index')
       return
     }
@@ -1255,17 +1297,23 @@ export default function StepUpload({
         throw new Error('词条详情内容为空')
       }
       const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(content)
-      const entryContent = looksLikeHtml ? content : stripLeadingEntryTitleFromText(content, entryName)
-      const richHtml = looksLikeHtml ? htmlToSafeEditorHtml(entryContent) : textToEditorHtml(entryContent)
+      const textTitleExtraction = looksLikeHtml
+        ? { title: '', text: content }
+        : extractLeadingEntryTitleFromText(content)
+      const richHtml = looksLikeHtml ? htmlToSafeEditorHtml(content) : textToEditorHtml(textTitleExtraction.text)
       const numberingRecoveredHtml = richHtml && hasRecoveredNumbering(richHtml)
         ? recoverNumberingInEditorHtml(richHtml)
         : richHtml
-      const normalizedHtml = normalizeEntryLibraryEditorHtml(numberingRecoveredHtml, entryName)
+      const htmlTitleExtraction = looksLikeHtml
+        ? extractLeadingEntryTitleFromEditorHtml(numberingRecoveredHtml)
+        : { title: textTitleExtraction.title, html: numberingRecoveredHtml }
+      const resolvedEntryName = resolveEntryLibraryDiseaseName(entryName, htmlTitleExtraction.title)
+      const normalizedHtml = normalizeEntryLibraryEditorHtml(htmlTitleExtraction.html, resolvedEntryName)
       const plainText = editorHtmlToPlainText(normalizedHtml)
       setArticleContent(plainText)
       setArticleParseContent(editorHtmlToStructuredText(normalizedHtml))
       setArticleRichHtml(normalizedHtml)
-      setDisease(entryName)
+      setDisease(resolvedEntryName)
       setArticleTab('text')
     } catch (e: any) {
       setEntryError(e.message || '词条详情获取失败')
@@ -1485,15 +1533,14 @@ export default function StepUpload({
               ))}
               <button
                 type="button"
-                className="btn-m3-outline"
-                style={{ marginLeft: 'auto', marginBottom: 6, fontSize: 12, padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                className={`entry-library-paste-toggle${entryPanelOpen ? ' active' : ''}`}
                 onClick={() => {
                   setEntryPanelOpen(!entryPanelOpen)
                   setEntryError('')
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>database_search</span>
-                词条库粘贴
+                <span className="material-symbols-outlined">database_search</span>
+                对接词条数据库
               </button>
             </div>
 
