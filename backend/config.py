@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     gemini_context_window_tokens: int = 1000000
     gemini_proxy: str = ""
     deepseek_api_key: str = ""
-    deepseek_model: str = "deepseek-chat"
+    deepseek_model: str = "deepseek-v4-flash"
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_temperature: float = 0.7
     deepseek_top_p: float = 1.0

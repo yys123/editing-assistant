@@ -1,5 +1,6 @@
 import json
 import inspect
+import os
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -14,6 +15,7 @@ import db
 import main
 from routers import admin
 from routers import history
+from config import Settings
 from services import admin_activity
 from services import admin_runtime
 
@@ -30,6 +32,17 @@ class AdminAuthTests(unittest.TestCase):
 
 
 class AdminRuntimeConfigTests(unittest.TestCase):
+    def test_default_deepseek_model_uses_current_flash_name(self):
+        with patch.dict(os.environ, {}, clear=True):
+            settings = Settings(gemini_api_key="dummy", _env_file=None)
+
+        req = admin.RuntimeConfigRequest()
+
+        self.assertEqual(settings.deepseek_model, "deepseek-v4-flash")
+        self.assertEqual(req.deepseek_model, "deepseek-v4-flash")
+        self.assertEqual(req.deepseek_thinking_type, "enabled")
+        self.assertEqual(req.deepseek_reasoning_effort, "high")
+
     def test_save_and_load_runtime_config(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "admin_runtime_config.json"

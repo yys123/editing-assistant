@@ -101,7 +101,7 @@ interface Props {
 const EMPTY_CONFIG: RuntimeConfig = {
   scope: 'admin_only',
   text_model_provider: 'deepseek',
-  deepseek_model: 'deepseek-chat',
+  deepseek_model: 'deepseek-v4-flash',
   deepseek_base_url: 'https://api.deepseek.com',
   deepseek_temperature: 0.7,
   deepseek_top_p: 1.0,
