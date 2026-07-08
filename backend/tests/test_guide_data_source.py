@@ -323,6 +323,52 @@ class GuideDataSourceTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result["title"], "优先级指南")
                 self.assertEqual(result["content"], expected_content)
 
+    async def test_get_guide_detail_normalizes_fallback_markdown_content(self):
+        FakeAsyncClient.responses = [
+            FakeGuideResponse({
+                "code": "success",
+                "message": "成功",
+                "data": {
+                    "title": "Markdown字段指南",
+                    "content": "## 诊断\n\n诊断标准包括 HbA1c。\n\n## 治疗\n\n治疗应结合生活方式干预。",
+                },
+            })
+        ]
+
+        with (
+            patch.object(article.httpx, "AsyncClient", FakeAsyncClient),
+            patch.object(article.time, "time", return_value=1700000000.123),
+            patch.object(article.secrets, "randbelow", side_effect=[1, 2, 3, 4, 5, 6, 7, 8]),
+        ):
+            result = await article.get_guide_detail(12)
+
+        self.assertEqual(result["title"], "Markdown字段指南")
+        self.assertIn("[H2] 诊断", result["content"])
+        self.assertIn("诊断标准包括 HbA1c。", result["content"])
+        self.assertIn("[H2] 治疗", result["content"])
+        self.assertNotIn("## 诊断", result["content"])
+
+    def test_reference_html_upload_returns_structured_text(self):
+        html = (
+            "<article>"
+            "<p><strong>中国糖尿病诊疗指南</strong></p>"
+            "<p>中华医学会糖尿病学分会</p>"
+            "<h2>诊断</h2>"
+            "<p>HbA1c 可用于糖尿病诊断"
+            '<sup class="sup">[<a class="xref bibr" rid="R12">12</a>]</sup>。'
+            "</p>"
+            "</article>"
+        )
+
+        text = article._extract_reference_source_text(html.encode("utf-8"), "guide.html")
+
+        self.assertTrue(text.startswith("中国糖尿病诊疗指南"))
+        self.assertIn("中华医学会糖尿病学分会", text)
+        self.assertIn("[H2] 诊断", text)
+        self.assertIn("HbA1c 可用于糖尿病诊断[12]。", text)
+        self.assertNotIn("<h2>", text)
+        self.assertNotIn("<sup", text)
+
     async def test_guide_api_requires_credentials(self):
         with patch.object(
             article,

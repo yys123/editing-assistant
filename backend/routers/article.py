@@ -638,10 +638,24 @@ def _guide_detail_content(data: dict) -> str:
 
 
 def _normalize_guide_detail_content(content: str) -> str:
-    if not _looks_like_html(content):
-        return content.strip()
-    structured = parse_html_structured(content, preserve_leading_text=True)
-    return structured.strip() or content.strip()
+    return _normalize_reference_source_text(content)
+
+
+def _looks_like_markdown_structure(text: str) -> bool:
+    return bool(re.search(r"(?m)^\s*#{1,6}\s+\S", text or ""))
+
+
+def _normalize_reference_source_text(content: str) -> str:
+    text = (content or "").strip()
+    if not text:
+        return ""
+    if _looks_like_html(text):
+        structured = parse_html_structured(text, preserve_leading_text=True).strip()
+        return structured or text
+    if _looks_like_markdown_structure(text):
+        structured = parse_html_structured(_markdown_to_html(text), preserve_leading_text=True).strip()
+        return structured or text
+    return text
 
 
 def _guide_string_field_summary(value, prefix: str = "data", limit: int = 20) -> list:
@@ -1054,7 +1068,7 @@ def _extract_reference_source_text(content_bytes: bytes, filename: str) -> str:
         html = content_bytes.decode("utf-8-sig")
     except Exception:
         html = content_bytes.decode("gbk", errors="replace")
-    text = parse_html_to_text(html)
+    text = _normalize_reference_source_text(html)
     if not text.strip():
         raise ValueError("HTML 文件内容为空或无法提取正文")
     return text
