@@ -44,12 +44,15 @@ class ClinicMasterSigningTests(unittest.TestCase):
 
 
 class FakeResponse:
-    def __init__(self, payload, status_code=200):
+    def __init__(self, payload=None, status_code=200, text=None, headers=None):
         self._payload = payload
         self.status_code = status_code
-        self.text = str(payload)
+        self.text = str(payload) if text is None else text
+        self.headers = headers or {"content-type": "application/json"}
 
     def json(self):
+        if self._payload is None:
+            raise ValueError("not json")
         return self._payload
 
 
@@ -86,23 +89,45 @@ class ClinicMasterClientTests(unittest.IsolatedAsyncioTestCase):
             "clinic_master_timeout_seconds": 9,
         })()
 
-    async def test_create_chat_posts_signed_json_to_stream_endpoint(self):
-        FakeAsyncClient.responses = [FakeResponse({"code": "success", "data": {"chatId": "chat-1"}})]
+    async def test_create_chat_posts_signed_sse_request_to_stream_endpoint(self):
+        FakeAsyncClient.responses = [
+            FakeResponse(
+                text=(
+                    'data:{"success":true,"errorCode":0,"finish":false,"type":"link","result":null}\n\n'
+                    'data:{"success":true,"errorCode":0,"finish":false,"type":"answer",'
+                    '"result":{"output":{"text":"指南"}}}\n\n'
+                    'data:{"success":true,"errorCode":0,"finish":true,"type":"done","result":null}\n\n'
+                ),
+                headers={"content-type": "text/event-stream;charset=UTF-8"},
+            )
+        ]
 
         with (
             patch.object(clinic_master, "settings", self.settings),
             patch.object(clinic_master.httpx, "AsyncClient", FakeAsyncClient),
             patch.object(clinic_master.time, "time", return_value=1742050000),
-            patch.object(clinic_master.uuid, "uuid4", return_value="9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"),
+            patch.object(clinic_master.uuid, "uuid4", side_effect=[
+                "assistant-message-1",
+                "user-message-1",
+                "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a",
+            ]),
         ):
             result = await clinic_master.create_chat("糖尿病怎么诊断？", request_id="query-1")
 
-        self.assertEqual(result["data"]["chatId"], "chat-1")
+        self.assertEqual(result["data"]["chatId"], "query-1")
+        self.assertEqual(result["data"]["newAssistantMessageId"], "assistant-message-1")
+        self.assertEqual(result["data"]["newUserMessageId"], "user-message-1")
+        self.assertEqual(result["data"]["answer"], "指南")
+        self.assertEqual(result["events"][1]["type"], "answer")
         method, url, kwargs = FakeAsyncClient.calls[0]
         self.assertEqual(method, "POST")
         self.assertEqual(url, "https://clinic-master.test/openapi/p/chat/stream")
-        self.assertEqual(kwargs["json"]["question"], "糖尿病怎么诊断？")
+        self.assertEqual(kwargs["json"]["message"], "糖尿病怎么诊断？")
+        self.assertEqual(kwargs["json"]["chatId"], "query-1")
+        self.assertEqual(kwargs["json"]["newAssistantMessageId"], "assistant-message-1")
+        self.assertEqual(kwargs["json"]["newUserMessageId"], "user-message-1")
         self.assertEqual(kwargs["json"]["requestId"], "query-1")
+        self.assertEqual(kwargs["headers"]["Accept"], "text/event-stream")
         self.assertIn("sign", kwargs["json"])
         self.assertNotIn("appSignKey", kwargs["json"])
 

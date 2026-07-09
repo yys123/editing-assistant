@@ -1,4 +1,5 @@
 import hashlib
+import json
 import re
 import time
 import uuid
@@ -125,6 +126,83 @@ def _extract_payload(response: httpx.Response, label: str, url: str, params: dic
     return payload
 
 
+def _extract_sse_events(text: str) -> list[dict]:
+    events: list[dict] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        data = line[5:].strip()
+        if not data or data == "[DONE]":
+            continue
+        try:
+            event = json.loads(data)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+    return events
+
+
+def _answer_from_sse_events(events: list[dict]) -> str:
+    parts: list[str] = []
+    for event in events:
+        if event.get("type") != "answer":
+            continue
+        result = event.get("result")
+        if not isinstance(result, dict):
+            continue
+        output = result.get("output")
+        if not isinstance(output, dict):
+            continue
+        text = output.get("text")
+        if isinstance(text, str):
+            parts.append(text)
+    return "".join(parts).strip()
+
+
+def _extract_stream_payload(response: httpx.Response, url: str, params: dict) -> dict:
+    response_text = response.text[:1000]
+    if response.status_code >= 400:
+        raise HTTPException(
+            502,
+            {
+                "message": f"Clinic Master 创建对话请求失败 ({response.status_code})",
+                "request": {"url": url, "params": _safe_params(params)},
+                "response": response_text,
+            },
+        )
+    events = _extract_sse_events(response.text)
+    if not events:
+        raise HTTPException(
+            502,
+            {
+                "message": "Clinic Master 创建对话返回格式异常",
+                "request": {"url": url, "params": _safe_params(params)},
+                "response": response_text,
+            },
+        )
+    error_event = next(
+        (
+            event
+            for event in events
+            if event.get("success") is False or str(event.get("type", "")).lower() == "error"
+        ),
+        None,
+    )
+    if error_event:
+        raise HTTPException(
+            502,
+            {
+                "message": str(error_event.get("message") or "Clinic Master 创建对话请求失败"),
+                "code": error_event.get("errorCode"),
+                "request": {"url": url, "params": _safe_params(params)},
+                "response": error_event,
+            },
+        )
+    return {"code": "success", "events": events}
+
+
 async def _post_openapi(path: str, params: dict, label: str) -> dict:
     url = _openapi_url(path)
     signed = signed_params(params)
@@ -137,14 +215,43 @@ async def _post_openapi(path: str, params: dict, label: str) -> dict:
 
 
 async def create_chat(question: str, request_id: str) -> dict:
-    return await _post_openapi(
-        "chat/stream",
-        {
-            "question": question,
-            "requestId": request_id,
-        },
-        "创建对话",
-    )
+    assistant_message_id = str(uuid.uuid4())
+    user_message_id = str(uuid.uuid4())
+    params = {
+        "message": question,
+        "requestId": request_id,
+        "chatId": request_id,
+        "newAssistantMessageId": assistant_message_id,
+        "newUserMessageId": user_message_id,
+    }
+    url = _openapi_url("chat/stream")
+    signed = signed_params(params)
+    try:
+        async with httpx.AsyncClient(timeout=_timeout()) as client:
+            response = await client.post(
+                url,
+                json=signed,
+                headers={"Accept": "text/event-stream"},
+            )
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Clinic Master 创建对话连接失败: {exc}")
+
+    content_type = response.headers.get("content-type", "")
+    if "text/event-stream" in content_type.lower():
+        payload = _extract_stream_payload(response, url, signed)
+    else:
+        payload = _extract_payload(response, "创建对话", url, signed)
+    payload.setdefault("data", {})
+    if isinstance(payload["data"], dict):
+        payload["data"].update(
+            {
+                "chatId": request_id,
+                "newAssistantMessageId": assistant_message_id,
+                "newUserMessageId": user_message_id,
+                "answer": _answer_from_sse_events(payload.get("events", [])),
+            }
+        )
+    return payload
 
 
 async def get_chat_detail(chat_id: Optional[str] = None, request_id: Optional[str] = None) -> dict:
