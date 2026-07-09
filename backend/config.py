@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     guide_app_name: str = ""
     guide_api_base: str = "https://newdrugs.dxy.cn/open-sign-api/article-quality/guide"
     ncd_api_base: str = "https://newdrugs.dxy.cn/open-sign-api/article-quality/ncd"
+    clinic_master_openapi_host: str = ""
+    clinic_master_app_id: str = ""
+    clinic_master_app_sign_key: str = ""
+    clinic_master_result_delay_seconds: int = 120
+    clinic_master_timeout_seconds: int = 30
 
     @property
     def cors_origins_list(self) -> List[str]:
