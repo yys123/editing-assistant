@@ -152,7 +152,7 @@ async def refresh_query(query_id: str):
                 warnings.append(f"Clinic Master 参考文档列表获取失败: {_exception_message(exc)}")
             for item in references:
                 try:
-                    payload = await clinic_master_service.get_reference_detail(item)
+                    payload = await clinic_master_service.get_reference_detail(chat_id or query_id, item)
                     detail_results.append({"reference": item, "payload": payload})
                 except Exception as exc:
                     title = item.get("title") or item.get("name") or item.get("referenceId") or "参考文献"

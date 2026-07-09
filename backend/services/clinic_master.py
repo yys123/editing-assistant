@@ -283,19 +283,31 @@ async def get_chat_references(message_id: str) -> dict:
     return _extract_payload(response, "获取参考文档", url, signed)
 
 
-async def get_reference_detail(reference_payload: dict) -> dict:
+def _reference_chunk_id(reference_payload: dict) -> str:
+    for key in ("chunkIds", "chunkId", "id", "referenceId", "reference_id"):
+        value = reference_payload.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return ""
+
+
+async def get_reference_detail(chat_id: str, reference_payload: dict) -> dict:
     url = _japi_url("100000017")
-    signed = signed_params(reference_payload)
+    params = {
+        "chatId": chat_id,
+        "chunkIds": _reference_chunk_id(reference_payload),
+    }
+    data = {key: value for key, value in params.items() if value}
     try:
         async with httpx.AsyncClient(timeout=_timeout()) as client:
             response = await client.post(
                 url,
-                data=signed,
+                data=data,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"Clinic Master 参考文献详情连接失败: {exc}")
-    return _extract_payload(response, "参考文献详情", url, signed)
+    return _extract_payload(response, "参考文献详情", url, data)
 
 
 def _walk_dicts(value: Any) -> list[dict]:

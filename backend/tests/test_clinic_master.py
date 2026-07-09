@@ -162,21 +162,26 @@ class ClinicMasterClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("405 Method Not Allowed", str(ctx.exception.detail))
 
     async def test_get_reference_detail_uses_form_urlencoded_post(self):
-        FakeAsyncClient.responses = [FakeResponse({"code": "success", "data": {"title": "参考文献"}})]
+        FakeAsyncClient.responses = [FakeResponse({"success": True, "results": {"items": [{"title": "参考文献"}]}})]
 
         with (
             patch.object(clinic_master, "settings", self.settings),
             patch.object(clinic_master.httpx, "AsyncClient", FakeAsyncClient),
         ):
-            result = await clinic_master.get_reference_detail({"referenceId": "ref-1"})
+            result = await clinic_master.get_reference_detail(
+                "chat-1",
+                {"id": "chunk-1", "title": "参考文献"},
+            )
 
-        self.assertEqual(result["data"]["title"], "参考文献")
+        self.assertEqual(result["results"]["items"][0]["title"], "参考文献")
         method, url, kwargs = FakeAsyncClient.calls[0]
         self.assertEqual(method, "POST")
         self.assertEqual(url, "https://clinic-master.test/japi/platform/100000017")
-        self.assertEqual(kwargs["data"]["referenceId"], "ref-1")
+        self.assertEqual(kwargs["data"]["chatId"], "chat-1")
+        self.assertEqual(kwargs["data"]["chunkIds"], "chunk-1")
         self.assertEqual(kwargs["headers"]["Content-Type"], "application/x-www-form-urlencoded")
-        self.assertIn("sign", kwargs["data"])
+        self.assertNotIn("sign", kwargs["data"])
+        self.assertNotIn("appId", kwargs["data"])
         self.assertNotIn("appSignKey", kwargs["data"])
 
 
@@ -337,7 +342,10 @@ class ClinicMasterRefreshTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any("[H2] 诊断" in item["text"] for item in result["materials"]))
         get_detail.assert_awaited_once()
         get_refs.assert_awaited_once_with("assistant-1")
-        get_ref_detail.assert_awaited_once_with({"referenceId": "ref-1", "title": "糖尿病指南", "summary": "诊断章节"})
+        get_ref_detail.assert_awaited_once_with(
+            "chat-1",
+            {"referenceId": "ref-1", "title": "糖尿病指南", "summary": "诊断章节"},
+        )
 
     async def test_reference_detail_failures_return_warnings_and_usable_materials(self):
         query_id = "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"
