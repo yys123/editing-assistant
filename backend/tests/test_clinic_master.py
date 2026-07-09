@@ -220,5 +220,120 @@ class ClinicMasterRouterStateTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(getattr(ctx.exception, "status_code", None), 404)
 
 
+class ClinicMasterRefreshTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        from routers import clinic_master as clinic_master_router
+
+        clinic_master_router._query_store.clear()
+        self.router = clinic_master_router
+        self.settings = type("Settings", (), {
+            "clinic_master_result_delay_seconds": 120,
+        })()
+
+    def test_extract_assistant_message_id_uses_latest_assistant_message(self):
+        payload = {
+            "data": {
+                "messages": [
+                    {"roleType": "assistant", "messageId": "assistant-old", "content": "旧回答"},
+                    {"roleType": "user", "messageId": "user-1", "content": "问题"},
+                    {"roleType": "assistant", "messageId": "assistant-new", "content": "新回答"},
+                ]
+            }
+        }
+
+        result = clinic_master.extract_assistant_message_id(payload)
+
+        self.assertEqual(result, "assistant-new")
+
+    async def test_ready_refresh_fetches_detail_references_and_reference_details(self):
+        query_id = "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"
+        detail_payload = {
+            "data": {
+                "messages": [
+                    {"roleType": "assistant", "messageId": "assistant-1", "content": "建议根据 HbA1c 诊断。"}
+                ]
+            }
+        }
+        reference_payload = {
+            "data": [
+                {"referenceId": "ref-1", "title": "糖尿病指南", "summary": "诊断章节"}
+            ]
+        }
+        reference_detail = {"data": {"title": "糖尿病指南", "content": "<h2>诊断</h2><p>HbA1c 可用于诊断。</p>"}}
+
+        with (
+            patch.object(self.router.uuid, "uuid4", return_value=query_id),
+            patch.object(self.router.time, "time", return_value=1742050000),
+            patch.object(self.router, "settings", self.settings),
+            patch.object(self.router.clinic_master_service, "create_chat", AsyncMock(return_value={"data": {"chatId": "chat-1"}})),
+        ):
+            await self.router.create_query(self.router.ClinicMasterQueryRequest(question="糖尿病怎么诊断？"))
+
+        with (
+            patch.object(self.router.time, "time", return_value=1742050121),
+            patch.object(self.router.clinic_master_service, "get_chat_detail", AsyncMock(return_value=detail_payload)) as get_detail,
+            patch.object(self.router.clinic_master_service, "get_chat_references", AsyncMock(return_value=reference_payload)) as get_refs,
+            patch.object(self.router.clinic_master_service, "get_reference_detail", AsyncMock(return_value=reference_detail)) as get_ref_detail,
+        ):
+            result = await self.router.refresh_query(query_id)
+
+        self.assertEqual(result["status"], "ready")
+        self.assertGreaterEqual(len(result["materials"]), 2)
+        self.assertEqual(result["materials"][0]["type"], "answer")
+        self.assertTrue(any("[H2] 诊断" in item["text"] for item in result["materials"]))
+        get_detail.assert_awaited_once()
+        get_refs.assert_awaited_once_with("assistant-1")
+        get_ref_detail.assert_awaited_once_with({"referenceId": "ref-1", "title": "糖尿病指南", "summary": "诊断章节"})
+
+    async def test_reference_detail_failures_return_warnings_and_usable_materials(self):
+        query_id = "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"
+        detail_payload = {"data": {"messages": [{"roleType": "assistant", "messageId": "assistant-1", "content": "回答"}]}}
+        reference_payload = {"data": [{"referenceId": "ref-1", "title": "参考A"}]}
+
+        with (
+            patch.object(self.router.uuid, "uuid4", return_value=query_id),
+            patch.object(self.router.time, "time", return_value=1742050000),
+            patch.object(self.router, "settings", self.settings),
+            patch.object(self.router.clinic_master_service, "create_chat", AsyncMock(return_value={"data": {}})),
+        ):
+            await self.router.create_query(self.router.ClinicMasterQueryRequest(question="糖尿病"))
+
+        failing_detail = AsyncMock(side_effect=Exception("detail failed"))
+        with (
+            patch.object(self.router.time, "time", return_value=1742050121),
+            patch.object(self.router.clinic_master_service, "get_chat_detail", AsyncMock(return_value=detail_payload)),
+            patch.object(self.router.clinic_master_service, "get_chat_references", AsyncMock(return_value=reference_payload)),
+            patch.object(self.router.clinic_master_service, "get_reference_detail", failing_detail),
+        ):
+            result = await self.router.refresh_query(query_id)
+
+        self.assertEqual(result["status"], "ready")
+        self.assertTrue(result["materials"])
+        self.assertTrue(result["warnings"])
+
+    async def test_empty_answer_and_references_return_empty_status(self):
+        query_id = "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"
+        detail_payload = {"data": {"messages": [{"roleType": "assistant", "messageId": "assistant-1", "content": "  "}]}}
+        reference_payload = {"data": []}
+
+        with (
+            patch.object(self.router.uuid, "uuid4", return_value=query_id),
+            patch.object(self.router.time, "time", return_value=1742050000),
+            patch.object(self.router, "settings", self.settings),
+            patch.object(self.router.clinic_master_service, "create_chat", AsyncMock(return_value={"data": {}})),
+        ):
+            await self.router.create_query(self.router.ClinicMasterQueryRequest(question="糖尿病"))
+
+        with (
+            patch.object(self.router.time, "time", return_value=1742050121),
+            patch.object(self.router.clinic_master_service, "get_chat_detail", AsyncMock(return_value=detail_payload)),
+            patch.object(self.router.clinic_master_service, "get_chat_references", AsyncMock(return_value=reference_payload)),
+        ):
+            result = await self.router.refresh_query(query_id)
+
+        self.assertEqual(result["status"], "empty")
+        self.assertEqual(result["materials"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

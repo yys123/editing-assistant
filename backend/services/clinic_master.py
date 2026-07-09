@@ -1,4 +1,5 @@
 import hashlib
+import re
 import time
 import uuid
 from typing import Any, Optional
@@ -171,3 +172,221 @@ async def get_reference_detail(reference_payload: dict) -> dict:
     except httpx.HTTPError as exc:
         raise HTTPException(502, f"Clinic Master 参考文献详情连接失败: {exc}")
     return _extract_payload(response, "参考文献详情", url, signed)
+
+
+def _walk_dicts(value: Any) -> list[dict]:
+    items: list[dict] = []
+    if isinstance(value, dict):
+        items.append(value)
+        for nested in value.values():
+            items.extend(_walk_dicts(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            items.extend(_walk_dicts(nested))
+    return items
+
+
+def _data_container(payload: dict) -> Any:
+    if isinstance(payload, dict) and "data" in payload:
+        return payload.get("data")
+    return payload
+
+
+def _message_id(item: dict) -> str:
+    for key in ("messageId", "message_id", "id"):
+        value = item.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return ""
+
+
+def _is_assistant_message(item: dict) -> bool:
+    role = str(
+        item.get("roleType")
+        or item.get("role_type")
+        or item.get("role")
+        or item.get("type")
+        or ""
+    ).strip().lower()
+    return role == "assistant"
+
+
+def extract_assistant_message_id(detail_payload: dict) -> str:
+    assistant_ids = [
+        _message_id(item)
+        for item in _walk_dicts(_data_container(detail_payload))
+        if _is_assistant_message(item) and _message_id(item)
+    ]
+    return assistant_ids[-1] if assistant_ids else ""
+
+
+def _first_text_field(value: Any, keys: tuple[str, ...]) -> str:
+    if isinstance(value, dict):
+        for key in keys:
+            text = value.get(key)
+            if isinstance(text, str) and text.strip():
+                return text.strip()
+        for nested in value.values():
+            text = _first_text_field(nested, keys)
+            if text:
+                return text
+    elif isinstance(value, list):
+        for nested in value:
+            text = _first_text_field(nested, keys)
+            if text:
+                return text
+    return ""
+
+
+def _latest_assistant_message(detail_payload: dict) -> dict:
+    messages = [
+        item
+        for item in _walk_dicts(_data_container(detail_payload))
+        if _is_assistant_message(item)
+    ]
+    return messages[-1] if messages else {}
+
+
+def extract_answer_text(detail_payload: dict, stream_payload: Optional[dict] = None) -> str:
+    message = _latest_assistant_message(detail_payload)
+    text = _first_text_field(
+        message,
+        ("content", "answer", "message", "text", "body"),
+    )
+    if text:
+        return text
+    return _first_text_field(
+        stream_payload or {},
+        ("content", "answer", "message", "text", "body"),
+    )
+
+
+def extract_reference_items(reference_payload: dict) -> list[dict]:
+    data = _data_container(reference_payload)
+    raw_items: list[Any] = []
+    if isinstance(data, list):
+        raw_items = data
+    elif isinstance(data, dict):
+        for key in ("items", "list", "records", "references", "docs", "rows"):
+            value = data.get(key)
+            if isinstance(value, list):
+                raw_items = value
+                break
+        if not raw_items and any(key in data for key in ("referenceId", "reference_id", "id", "title")):
+            raw_items = [data]
+    return [item for item in raw_items if isinstance(item, dict)]
+
+
+def _reference_title(item: dict, fallback: str) -> str:
+    return _first_text_field(
+        item,
+        ("title", "name", "docTitle", "doc_title", "referenceTitle", "reference_title"),
+    ) or fallback
+
+
+def _reference_summary(item: dict) -> str:
+    return _first_text_field(
+        item,
+        ("summary", "abstract", "description", "content", "text", "body"),
+    )
+
+
+def _normalize_reference_text(text: str) -> str:
+    clean = (text or "").strip()
+    if not clean:
+        return ""
+    if re.search(r"</?[a-zA-Z][\s\S]*>", clean):
+        try:
+            from services.scraper import parse_html_structured
+
+            return parse_html_structured(clean, preserve_leading_text=True).strip()
+        except Exception:
+            return re.sub(r"<[^>]+>", "", clean).strip()
+    return clean
+
+
+def _detail_payload_text(payload: dict) -> str:
+    data = _data_container(payload)
+    return _first_text_field(
+        data,
+        (
+            "content",
+            "htmlContent",
+            "html_content",
+            "detailContent",
+            "detail_content",
+            "abstract",
+            "summary",
+            "text",
+            "body",
+        ),
+    )
+
+
+def _material_id() -> str:
+    return str(uuid.uuid4())
+
+
+def normalize_materials(
+    question: str,
+    answer: str,
+    detail_payload: dict,
+    references: list[dict],
+    detail_results: list[dict],
+) -> list[dict]:
+    materials: list[dict] = []
+    clean_question = (question or "").strip()
+    clean_answer = _normalize_reference_text(answer)
+    if clean_answer:
+        materials.append({
+            "id": _material_id(),
+            "type": "answer",
+            "title": f"ClinMaster 回答：{clean_question[:40] or '临床决策'}",
+            "text": (
+                f"[H1] ClinMaster 回答：{clean_question[:80] or '临床决策'}\n\n"
+                f"问题：{clean_question}\n\n"
+                f"回答：\n{clean_answer}"
+            ).strip(),
+            "sourceLabel": "ClinMaster 回答",
+            "selectedByDefault": True,
+            "metadata": {"question": clean_question},
+        })
+
+    for index, item in enumerate(references, start=1):
+        title = _reference_title(item, f"参考资料 {index}")
+        summary = _normalize_reference_text(_reference_summary(item))
+        if not summary:
+            continue
+        materials.append({
+            "id": _material_id(),
+            "type": "reference",
+            "title": title,
+            "text": f"[H1] ClinMaster 参考资料：{title}\n\n{summary}",
+            "sourceLabel": "ClinMaster 参考资料",
+            "selectedByDefault": True,
+            "metadata": {"reference": item},
+        })
+
+    for index, result in enumerate(detail_results, start=1):
+        reference = result.get("reference") if isinstance(result, dict) else None
+        payload = result.get("payload") if isinstance(result, dict) else result
+        if not isinstance(payload, dict):
+            continue
+        title = _reference_title(payload, "")
+        if not title and isinstance(reference, dict):
+            title = _reference_title(reference, "")
+        title = title or f"文献详情 {index}"
+        text = _normalize_reference_text(_detail_payload_text(payload))
+        if not text:
+            continue
+        materials.append({
+            "id": _material_id(),
+            "type": "reference_detail",
+            "title": title,
+            "text": f"[H1] ClinMaster 文献详情：{title}\n\n{text}",
+            "sourceLabel": "ClinMaster 文献详情",
+            "selectedByDefault": True,
+            "metadata": {"reference": reference or {}, "detail": payload},
+        })
+
+    return materials

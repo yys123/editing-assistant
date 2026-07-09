@@ -111,6 +111,45 @@ async def refresh_query(query_id: str):
     if time.time() < state["ready_ts"]:
         return _public_response(state)
 
-    state["status"] = "empty"
-    state["warnings"] = ["Clinic Master 结果尚未获取"]
+    warnings = list(state.get("warnings", []))
+    try:
+        stream_payload = state.get("stream_payload") or {}
+        stream_data = stream_payload.get("data") if isinstance(stream_payload, dict) else {}
+        chat_id = stream_data.get("chatId") if isinstance(stream_data, dict) else None
+        detail_payload = await clinic_master_service.get_chat_detail(
+            chat_id=chat_id,
+            request_id=query_id,
+        )
+        answer = clinic_master_service.extract_answer_text(detail_payload, stream_payload)
+        assistant_message_id = clinic_master_service.extract_assistant_message_id(detail_payload)
+        references = []
+        detail_results = []
+        if assistant_message_id:
+            reference_payload = await clinic_master_service.get_chat_references(assistant_message_id)
+            references = clinic_master_service.extract_reference_items(reference_payload)
+            for item in references:
+                try:
+                    payload = await clinic_master_service.get_reference_detail(item)
+                    detail_results.append({"reference": item, "payload": payload})
+                except Exception as exc:
+                    title = item.get("title") or item.get("name") or item.get("referenceId") or "参考文献"
+                    warnings.append(f"{title} 详情获取失败: {exc}")
+        elif answer.strip():
+            warnings.append("Clinic Master 未返回 assistant messageId，无法获取参考文档列表")
+
+        materials = clinic_master_service.normalize_materials(
+            state["question"],
+            answer,
+            detail_payload,
+            references,
+            detail_results,
+        )
+        state["materials"] = materials
+        state["warnings"] = warnings
+        state["status"] = "ready" if materials else "empty"
+        state["error"] = None
+    except Exception as exc:
+        state["status"] = "failed"
+        state["error"] = str(exc)
+        state["warnings"] = warnings
     return _public_response(state)
