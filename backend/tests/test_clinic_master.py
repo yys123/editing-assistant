@@ -3,6 +3,8 @@ from datetime import datetime
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from fastapi import HTTPException
+
 os.environ.setdefault("gemini_api_key", "test-gemini-key")
 
 from services import clinic_master
@@ -141,10 +143,23 @@ class ClinicMasterClientTests(unittest.IsolatedAsyncioTestCase):
             await clinic_master.get_chat_references("assistant-message-1")
 
         method, url, kwargs = FakeAsyncClient.calls[0]
-        self.assertEqual(method, "POST")
+        self.assertEqual(method, "GET")
         self.assertEqual(url, "https://clinic-master.test/openapi/p/chat/reference")
-        self.assertEqual(kwargs["json"]["messageId"], "assistant-message-1")
-        self.assertNotIn("appSignKey", kwargs["json"])
+        self.assertEqual(kwargs["params"]["messageId"], "assistant-message-1")
+        self.assertNotIn("appSignKey", kwargs["params"])
+
+    async def test_success_false_payload_raises_safe_error(self):
+        FakeAsyncClient.responses = [FakeResponse({"success": False, "errorCode": 100000, "message": "405 Method Not Allowed"})]
+
+        with (
+            patch.object(clinic_master, "settings", self.settings),
+            patch.object(clinic_master.httpx, "AsyncClient", FakeAsyncClient),
+        ):
+            with self.assertRaises(HTTPException) as ctx:
+                await clinic_master.get_chat_references("assistant-message-1")
+
+        self.assertEqual(ctx.exception.status_code, 502)
+        self.assertIn("405 Method Not Allowed", str(ctx.exception.detail))
 
     async def test_get_reference_detail_uses_form_urlencoded_post(self):
         FakeAsyncClient.responses = [FakeResponse({"code": "success", "data": {"title": "参考文献"}})]
@@ -270,6 +285,20 @@ class ClinicMasterRefreshTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, "assistant-new")
 
+    def test_extract_reference_items_accepts_results_items_shape(self):
+        payload = {
+            "success": True,
+            "results": {
+                "items": [
+                    {"id": "ref-1", "title": "指南条目"},
+                ]
+            },
+        }
+
+        result = clinic_master.extract_reference_items(payload)
+
+        self.assertEqual(result, [{"id": "ref-1", "title": "指南条目"}])
+
     async def test_ready_refresh_fetches_detail_references_and_reference_details(self):
         query_id = "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"
         detail_payload = {
@@ -335,6 +364,55 @@ class ClinicMasterRefreshTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "ready")
         self.assertTrue(result["materials"])
         self.assertTrue(result["warnings"])
+
+    async def test_detail_access_denied_falls_back_to_stream_answer(self):
+        query_id = "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"
+        stream_payload = {
+            "data": {
+                "chatId": query_id,
+                "newAssistantMessageId": "assistant-from-stream",
+                "answer": "流式回答可作为临时参考。",
+            }
+        }
+        reference_payload = {
+            "success": True,
+            "results": {
+                "items": [
+                    {"id": "ref-1", "title": "参考A", "summary": "参考摘要"}
+                ]
+            },
+        }
+        detail_error = HTTPException(
+            502,
+            {
+                "message": "Clinic Master 获取对话详情 请求失败 (400)",
+                "response": '{"success":false,"message":"Access denied.path: /chat/detail"}',
+            },
+        )
+
+        with (
+            patch.object(self.router.uuid, "uuid4", return_value=query_id),
+            patch.object(self.router.time, "time", return_value=1742050000),
+            patch.object(self.router, "settings", self.settings),
+            patch.object(self.router.clinic_master_service, "create_chat", AsyncMock(return_value=stream_payload)),
+        ):
+            await self.router.create_query(self.router.ClinicMasterQueryRequest(question="隐匿性阴茎"))
+
+        with (
+            patch.object(self.router.time, "time", return_value=1742050121),
+            patch.object(self.router.clinic_master_service, "get_chat_detail", AsyncMock(side_effect=detail_error)),
+            patch.object(self.router.clinic_master_service, "get_chat_references", AsyncMock(return_value=reference_payload)) as get_refs,
+            patch.object(self.router.clinic_master_service, "get_reference_detail", AsyncMock(side_effect=Exception("detail denied"))),
+        ):
+            result = await self.router.refresh_query(query_id)
+
+        self.assertEqual(result["status"], "ready")
+        self.assertIsNone(result["error"])
+        self.assertEqual(result["materials"][0]["type"], "answer")
+        self.assertIn("流式回答", result["materials"][0]["text"])
+        self.assertTrue(any(item["type"] == "reference" for item in result["materials"]))
+        self.assertTrue(any("对话详情获取失败" in warning for warning in result["warnings"]))
+        get_refs.assert_awaited_once_with("assistant-from-stream")
 
     async def test_empty_answer_and_references_return_empty_status(self):
         query_id = "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"

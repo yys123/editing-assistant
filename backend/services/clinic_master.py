@@ -112,6 +112,16 @@ def _extract_payload(response: httpx.Response, label: str, url: str, params: dic
                 "response": response_text,
             },
         )
+    if payload.get("success") is False:
+        raise HTTPException(
+            502,
+            {
+                "message": str(payload.get("message") or f"Clinic Master {label} 请求失败"),
+                "code": payload.get("errorCode") or payload.get("code"),
+                "request": {"url": url, "params": _safe_params(params)},
+                "response": payload,
+            },
+        )
     code = str(payload.get("code", "")).lower()
     if code and code != "success":
         raise HTTPException(
@@ -263,7 +273,14 @@ async def get_chat_detail(chat_id: Optional[str] = None, request_id: Optional[st
 
 
 async def get_chat_references(message_id: str) -> dict:
-    return await _post_openapi("chat/reference", {"messageId": message_id}, "获取参考文档")
+    url = _openapi_url("chat/reference")
+    signed = signed_params({"messageId": message_id})
+    try:
+        async with httpx.AsyncClient(timeout=_timeout()) as client:
+            response = await client.get(url, params=signed)
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Clinic Master 获取参考文档连接失败: {exc}")
+    return _extract_payload(response, "获取参考文档", url, signed)
 
 
 async def get_reference_detail(reference_payload: dict) -> dict:
@@ -296,6 +313,8 @@ def _walk_dicts(value: Any) -> list[dict]:
 def _data_container(payload: dict) -> Any:
     if isinstance(payload, dict) and "data" in payload:
         return payload.get("data")
+    if isinstance(payload, dict) and "results" in payload:
+        return payload.get("results")
     return payload
 
 

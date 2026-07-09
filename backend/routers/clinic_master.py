@@ -73,6 +73,15 @@ def _get_state(query_id: str) -> dict:
     return state
 
 
+def _exception_message(exc: Exception) -> str:
+    detail = getattr(exc, "detail", None)
+    if isinstance(detail, dict):
+        return str(detail.get("message") or detail.get("response") or detail)
+    if detail:
+        return str(detail)
+    return str(exc)
+
+
 @router.post("/queries")
 async def create_query(req: ClinicMasterQueryRequest):
     question = req.question.strip()
@@ -116,17 +125,31 @@ async def refresh_query(query_id: str):
         stream_payload = state.get("stream_payload") or {}
         stream_data = stream_payload.get("data") if isinstance(stream_payload, dict) else {}
         chat_id = stream_data.get("chatId") if isinstance(stream_data, dict) else None
-        detail_payload = await clinic_master_service.get_chat_detail(
-            chat_id=chat_id,
-            request_id=query_id,
-        )
+        try:
+            detail_payload = await clinic_master_service.get_chat_detail(
+                chat_id=chat_id,
+                request_id=query_id,
+            )
+        except Exception as exc:
+            detail_payload = {}
+            warnings.append(
+                "Clinic Master 对话详情获取失败，已仅使用流式回答；"
+                f"参考文档列表需要开通 /chat/detail 访问权限。错误：{_exception_message(exc)}"
+            )
         answer = clinic_master_service.extract_answer_text(detail_payload, stream_payload)
-        assistant_message_id = clinic_master_service.extract_assistant_message_id(detail_payload)
+        assistant_message_id = (
+            clinic_master_service.extract_assistant_message_id(detail_payload)
+            or (stream_data.get("newAssistantMessageId") if isinstance(stream_data, dict) else None)
+        )
         references = []
         detail_results = []
         if assistant_message_id:
-            reference_payload = await clinic_master_service.get_chat_references(assistant_message_id)
-            references = clinic_master_service.extract_reference_items(reference_payload)
+            try:
+                reference_payload = await clinic_master_service.get_chat_references(assistant_message_id)
+                references = clinic_master_service.extract_reference_items(reference_payload)
+            except Exception as exc:
+                references = []
+                warnings.append(f"Clinic Master 参考文档列表获取失败: {_exception_message(exc)}")
             for item in references:
                 try:
                     payload = await clinic_master_service.get_reference_detail(item)
