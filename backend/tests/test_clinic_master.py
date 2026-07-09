@@ -1,6 +1,7 @@
 import os
+from datetime import datetime
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 os.environ.setdefault("gemini_api_key", "test-gemini-key")
 
@@ -137,6 +138,86 @@ class ClinicMasterClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["headers"]["Content-Type"], "application/x-www-form-urlencoded")
         self.assertIn("sign", kwargs["data"])
         self.assertNotIn("appSignKey", kwargs["data"])
+
+
+class ClinicMasterRouterStateTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        from routers import clinic_master as clinic_master_router
+
+        clinic_master_router._query_store.clear()
+        self.router = clinic_master_router
+        self.settings = type("Settings", (), {
+            "clinic_master_result_delay_seconds": 120,
+        })()
+
+    async def test_create_query_returns_pending_hyphenated_uuid_and_ready_at(self):
+        fake_uuid = "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"
+        create_chat = AsyncMock(return_value={"code": "success", "data": {"chatId": "chat-1"}})
+
+        with (
+            patch.object(self.router.uuid, "uuid4", return_value=fake_uuid),
+            patch.object(self.router.time, "time", return_value=1742050000),
+            patch.object(self.router, "settings", self.settings),
+            patch.object(self.router.clinic_master_service, "create_chat", create_chat),
+        ):
+            result = await self.router.create_query(
+                self.router.ClinicMasterQueryRequest(question="糖尿病怎么诊断？")
+            )
+
+        self.assertEqual(result["query_id"], fake_uuid)
+        self.assertEqual(result["status"], "pending")
+        self.assertEqual(result["materials"], [])
+        self.assertEqual(result["warnings"], [])
+        self.assertRegex(result["query_id"], r"^[0-9a-f-]{36}$")
+        self.assertGreater(
+            datetime.fromisoformat(result["ready_at"]),
+            datetime.fromisoformat(result["created_at"]),
+        )
+        create_chat.assert_awaited_once_with("糖尿病怎么诊断？", request_id=fake_uuid)
+
+    async def test_refresh_before_ready_at_does_not_call_external_detail_apis(self):
+        fake_uuid = "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"
+
+        with (
+            patch.object(self.router.uuid, "uuid4", return_value=fake_uuid),
+            patch.object(self.router.time, "time", return_value=1742050000),
+            patch.object(self.router, "settings", self.settings),
+            patch.object(self.router.clinic_master_service, "create_chat", AsyncMock(return_value={"data": {}})),
+        ):
+            await self.router.create_query(self.router.ClinicMasterQueryRequest(question="糖尿病"))
+
+        get_detail = AsyncMock()
+        with (
+            patch.object(self.router.time, "time", return_value=1742050060),
+            patch.object(self.router.clinic_master_service, "get_chat_detail", get_detail),
+        ):
+            result = await self.router.refresh_query(fake_uuid)
+
+        self.assertEqual(result["status"], "pending")
+        get_detail.assert_not_called()
+
+    async def test_get_query_returns_cached_state_without_external_calls(self):
+        fake_uuid = "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"
+        with (
+            patch.object(self.router.uuid, "uuid4", return_value=fake_uuid),
+            patch.object(self.router.time, "time", return_value=1742050000),
+            patch.object(self.router, "settings", self.settings),
+            patch.object(self.router.clinic_master_service, "create_chat", AsyncMock(return_value={"data": {}})),
+        ):
+            await self.router.create_query(self.router.ClinicMasterQueryRequest(question="糖尿病"))
+
+        with patch.object(self.router.clinic_master_service, "get_chat_detail", AsyncMock()) as get_detail:
+            result = await self.router.get_query(fake_uuid)
+
+        self.assertEqual(result["query_id"], fake_uuid)
+        self.assertEqual(result["status"], "pending")
+        get_detail.assert_not_called()
+
+    async def test_unknown_query_returns_404(self):
+        with self.assertRaises(Exception) as ctx:
+            await self.router.get_query("missing-query")
+
+        self.assertEqual(getattr(ctx.exception, "status_code", None), 404)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from auth import decode_token
 from config import settings
-from routers import article, qa, analyze, generate, history, standards, auth, admin, utd
+from routers import article, qa, analyze, generate, history, standards, auth, admin, utd, clinic_master
 from services.admin_runtime import get_effective_text_config
 from services import admin_activity
 from services.utd_monitor.crawler import init_monitor_service, shutdown_monitor_service
@@ -67,6 +67,7 @@ app.include_router(history.router)
 app.include_router(standards.router)
 app.include_router(admin.router)
 app.include_router(utd.router)
+app.include_router(clinic_master.router)
 
 
 @app.get("/health")
