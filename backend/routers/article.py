@@ -360,6 +360,63 @@ def _entry_items_from_response(payload: dict) -> list:
     return [{"id": item["id"], "name": item["title"]} for item in items]
 
 
+def _clinical_decision_text(value, fallback="") -> str:
+    text = "" if value is None else str(value).strip()
+    return text or str(fallback).strip()
+
+
+def _clinical_decision_chunks_from_response(payload) -> dict:
+    request_error = "临床决策切片数据源请求失败"
+    format_error = "临床决策切片数据源返回格式异常"
+
+    if not isinstance(payload, dict):
+        raise HTTPException(502, format_error)
+    if "code" in payload and _clinical_decision_text(payload.get("code")).lower() != "success":
+        raise HTTPException(502, request_error)
+    if "status" in payload and _clinical_decision_text(payload.get("status")) != "200":
+        raise HTTPException(502, request_error)
+
+    data = payload.get("data")
+    results = data.get("results") if isinstance(data, dict) else None
+    docs = results.get("docs") if isinstance(results, dict) else None
+    if not isinstance(docs, list):
+        raise HTTPException(502, format_error)
+
+    items = []
+    for doc in docs:
+        if not isinstance(doc, dict):
+            continue
+        chunk_id = _clinical_decision_text(doc.get("chunkId"))
+        content_text = _clinical_decision_text(doc.get("contentText"))
+        items.append({
+            "id": _clinical_decision_text(doc.get("id")),
+            "main_id": _clinical_decision_text(doc.get("mainId")),
+            "main_title": _clinical_decision_text(
+                doc.get("mainTitle"),
+                "未命名临床决策资料",
+            ),
+            "title": _clinical_decision_text(doc.get("title"), "未命名切片"),
+            "chunk_id": chunk_id,
+            "content_text": content_text,
+            "usable": bool(chunk_id and content_text),
+        })
+
+    normalized_count = len(items)
+
+    def response_count(value) -> int:
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            return normalized_count
+        return count if count >= 0 else normalized_count
+
+    return {
+        "items": items,
+        "num_found": response_count(results.get("numFound")),
+        "num_returned": response_count(results.get("numReturn")),
+    }
+
+
 def _items_from_response(payload: dict, title_keys: tuple[str, ...]) -> list:
     data = payload.get("data")
     if isinstance(data, list):
