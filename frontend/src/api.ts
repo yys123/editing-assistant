@@ -30,6 +30,22 @@ export interface EntryDetail {
   content: string
 }
 
+export interface ClinicalDecisionChunk {
+  id: number | string
+  main_id: number | string
+  main_title: string
+  title: string
+  chunk_id: string
+  content_text: string
+  usable: boolean
+}
+
+export interface ClinicalDecisionChunkSearchResponse {
+  items: ClinicalDecisionChunk[]
+  num_found: number
+  num_returned: number
+}
+
 export function getToken(): string | null {
   return localStorage.getItem('auth_token')
 }
@@ -140,6 +156,27 @@ export async function fetchEntryDetail(id: number): Promise<EntryDetail> {
   return data
 }
 
+export async function searchClinicalDecisionChunks({
+  guideId,
+  doi,
+}: {
+  guideId?: string
+  doi?: string
+}): Promise<ClinicalDecisionChunkSearchResponse> {
+  const normalizedGuideId = guideId?.trim() ?? ''
+  const normalizedDoi = doi?.trim() ?? ''
+  if (!normalizedGuideId && !normalizedDoi) throw new Error('请填写指南 ID 或 DOI')
+
+  const params = new URLSearchParams()
+  if (normalizedGuideId) params.set('guide_id', normalizedGuideId)
+  if (normalizedDoi) params.set('doi', normalizedDoi)
+
+  const res = await apiFetch(`/api/article/clinical-decision-chunks?${params.toString()}`)
+  const data = await safeJson(res)
+  if (!res.ok) throw new Error(errorMessage(data, '临床决策切片查询失败'))
+  return data
+}
+
 export function guideDetailToReferenceDoc(detail: GuideDetail): ReferenceDoc {
   const safeTitle = detail.title.trim().replace(/[\\/:*?"<>|]/g, '_') || `指南-${detail.id}`
   return {
@@ -147,6 +184,42 @@ export function guideDetailToReferenceDoc(detail: GuideDetail): ReferenceDoc {
     text: detail.content,
     char_count: detail.content.length,
   }
+}
+
+function sanitizeClinicalDecisionChunkFilenamePart(value: unknown, fallback: string) {
+  const safe = String(value ?? '')
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .slice(0, 80)
+  return safe || fallback
+}
+
+export function clinicalDecisionChunkToReferenceDoc(chunk: ClinicalDecisionChunk): ReferenceDoc {
+  const chunkId = String(chunk.chunk_id ?? '').trim()
+  const contentText = String(chunk.content_text ?? '').trim()
+  if (!chunk.usable || !chunkId || !contentText) {
+    throw new Error('该临床决策切片暂无可用正文')
+  }
+
+  const mainTitle = String(chunk.main_title ?? '').trim() || '未命名指南'
+  const title = String(chunk.title ?? '').trim() || '未命名切片'
+  const safeMainId = sanitizeClinicalDecisionChunkFilenamePart(chunk.main_id, 'unknown-main-id')
+  const safeTitle = sanitizeClinicalDecisionChunkFilenamePart(chunk.title, 'untitled')
+  const safeChunkId = sanitizeClinicalDecisionChunkFilenamePart(chunkId, 'unknown-chunk-id')
+  const text = `[H1] ${mainTitle}\n[H2] ${title}\n[临床决策切片ID] ${chunkId}\n\n${contentText}`
+
+  return {
+    filename: `临床决策切片-${safeMainId}-${safeTitle}-${safeChunkId}.md`,
+    text,
+    char_count: text.length,
+  }
+}
+
+export function referenceDocContainsClinicalDecisionChunk(doc: ReferenceDoc, chunkId: string) {
+  const normalizedChunkId = chunkId.trim()
+  if (!normalizedChunkId) return false
+  const markerLine = `[临床决策切片ID] ${normalizedChunkId}`
+  return doc.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').includes(markerLine)
 }
 
 const CHUNK_SIZE = 32 * 1024 // 32KB per chunk (~44KB JSON payload)
