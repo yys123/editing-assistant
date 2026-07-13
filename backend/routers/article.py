@@ -2,6 +2,7 @@ import base64
 import hashlib
 import html as html_lib
 import logging
+import math
 import re
 import secrets
 import uuid
@@ -404,9 +405,15 @@ def _clinical_decision_chunks_from_response(payload) -> dict:
     normalized_count = len(items)
 
     def response_count(value) -> int:
+        if isinstance(value, bool):
+            return normalized_count
+        if isinstance(value, float) and (
+            not math.isfinite(value) or not value.is_integer()
+        ):
+            return normalized_count
         try:
             count = int(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             return normalized_count
         return count if count >= 0 else normalized_count
 

@@ -160,6 +160,46 @@ class ClinicalDecisionChunkNormalizationTests(unittest.TestCase):
         self.assertEqual(result["num_found"], 2)
         self.assertEqual(result["num_returned"], 2)
 
+    def test_malformed_numeric_counts_fall_back_to_normalized_item_count(self):
+        for malformed_count in (True, 1.5, float("inf"), -1):
+            with self.subTest(malformed_count=malformed_count):
+                payload = {
+                    "data": {
+                        "results": {
+                            "numFound": malformed_count,
+                            "numReturn": malformed_count,
+                            "docs": [
+                                {"chunkId": "chunk-1", "contentText": "内容一"},
+                                {"chunkId": "chunk-2", "contentText": "内容二"},
+                            ],
+                        }
+                    }
+                }
+
+                result = article._clinical_decision_chunks_from_response(payload)
+
+                self.assertEqual(result["num_found"], 2)
+                self.assertEqual(result["num_returned"], 2)
+
+    def test_accepts_nonnegative_integer_like_counts(self):
+        payload = {
+            "data": {
+                "results": {
+                    "numFound": "12",
+                    "numReturn": 2.0,
+                    "docs": [
+                        {"chunkId": "chunk-1", "contentText": "内容一"},
+                        {"chunkId": "chunk-2", "contentText": "内容二"},
+                    ],
+                }
+            }
+        }
+
+        result = article._clinical_decision_chunks_from_response(payload)
+
+        self.assertEqual(result["num_found"], 12)
+        self.assertEqual(result["num_returned"], 2)
+
     def test_skips_non_dict_docs_entries(self):
         payload = {
             "data": {
