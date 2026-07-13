@@ -81,6 +81,32 @@ class ClinicalDecisionChunkNormalizationTests(unittest.TestCase):
             },
         )
 
+    def test_preserves_blank_content_text_as_unusable(self):
+        payload = {
+            "data": {
+                "results": {
+                    "numFound": 1,
+                    "numReturn": 1,
+                    "docs": [
+                        {
+                            "id": "doc-2",
+                            "mainId": "main-2",
+                            "mainTitle": "高血压临床决策",
+                            "title": "生活方式干预",
+                            "chunkId": "chunk-2",
+                            "contentText": "   ",
+                        }
+                    ],
+                }
+            }
+        }
+
+        result = article._clinical_decision_chunks_from_response(payload)
+
+        self.assertEqual(result["items"][0]["chunk_id"], "chunk-2")
+        self.assertEqual(result["items"][0]["content_text"], "")
+        self.assertFalse(result["items"][0]["usable"])
+
     def test_rejects_non_success_code_even_with_status_200(self):
         with self.assertRaises(HTTPException) as ctx:
             article._clinical_decision_chunks_from_response(
