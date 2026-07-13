@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     guide_app_name: str = ""
     guide_api_base: str = "https://newdrugs.dxy.cn/open-sign-api/article-quality/guide"
     ncd_api_base: str = "https://newdrugs.dxy.cn/open-sign-api/article-quality/ncd"
+    clinical_decision_chunk_api_base: str = "https://newdrugs.dxy.cn/open-sign-api/article-quality/chunk"
     clinic_master_openapi_host: str = ""
     clinic_master_app_id: str = ""
     clinic_master_app_sign_key: str = ""

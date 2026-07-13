@@ -9,7 +9,7 @@ import uuid
 import time
 import httpx
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, Query
-from typing import Dict, List
+from typing import Dict, List, Optional
 from services.scraper import fetch_article_from_url, parse_html_to_text, parse_html_structured, parse_txt_structured, extract_images_from_html
 from services.gemini import analyze_image
 from services.pdf import extract_pdf_text
@@ -206,6 +206,10 @@ async def _fetch_entry_api(path: str, params: dict) -> dict:
     return await _fetch_signed_api("词条", _entry_base_url(), path, params)
 
 
+async def _fetch_clinical_decision_chunk_api(params: dict) -> dict:
+    return await _fetch_signed_api("临床决策切片", _clinical_decision_chunk_base_url(), "list", params)
+
+
 async def _fetch_signed_api(label: str, base_url: str, path: str, params: dict) -> dict:
     url = f"{base_url}/{path}"
     signed_params = _signed_api_params(label, params)
@@ -247,6 +251,17 @@ async def _fetch_signed_api(label: str, base_url: str, path: str, params: dict) 
                 "config": _signed_config_summary(base_url),
                 "request": {"url": url, "params": safe_params},
                 "response": response_text,
+            },
+        )
+
+    if not isinstance(payload, dict):
+        raise HTTPException(
+            502,
+            {
+                "message": f"{label}数据源返回格式异常",
+                "config": _signed_config_summary(base_url),
+                "request": {"url": url, "params": safe_params},
+                "response": payload,
             },
         )
 
@@ -293,6 +308,14 @@ def _entry_base_url() -> str:
         settings,
         "ncd_api_base",
         "https://newdrugs.dxy.cn/open-sign-api/article-quality/ncd",
+    ).rstrip("/")
+
+
+def _clinical_decision_chunk_base_url() -> str:
+    return getattr(
+        settings,
+        "clinical_decision_chunk_api_base",
+        "https://newdrugs.dxy.cn/open-sign-api/article-quality/chunk",
     ).rstrip("/")
 
 
@@ -757,6 +780,25 @@ async def debug_guide_config():
         **_guide_config_summary(),
         "sampleRequestParams": _sanitize_guide_params(sample_params),
     }
+
+
+@router.get("/clinical-decision-chunks")
+async def search_clinical_decision_chunks(
+    guide_id: Optional[str] = Query(None),
+    doi: Optional[str] = Query(None),
+):
+    guide_id = (guide_id or "").strip()
+    doi = (doi or "").strip()
+    if not guide_id and not doi:
+        raise HTTPException(400, "请填写指南 ID 或 DOI")
+    if guide_id and (not guide_id.isdigit() or int(guide_id) <= 0):
+        raise HTTPException(400, "指南 ID 必须为正整数")
+
+    payload = await _fetch_clinical_decision_chunk_api({
+        "guideId": guide_id or None,
+        "doi": doi or None,
+    })
+    return _clinical_decision_chunks_from_response(payload)
 
 
 @router.get("/guides/{guide_id}")
