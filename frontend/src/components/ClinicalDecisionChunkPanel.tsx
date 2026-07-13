@@ -183,7 +183,7 @@ export default function ClinicalDecisionChunkPanel({
         </div>
       </div>
 
-      <div className="clinical-decision-chunk-query" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) auto', gap: 10, alignItems: 'end' }}>
+      <div className="clinical-decision-chunk-query" style={{ display: 'grid', gap: 10, alignItems: 'end' }}>
         <label className="clinical-decision-chunk-field" style={{ display: 'grid', gap: 5, fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
           指南 ID
           <input
