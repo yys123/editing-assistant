@@ -70,7 +70,7 @@ globalThis.fetch = async (url, options = {}) => {
     }
     return new Response(JSON.stringify({
       items: [{
-        id: 31,
+        id: '31',
         main_id: 'guide-2026',
         main_title: '指南主标题',
         title: '临床问题标题',
@@ -136,7 +136,7 @@ assert.deepEqual(await searchClinicalDecisionChunks({
   doi: ' 10.1234/abc def ',
 }), {
   items: [{
-    id: 31,
+    id: '31',
     main_id: 'guide-2026',
     main_title: '指南主标题',
     title: '临床问题标题',
@@ -170,7 +170,7 @@ await assert.rejects(
 )
 
 const mappedChunk = clinicalDecisionChunkToReferenceDoc({
-  id: 32,
+  id: '32',
   main_id: ' guide/id:2026 ',
   main_title: '指南主标题',
   title: '临床/问题:标题?',
@@ -196,6 +196,21 @@ assert.equal(
   }).filename,
   `临床决策切片-guide-长标题-${`chunk-${'x'.repeat(100)}`.slice(0, 80)}.md`,
 )
+
+const blankFallbackChunk = clinicalDecisionChunkToReferenceDoc({
+  id: '35',
+  main_id: '   ',
+  main_title: '   ',
+  title: '   ',
+  chunk_id: ' chunk-035 ',
+  content_text: '  正文  ',
+  usable: true,
+})
+assert.deepEqual(blankFallbackChunk, {
+  filename: '临床决策切片-unknown-未命名切片-chunk-035.md',
+  text: '[H1] 未命名临床决策资料\n[H2] 未命名切片\n[临床决策切片ID] chunk-035\n\n正文',
+  char_count: '[H1] 未命名临床决策资料\n[H2] 未命名切片\n[临床决策切片ID] chunk-035\n\n正文'.length,
+})
 
 for (const invalidChunk of [
   { usable: false, chunk_id: 'chunk-002', content_text: '正文' },

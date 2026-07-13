@@ -31,8 +31,8 @@ export interface EntryDetail {
 }
 
 export interface ClinicalDecisionChunk {
-  id: number | string
-  main_id: number | string
+  id: string
+  main_id: string
   main_title: string
   title: string
   chunk_id: string
@@ -201,11 +201,11 @@ export function clinicalDecisionChunkToReferenceDoc(chunk: ClinicalDecisionChunk
     throw new Error('该临床决策切片暂无可用正文')
   }
 
-  const mainTitle = String(chunk.main_title ?? '').trim() || '未命名指南'
+  const mainTitle = String(chunk.main_title ?? '').trim() || '未命名临床决策资料'
   const title = String(chunk.title ?? '').trim() || '未命名切片'
-  const safeMainId = sanitizeClinicalDecisionChunkFilenamePart(chunk.main_id, 'unknown-main-id')
-  const safeTitle = sanitizeClinicalDecisionChunkFilenamePart(chunk.title, 'untitled')
-  const safeChunkId = sanitizeClinicalDecisionChunkFilenamePart(chunkId, 'unknown-chunk-id')
+  const safeMainId = sanitizeClinicalDecisionChunkFilenamePart(chunk.main_id, 'unknown')
+  const safeTitle = sanitizeClinicalDecisionChunkFilenamePart(chunk.title, '未命名切片')
+  const safeChunkId = sanitizeClinicalDecisionChunkFilenamePart(chunkId, 'unknown')
   const text = `[H1] ${mainTitle}\n[H2] ${title}\n[临床决策切片ID] ${chunkId}\n\n${contentText}`
 
   return {
