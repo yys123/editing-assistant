@@ -1387,6 +1387,12 @@ body {
   align-items: stretch;
   margin-bottom: 12px;
 }
+.reference-source-connectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: stretch;
+}
 .reference-source-action-row .guide-library-toggle {
   min-height: 56px;
   padding: 0 16px;
@@ -1485,7 +1491,13 @@ body {
 }
 .guide-library-search input::placeholder { color: var(--dui-text-sub); }
 .guide-library-search-btn,
-.guide-library-add-btn {
+.guide-library-add-btn,
+.guide-library-chunk-btn,
+.clinical-decision-chunk-query-button,
+.clinical-decision-chunk-select-all-button,
+.clinical-decision-chunk-add-selected-button,
+.clinical-decision-chunk-add-all-button,
+.clinical-decision-chunk-expand-button {
   border: none;
   border-radius: 999px;
   display: inline-flex;
@@ -1506,10 +1518,19 @@ body {
   font-size: 13px;
 }
 .guide-library-search-btn .material-symbols-outlined,
-.guide-library-add-btn .material-symbols-outlined { font-size: 17px; }
+.guide-library-add-btn .material-symbols-outlined,
+.guide-library-chunk-btn .material-symbols-outlined { font-size: 17px; }
 .guide-library-search-btn:hover:not(:disabled) { filter: brightness(0.94); }
 .guide-library-search-btn:disabled,
-.guide-library-add-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.guide-library-add-btn:disabled,
+.guide-library-chunk-btn:disabled,
+.clinical-decision-chunk-query-button:disabled,
+.clinical-decision-chunk-select-all-button:disabled,
+.clinical-decision-chunk-add-selected-button:disabled,
+.clinical-decision-chunk-add-all-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .guide-library-error,
 .guide-library-empty {
   grid-column: 1 / -1;
@@ -1592,7 +1613,150 @@ body {
   color: var(--dui-success);
   font-size: 12px;
 }
-.guide-library-add-btn:hover:not(:disabled) { filter: brightness(0.96); }
+.guide-library-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+.guide-library-chunk-btn {
+  min-height: 30px;
+  padding: 0 11px;
+  background: var(--dui-primary-container);
+  color: var(--dui-primary);
+  font-size: 12px;
+}
+.guide-library-add-btn:hover:not(:disabled),
+.guide-library-chunk-btn:hover:not(:disabled) { filter: brightness(0.96); }
+.clinical-decision-chunk-panel {
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 0.5px solid var(--dui-divider);
+  border-radius: var(--dui-radius-card);
+  background: linear-gradient(180deg, #FFFFFF 0%, #FAFBFC 100%);
+}
+.clinical-decision-chunk-title {
+  color: var(--dui-text);
+}
+.clinical-decision-chunk-title .material-symbols-outlined {
+  color: var(--dui-primary);
+}
+.clinical-decision-chunk-subtitle,
+.clinical-decision-chunk-field,
+.clinical-decision-chunk-row-meta,
+.clinical-decision-chunk-unusable,
+.clinical-decision-chunk-notice {
+  color: var(--dui-text-sub);
+}
+.clinical-decision-chunk-query {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+.clinical-decision-chunk-input {
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 0.5px solid var(--dui-divider);
+  border-radius: 10px;
+  outline: none;
+  background: var(--dui-surface);
+  color: var(--dui-text);
+  font-family: inherit;
+  font-size: 14px;
+}
+.clinical-decision-chunk-input:focus {
+  border-color: var(--dui-primary);
+}
+.clinical-decision-chunk-query-button {
+  min-height: 38px;
+  padding: 0 16px;
+  background: var(--dui-primary);
+  color: #FFFFFF;
+  font-size: 13px;
+}
+.clinical-decision-chunk-error,
+.clinical-decision-chunk-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.clinical-decision-chunk-error {
+  color: var(--dui-danger);
+  background: var(--dui-danger-container);
+}
+.clinical-decision-chunk-notice {
+  background: var(--dui-surface-soft);
+}
+.clinical-decision-chunk-actions,
+.clinical-decision-chunk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.clinical-decision-chunk-select-all-button,
+.clinical-decision-chunk-add-selected-button,
+.clinical-decision-chunk-add-all-button {
+  min-height: 32px;
+  padding: 0 12px;
+  background: var(--dui-surface);
+  border: 0.5px solid var(--dui-divider);
+  color: var(--dui-text);
+  font-size: 12px;
+}
+.clinical-decision-chunk-add-selected-button,
+.clinical-decision-chunk-add-all-button {
+  background: var(--dui-success-container);
+  border-color: transparent;
+  color: var(--dui-success);
+}
+.clinical-decision-chunk-results {
+  display: grid;
+  gap: 10px;
+}
+.clinical-decision-chunk-row,
+.clinical-decision-chunk-result {
+  border: 0.5px solid var(--dui-divider);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--dui-surface);
+}
+.clinical-decision-chunk-result.is-unusable,
+.clinical-decision-chunk-row:has(.clinical-decision-chunk-unusable) {
+  background: var(--dui-surface-soft);
+}
+.clinical-decision-chunk-row-header {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.clinical-decision-chunk-row-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.clinical-decision-chunk-row-title {
+  color: var(--dui-text);
+  overflow-wrap: anywhere;
+}
+.clinical-decision-chunk-preview {
+  color: var(--dui-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.clinical-decision-chunk-expand-button {
+  min-height: 28px;
+  padding: 0 10px;
+  background: var(--dui-surface-soft);
+  color: var(--dui-text-sub);
+  font-size: 12px;
+}
 .reference-source-upload-note {
   display: flex;
   align-items: flex-start;
@@ -1690,6 +1854,9 @@ body {
   .reference-source-action-row {
     grid-template-columns: 1fr;
   }
+  .reference-source-connectors {
+    flex-direction: column;
+  }
   .reference-source-action-row .guide-library-toggle {
     justify-self: stretch;
   }
@@ -1721,6 +1888,31 @@ body {
   .guide-library-add-btn {
     grid-column: 2;
     justify-self: start;
+  }
+  .guide-library-result-actions {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+  .clinical-decision-chunk-query {
+    grid-template-columns: 1fr;
+  }
+  .clinical-decision-chunk-query-button {
+    width: 100%;
+  }
+  .clinical-decision-chunk-actions,
+  .clinical-decision-chunk-toolbar {
+    flex-direction: column;
+  }
+  .clinical-decision-chunk-select-all-button,
+  .clinical-decision-chunk-add-selected-button,
+  .clinical-decision-chunk-add-all-button {
+    width: 100%;
+  }
+  .clinical-decision-chunk-row-header {
+    align-items: flex-start;
+  }
+  .clinical-decision-chunk-expand-button {
+    flex-shrink: 0;
   }
 }
 

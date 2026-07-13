@@ -141,7 +141,7 @@ class ClinicalDecisionChunkNormalizationTests(unittest.TestCase):
 Run:
 
 ```bash
-PYTHONPATH=backend python3 -m unittest \
+GEMINI_API_KEY=dummy PYTHONPATH=backend python3 -m unittest \
   backend.tests.test_clinical_decision_chunks.ClinicalDecisionChunkNormalizationTests -v
 ```
 
@@ -345,7 +345,7 @@ Also add DOI-only and guide-id-only cases so query omission is explicit.
 Run:
 
 ```bash
-PYTHONPATH=backend python3 -m unittest \
+GEMINI_API_KEY=dummy PYTHONPATH=backend python3 -m unittest \
   backend.tests.test_clinical_decision_chunks.ClinicalDecisionChunkEndpointTests -v
 ```
 
@@ -380,7 +380,7 @@ if not isinstance(payload, dict):
     )
 ```
 
-Then add the clinical-decision helpers and endpoint to `backend/routers/article.py`:
+Then extend the existing typing import to `from typing import Dict, List, Optional` and add the clinical-decision helpers and endpoint to `backend/routers/article.py`:
 
 ```python
 def _clinical_decision_chunk_base_url() -> str:
@@ -402,8 +402,8 @@ async def _fetch_clinical_decision_chunk_api(params: dict) -> dict:
 
 @router.get("/clinical-decision-chunks")
 async def search_clinical_decision_chunks(
-    guide_id: str | None = Query(None),
-    doi: str | None = Query(None),
+    guide_id: Optional[str] = Query(None),
+    doi: Optional[str] = Query(None),
 ):
     normalized_guide_id = (guide_id or "").strip()
     normalized_doi = (doi or "").strip()
@@ -428,7 +428,7 @@ Place the static endpoint before `@router.get("/guides/{guide_id}")` for readabi
 Run:
 
 ```bash
-PYTHONPATH=backend python3 -m unittest \
+GEMINI_API_KEY=dummy PYTHONPATH=backend python3 -m unittest \
   backend.tests.test_clinical_decision_chunks \
   backend.tests.test_guide_data_source -v
 ```
@@ -968,10 +968,9 @@ git commit -m "feat: expose clinical decision chunks in upload sources"
 Run:
 
 ```bash
-PYTHONPATH=backend python3 -m unittest \
+GEMINI_API_KEY=dummy PYTHONPATH=backend python3 -m unittest \
   backend.tests.test_clinical_decision_chunks \
-  backend.tests.test_guide_data_source \
-  backend.tests.test_config -v
+  backend.tests.test_guide_data_source -v
 ```
 
 Expected: PASS, zero failures/errors.

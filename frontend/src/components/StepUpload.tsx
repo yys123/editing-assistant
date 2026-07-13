@@ -27,6 +27,7 @@ import {
   isMarkModuleShortcut,
   isUndoShortcut,
 } from '../utils/richEditorShortcuts'
+import ClinicalDecisionChunkPanel from './ClinicalDecisionChunkPanel'
 
 interface Props {
   disease: string
@@ -1165,6 +1166,8 @@ export default function StepUpload({
   const [guideLoading, setGuideLoading] = useState(false)
   const [guideDetailLoadingId, setGuideDetailLoadingId] = useState<number | null>(null)
   const [guideError, setGuideError] = useState('')
+  const [clinicalDecisionPanelOpen, setClinicalDecisionPanelOpen] = useState(false)
+  const [clinicalDecisionGuideId, setClinicalDecisionGuideId] = useState('')
   const [viewingReference, setViewingReference] = useState<{ doc: ReferenceDoc; index: number } | null>(null)
 
   const articleInputRef = useRef<HTMLInputElement>(null)
@@ -1362,6 +1365,13 @@ export default function StepUpload({
     } finally {
       setGuideDetailLoadingId(null)
     }
+  }
+
+  const openClinicalDecisionChunks = (guideId = '') => {
+    setClinicalDecisionGuideId(guideId)
+    setGuidePanelOpen(false)
+    setGuideError('')
+    setClinicalDecisionPanelOpen(true)
   }
 
   return (
@@ -1750,23 +1760,42 @@ export default function StepUpload({
                     <span>参考数据源</span>
                     <span className="reference-source-optional">可选</span>
                   </div>
-                  <p>上传本地文件，或从指南数据库检索后追加为参考资料</p>
+                  <p>上传本地文件，或从指南数据库、临床决策切片库追加为参考资料</p>
                 </div>
               </div>
             </div>
 
             <div className="reference-source-action-row">
-              <button
-                type="button"
-                className={`guide-library-toggle ${guidePanelOpen ? 'active' : ''}`}
-                onClick={() => {
-                  setGuidePanelOpen(!guidePanelOpen)
-                  setGuideError('')
-                }}
-              >
-                <span className="material-symbols-outlined">database_search</span>
-                对接指南数据库
-              </button>
+              <div className="reference-source-connectors">
+                <button
+                  type="button"
+                  className={`guide-library-toggle ${guidePanelOpen ? 'active' : ''}`}
+                  onClick={() => {
+                    const nextOpen = !guidePanelOpen
+                    setGuidePanelOpen(nextOpen)
+                    if (nextOpen) setClinicalDecisionPanelOpen(false)
+                    setGuideError('')
+                  }}
+                >
+                  <span className="material-symbols-outlined">database_search</span>
+                  对接指南数据库
+                </button>
+                <button
+                  type="button"
+                  className={`guide-library-toggle ${clinicalDecisionPanelOpen ? 'active' : ''}`}
+                  onClick={() => {
+                    const nextOpen = !clinicalDecisionPanelOpen
+                    setClinicalDecisionPanelOpen(nextOpen)
+                    if (nextOpen) {
+                      setClinicalDecisionGuideId('')
+                      setGuidePanelOpen(false)
+                    }
+                  }}
+                >
+                  <span className="material-symbols-outlined">view_list</span>
+                  临床决策切片库
+                </button>
+              </div>
               <div className="reference-source-upload-note">
                 <span className="material-symbols-outlined">upload_file</span>
                 <div>
@@ -1830,15 +1859,25 @@ export default function StepUpload({
                           <div className="guide-library-result-title">
                             {guide.title}
                           </div>
-                          <button
-                            type="button"
-                            className="guide-library-add-btn"
-                            disabled={guideDetailLoadingId !== null}
-                            onClick={() => addGuideSource(guide)}
-                          >
-                            <span className="material-symbols-outlined">{guideDetailLoadingId === guide.id ? 'hourglass_top' : 'add'}</span>
-                            {guideDetailLoadingId === guide.id ? '添加中' : '添加'}
-                          </button>
+                          <div className="guide-library-result-actions">
+                            <button
+                              type="button"
+                              className="guide-library-chunk-btn"
+                              onClick={() => openClinicalDecisionChunks(String(guide.id))}
+                            >
+                              <span className="material-symbols-outlined">segment</span>
+                              查询切片
+                            </button>
+                            <button
+                              type="button"
+                              className="guide-library-add-btn"
+                              disabled={guideDetailLoadingId !== null}
+                              onClick={() => addGuideSource(guide)}
+                            >
+                              <span className="material-symbols-outlined">{guideDetailLoadingId === guide.id ? 'hourglass_top' : 'add'}</span>
+                              {guideDetailLoadingId === guide.id ? '添加中' : '添加全文'}
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1851,6 +1890,14 @@ export default function StepUpload({
                   )}
                 </div>
               </div>
+            )}
+
+            {clinicalDecisionPanelOpen && (
+              <ClinicalDecisionChunkPanel
+                initialGuideId={clinicalDecisionGuideId}
+                referenceDocs={referenceDocs}
+                onAddReferenceDocs={docs => setReferenceDocs([...referenceDocs, ...docs])}
+              />
             )}
 
             <div className="pdf-grid">

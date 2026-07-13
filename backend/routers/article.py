@@ -2,13 +2,14 @@ import base64
 import hashlib
 import html as html_lib
 import logging
+import math
 import re
 import secrets
 import uuid
 import time
 import httpx
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, Query
-from typing import Dict, List
+from typing import Dict, List, Optional
 from services.scraper import fetch_article_from_url, parse_html_to_text, parse_html_structured, parse_txt_structured, extract_images_from_html
 from services.gemini import analyze_image
 from services.pdf import extract_pdf_text
@@ -205,6 +206,10 @@ async def _fetch_entry_api(path: str, params: dict) -> dict:
     return await _fetch_signed_api("词条", _entry_base_url(), path, params)
 
 
+async def _fetch_clinical_decision_chunk_api(params: dict) -> dict:
+    return await _fetch_signed_api("临床决策切片", _clinical_decision_chunk_base_url(), "list", params)
+
+
 async def _fetch_signed_api(label: str, base_url: str, path: str, params: dict) -> dict:
     url = f"{base_url}/{path}"
     signed_params = _signed_api_params(label, params)
@@ -246,6 +251,17 @@ async def _fetch_signed_api(label: str, base_url: str, path: str, params: dict) 
                 "config": _signed_config_summary(base_url),
                 "request": {"url": url, "params": safe_params},
                 "response": response_text,
+            },
+        )
+
+    if not isinstance(payload, dict):
+        raise HTTPException(
+            502,
+            {
+                "message": f"{label}数据源返回格式异常",
+                "config": _signed_config_summary(base_url),
+                "request": {"url": url, "params": safe_params},
+                "response": payload,
             },
         )
 
@@ -292,6 +308,14 @@ def _entry_base_url() -> str:
         settings,
         "ncd_api_base",
         "https://newdrugs.dxy.cn/open-sign-api/article-quality/ncd",
+    ).rstrip("/")
+
+
+def _clinical_decision_chunk_base_url() -> str:
+    return getattr(
+        settings,
+        "clinical_decision_chunk_api_base",
+        "https://newdrugs.dxy.cn/open-sign-api/article-quality/chunk",
     ).rstrip("/")
 
 
@@ -358,6 +382,69 @@ def _guide_items_from_response(payload: dict) -> list:
 def _entry_items_from_response(payload: dict) -> list:
     items = _items_from_response(payload, ENTRY_DETAIL_NAME_KEYS)
     return [{"id": item["id"], "name": item["title"]} for item in items]
+
+
+def _clinical_decision_text(value, fallback="") -> str:
+    text = "" if value is None else str(value).strip()
+    return text or str(fallback).strip()
+
+
+def _clinical_decision_chunks_from_response(payload) -> dict:
+    request_error = "临床决策切片数据源请求失败"
+    format_error = "临床决策切片数据源返回格式异常"
+
+    if not isinstance(payload, dict):
+        raise HTTPException(502, format_error)
+    if "code" in payload and _clinical_decision_text(payload.get("code")).lower() != "success":
+        raise HTTPException(502, request_error)
+    if "status" in payload and _clinical_decision_text(payload.get("status")) != "200":
+        raise HTTPException(502, request_error)
+
+    data = payload.get("data")
+    results = data.get("results") if isinstance(data, dict) else None
+    docs = results.get("docs") if isinstance(results, dict) else None
+    if not isinstance(docs, list):
+        raise HTTPException(502, format_error)
+
+    items = []
+    for doc in docs:
+        if not isinstance(doc, dict):
+            continue
+        chunk_id = _clinical_decision_text(doc.get("chunkId"))
+        content_text = _clinical_decision_text(doc.get("contentText"))
+        items.append({
+            "id": _clinical_decision_text(doc.get("id")),
+            "main_id": _clinical_decision_text(doc.get("mainId")),
+            "main_title": _clinical_decision_text(
+                doc.get("mainTitle"),
+                "未命名临床决策资料",
+            ),
+            "title": _clinical_decision_text(doc.get("title"), "未命名切片"),
+            "chunk_id": chunk_id,
+            "content_text": content_text,
+            "usable": bool(chunk_id and content_text),
+        })
+
+    normalized_count = len(items)
+
+    def response_count(value) -> int:
+        if isinstance(value, bool):
+            return normalized_count
+        if isinstance(value, float) and (
+            not math.isfinite(value) or not value.is_integer()
+        ):
+            return normalized_count
+        try:
+            count = int(value)
+        except (TypeError, ValueError, OverflowError):
+            return normalized_count
+        return count if count >= 0 else normalized_count
+
+    return {
+        "items": items,
+        "num_found": response_count(results.get("numFound")),
+        "num_returned": response_count(results.get("numReturn")),
+    }
 
 
 def _items_from_response(payload: dict, title_keys: tuple[str, ...]) -> list:
@@ -693,6 +780,25 @@ async def debug_guide_config():
         **_guide_config_summary(),
         "sampleRequestParams": _sanitize_guide_params(sample_params),
     }
+
+
+@router.get("/clinical-decision-chunks")
+async def search_clinical_decision_chunks(
+    guide_id: Optional[str] = Query(None),
+    doi: Optional[str] = Query(None),
+):
+    guide_id = (guide_id or "").strip()
+    doi = (doi or "").strip()
+    if not guide_id and not doi:
+        raise HTTPException(400, "请填写指南 ID 或 DOI")
+    if guide_id and (not guide_id.isdigit() or int(guide_id) <= 0):
+        raise HTTPException(400, "指南 ID 必须为正整数")
+
+    payload = await _fetch_clinical_decision_chunk_api({
+        "guideId": guide_id or None,
+        "doi": doi or None,
+    })
+    return _clinical_decision_chunks_from_response(payload)
 
 
 @router.get("/guides/{guide_id}")
