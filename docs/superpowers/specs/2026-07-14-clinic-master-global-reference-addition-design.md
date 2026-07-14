@@ -73,7 +73,7 @@ The query-result checkbox is therefore an addition selection, not a hidden short
 - Define a pure eligibility rule that returns true only for `answer` and `reference_detail`.
 - When reference addition is available, keep eligible literature-detail materials visible and selectable alongside answers.
 - Render an action row beneath or above the material list with:
-  - selected eligible count;
+  - selected usable count; selected eligible materials with blank text are excluded from this count;
   - `加入数据源` button;
   - disabled state when no eligible material is selected.
 - On click:
@@ -125,6 +125,7 @@ The result notice uses concise Chinese copy:
 - `已加入 2 条`
 - `已加入 1 条；跳过重复 1 条`
 - `已加入 0 条；跳过重复 2 条`
+- `已加入 1 条；无可用正文 1 条`
 
 The button remains available after addition so the user can select a different material. Duplicate prevention makes repeated clicks safe.
 
@@ -132,7 +133,7 @@ The button remains available after addition so the user can select a different m
 
 - Disable the button when no eligible material is selected.
 - Ignore selected records whose type is not eligible.
-- If an eligible material has empty text, exclude it from conversion and report it as unavailable rather than adding an empty source.
+- If an eligible material has empty text, exclude it from conversion, exclude it from the usable selected count, and include it in the notice as `无可用正文 N 条` rather than adding an empty source.
 - Query and refresh failures continue to use the existing Clinic Master error UI.
 - Reference addition is local state manipulation and does not require a new network error state.
 
