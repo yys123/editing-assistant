@@ -10,19 +10,13 @@ import {
   mergeReferenceAnchors,
 } from '../utils/citations'
 import { filterHistorySessions, isOwnHistorySession } from '../utils/historyFilters'
+import {
+  getHistoryProgress,
+  getVisibleWorkflowSteps,
+  WORKFLOW_STEP_ICONS,
+  WORKFLOW_STEP_LABELS,
+} from '../utils/historyProgress'
 import { markdownRemarkPlugins } from '../utils/markdown'
-
-const STEP_LABELS: Record<number, string> = {
-  1: '上传数据', 2: '参考文献审核', 3: '内容解析',
-  4: '内容质量评审', 5: '用户需求分析', 6: '审核与迭代计划', 7: '生成稿件', 8: 'AI整合',
-}
-
-const STEP_ICONS: Record<number, string> = {
-  1: 'cloud_upload', 2: 'library_books', 3: 'psychology',
-  4: 'fact_check', 5: 'group', 6: 'edit_note', 7: 'auto_awesome', 8: 'hub',
-}
-
-const TOTAL_STEPS = 8
 
 interface Props {
   sessions: SessionRecord[]
@@ -122,6 +116,7 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
   }
 
   const selected = sorted.find(s => s.id === selectedId) ?? null
+  const visibleWorkflowSteps = useMemo(() => getVisibleWorkflowSteps(), [])
   const expandedDraftRecord = selected?.draftHistory.find(record => record.id === expandedDraft) ?? null
   const referenceAnchors = useMemo(() => {
     return mergeReferenceAnchors(
@@ -276,6 +271,7 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
               const hasDrafts = (s.draftHistory?.length ?? 0) > 0
               const isOwn = isOwnHistorySession(s, currentUserId)
               const canEdit = isOwn || !!isAdmin
+              const progress = getHistoryProgress(s.currentStep)
               return (
                 <div key={s.id}>
                   <div
@@ -307,7 +303,7 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
                     <div style={{ flex: 1 }}>
                       {s.currentStep && (
                         <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
-                          步骤 {s.currentStep}/{TOTAL_STEPS}
+                          步骤 {progress.current}/{progress.total}
                         </span>
                       )}
                     </div>
@@ -397,23 +393,29 @@ export default function HistoryView({ sessions, currentUserId, isAdmin, loading,
                       </div>
 
                       {/* Step indicator */}
-                      {selected.currentStep && (
+                      {selected.currentStep && (() => {
+                        const selectedProgress = getHistoryProgress(selected.currentStep)
+                        const displayCurrentStep = selectedProgress.current
+                          ? visibleWorkflowSteps[selectedProgress.current - 1]?.key
+                          : null
+                        return (
                         <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
-                          {Array.from({ length: TOTAL_STEPS }, (_, index) => index + 1).map(n => (
-                            <div key={n} style={{
+                          {visibleWorkflowSteps.map(step => (
+                            <div key={step.key} style={{
                               padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
                               display: 'flex', alignItems: 'center', gap: 4,
-                              background: n < selected.currentStep! ? 'var(--dui-success-container)' : n === selected.currentStep ? 'var(--dui-primary-container)' : 'var(--m3-surface-container-low)',
-                              color: n < selected.currentStep! ? 'var(--m3-tertiary)' : n === selected.currentStep ? 'var(--m3-primary)' : 'var(--m3-on-surface-variant)',
+                              background: displayCurrentStep && step.key < displayCurrentStep ? 'var(--dui-success-container)' : step.key === displayCurrentStep ? 'var(--dui-primary-container)' : 'var(--m3-surface-container-low)',
+                              color: displayCurrentStep && step.key < displayCurrentStep ? 'var(--m3-tertiary)' : step.key === displayCurrentStep ? 'var(--m3-primary)' : 'var(--m3-on-surface-variant)',
                             }}>
-                              <span className="material-symbols-outlined" style={{ fontSize: 14, fontVariationSettings: n < selected.currentStep! ? "'FILL' 1" : "'FILL' 0" }}>
-                                {n < selected.currentStep! ? 'check_circle' : STEP_ICONS[n]}
+                              <span className="material-symbols-outlined" style={{ fontSize: 14, fontVariationSettings: displayCurrentStep && step.key < displayCurrentStep ? "'FILL' 1" : "'FILL' 0" }}>
+                                {displayCurrentStep && step.key < displayCurrentStep ? 'check_circle' : WORKFLOW_STEP_ICONS[step.key]}
                               </span>
-                              {STEP_LABELS[n]}
+                              {WORKFLOW_STEP_LABELS[step.key]}
                             </div>
                           ))}
                         </div>
-                      )}
+                        )
+                      })()}
 
                       {/* Stats row */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>

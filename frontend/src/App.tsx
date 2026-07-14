@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import StepUpload from './components/StepUpload'
+import StepGuideLookup from './components/StepGuideLookup'
 import StepRefReview from './components/StepRefReview'
 import StepSectionPreview from './components/StepSectionPreview'
 import StepSectionAnalysis, { getSectionAnalysisTargetIds } from './components/StepSectionAnalysis'
@@ -20,32 +21,13 @@ import {
 } from './types'
 import { ARTICLE_PARSE_CACHE_VERSION, getArticleParseCacheKey } from './utils/parseCache'
 import { getGenerationOriginalContent } from './utils/generationScope'
+import {
+  TEMP_DISABLED_WORKFLOW_STEPS,
+  WORKFLOW_STEP_ICONS,
+  WORKFLOW_STEP_LABELS,
+} from './utils/historyProgress'
 import { backfillDraftOriginalContent, extractSectionContent } from './utils/sectionContent'
 import { canOpenWorkflowStep, createEmptyGapAnalysis } from './utils/workflowNavigation'
-
-const STEP_LABELS: Record<Step, string> = {
-  1: '上传数据',
-  2: '参考文献审核',
-  3: '内容解析',
-  4: '内容质量评审',
-  5: '用户需求分析',
-  6: '审核与迭代计划',
-  7: '生成稿件',
-  8: 'AI整合',
-}
-
-const STEP_ICONS: Record<Step, string> = {
-  1: 'cloud_upload',
-  2: 'library_books',
-  3: 'psychology',
-  4: 'fact_check',
-  5: 'group',
-  6: 'edit_note',
-  7: 'auto_awesome',
-  8: 'hub',
-}
-
-const TEMP_DISABLED_STEPS = new Set<Step>([6, 7])
 
 function isFreshSectionAnalysis(analysis: SectionAnalysis, sourceHash?: string, parserVersion?: number): boolean {
   return !!sourceHash
@@ -258,6 +240,7 @@ function AppContent() {
       qaCount: qaItems.length > 0 ? qaItems.length : qaCount,
       qaItems,
       currentStep: step,
+      workflowVersion: 2,
       parsedArticle,
       parsedArticleSourceHash,
       parsedArticleParserVersion,
@@ -306,7 +289,7 @@ function AppContent() {
     setParsedArticleParserVersion(undefined)
     setGapAnalysis(null)
     setGapItems([])
-    if (step > 3) setStep(3)
+    if (step > 4) setStep(4)
   }, [articleContent, articleParseContent, parsedArticle, parsedArticleSourceHash, parsedArticleParserVersion, step])
 
   // ── Article content helpers ──────────────────────────────────────────────────
@@ -404,7 +387,7 @@ function AppContent() {
 
   // ── Navigation ───────────────────────────────────────────────────────────────
   const goToStep = (s: Step) => {
-    if (s === 6 && !gapAnalysis) {
+    if (s === 7 && !gapAnalysis) {
       setGapAnalysis(createEmptyGapAnalysis(qaItems.length))
     }
     setStep(s)
@@ -502,40 +485,36 @@ function AppContent() {
     const restoredParsedArticle = hasValidParsedArticle ? session.parsedArticle ?? null : null
     setDraftHistory(backfillDraftOriginalContent(session.draftHistory ?? [], restoredParsedArticle))
     setAiIntegrationHistory(session.aiIntegrationHistory ?? [])
-    // Remap old step numbers to new 7-step numbering
+    // Remap records saved before AI查指南 became its own step.
     const remapStep = (s: number): Step => {
-      // Old 6-step: 1=上传, 2=解析, 3=质量, 4=需求, 5=计划, 6=生成
-      // New 7-step: 1=上传, 2=文献审核, 3=解析, 4=质量, 5=需求, 6=计划, 7=生成
       if (s <= 1) return 1
-      // Old steps 2-6 map to new steps 3-7
-      return Math.min(s + 1, 7) as Step
+      return Math.min(s + 1, 9) as Step
     }
     // Determine a safe step to resume at based on available data
     let maxSafeStep: Step = 1
     if (session.articleContent) maxSafeStep = 2
-    if (session.refEvalResult || (session.referenceDocs && session.referenceDocs.length === 0)) maxSafeStep = 3
-    if (hasValidParsedArticle) maxSafeStep = 5
+    if (session.refEvalResult || (session.referenceDocs && session.referenceDocs.length === 0)) maxSafeStep = 4
+    if (hasValidParsedArticle) maxSafeStep = 6
     // Temporarily disabled: review/iteration plan and draft generation resume targets.
-    // if (hasValidParsedArticle) maxSafeStep = 6
-    // if (sessionHasFreshSectionAnalyses && session.draftHistory?.length) maxSafeStep = 7
-    const rawTarget = session.currentStep ?? (session.plan ? 7 : 1)
-    // If session was saved with old 6-step numbering (max 6 and no refEvalResult field),
-    // remap; otherwise use as-is
-    const isOldFormat = rawTarget <= 6 && !('refEvalResult' in session)
-    const target: Step = isOldFormat ? remapStep(rawTarget) : (rawTarget as Step)
-    if (session.aiIntegrationHistory?.length || session.articleContent) maxSafeStep = Math.max(maxSafeStep, 8) as Step
+    // if (hasValidParsedArticle) maxSafeStep = 7
+    // if (sessionHasFreshSectionAnalyses && session.draftHistory?.length) maxSafeStep = 8
+    const rawTarget = session.currentStep ?? (session.plan ? 8 : 1)
+    const target: Step = session.workflowVersion && session.workflowVersion >= 2
+      ? (rawTarget as Step)
+      : remapStep(rawTarget)
+    if (session.aiIntegrationHistory?.length || session.articleContent) maxSafeStep = Math.max(maxSafeStep, 9) as Step
     const boundedTarget = Math.min(target, maxSafeStep) as Step
-    const resumeStep: Step = TEMP_DISABLED_STEPS.has(boundedTarget)
-      ? (canOpenWorkflowStep(8, {
+    const resumeStep: Step = TEMP_DISABLED_WORKFLOW_STEPS.has(boundedTarget)
+      ? (canOpenWorkflowStep(9, {
         disease: session.disease,
         articleContent: session.articleContent ?? '',
         hasParsedArticle: hasValidParsedArticle,
         hasGapAnalysis: !!restoredGapAnalysis,
         draftHistoryCount: session.draftHistory?.length ?? 0,
         gapItemsCount: session.gapItems?.length ?? 0,
-      }) ? 8 : (hasValidParsedArticle ? 5 : 1))
+      }) ? 9 : (hasValidParsedArticle ? 6 : 1))
       : boundedTarget
-    if (resumeStep === 6 && hasValidParsedArticle && !restoredGapAnalysis) {
+    if (resumeStep === 7 && hasValidParsedArticle && !restoredGapAnalysis) {
       setGapAnalysis(createEmptyGapAnalysis((session.qaItems ?? []).length || session.qaCount || 0))
     }
     setStep(resumeStep)
@@ -546,14 +525,14 @@ function AppContent() {
     if (!sessionId) setSessionId(new Date().toISOString())
     setSelectedGap(gap)
     setSelectedGaps([])
-    setStep(7)
+    setStep(8)
   }
 
   const handlePlanBatchSelect = (gaps: GapItem[]) => {
     if (!sessionId) setSessionId(new Date().toISOString())
     setSelectedGap(null)
     setSelectedGaps(gaps)
-    setStep(7)
+    setStep(8)
   }
 
   // 批量并行生成所有未生成的任务（App 级别，跨步骤持久运行）
@@ -565,7 +544,7 @@ function AppContent() {
     if (ungenerated.length === 0) {
       setSelectedGap(draftHistory[draftHistory.length - 1]?.gap ?? null)
       setSelectedGaps([])
-      setStep(7)
+      setStep(8)
       return
     }
 
@@ -574,7 +553,7 @@ function AppContent() {
     setBatchProgress({ running: true, done: 0, total: ungenerated.length, failed: 0 })
     setSelectedGap(null)
     setSelectedGaps([])
-    setStep(7)
+    setStep(8)
 
     let doneCount = 0
     let failCount = 0
@@ -671,35 +650,42 @@ function AppContent() {
       case 2:
         return {
           backLabel: '返回上传', backAction: () => setStep(1),
-          nextLabel: canClick(3) ? '继续下一步' : null,
+          nextLabel: canClick(3) ? '下一步：参考文献审核' : null,
           nextAction: canClick(3) ? goStep3 : null,
         }
       case 3:
         return {
-          backLabel: '返回修改', backAction: () => setStep(2),
-          nextLabel: canClick(4) ? '确认内容 · 开始分析' : null,
+          backLabel: '返回AI查指南', backAction: () => setStep(2),
+          nextLabel: canClick(4) ? '继续下一步' : null,
           nextAction: canClick(4) ? goStep4 : null,
         }
       case 4:
         return {
-          backLabel: '返回内容解析', backAction: () => setStep(3),
-          nextLabel: canClick(5) ? '下一步：用户需求分析' : null,
+          backLabel: '返回参考文献审核', backAction: () => setStep(3),
+          nextLabel: canClick(5) ? '确认内容 · 开始分析' : null,
           nextAction: canClick(5) ? () => goToStep(5) : null,
         }
       case 5:
         return {
-          backLabel: '返回质量审评', backAction: () => setStep(4),
-          nextLabel: canClick(8) ? '下一步：AI整合' : null,
-          nextAction: canClick(8) ? () => goToStep(8) : null,
+          backLabel: '返回内容解析', backAction: () => setStep(4),
+          nextLabel: canClick(6) ? '下一步：用户需求分析' : null,
+          nextAction: canClick(6) ? () => goToStep(6) : null,
         }
       case 6: {
+        return {
+          backLabel: '返回质量审评', backAction: () => setStep(5),
+          nextLabel: canClick(9) ? '下一步：AI整合' : null,
+          nextAction: canClick(9) ? () => goToStep(9) : null,
+        }
+      }
+      case 7: {
         const ungeneratedCount = gapItems.filter(g =>
           !draftHistory.some(r => r.gap.section === g.section && r.gap.priority === g.priority)
         ).length
         return {
-          backLabel: '返回需求分析', backAction: () => setStep(5),
+          backLabel: '返回需求分析', backAction: () => setStep(6),
           nextLabel: draftHistory.length > 0 ? '查看稿件' : null,
-          nextAction: draftHistory.length > 0 ? () => { setSelectedGap(null); setSelectedGaps([]); setStep(7) } : null,
+          nextAction: draftHistory.length > 0 ? () => { setSelectedGap(null); setSelectedGaps([]); setStep(8) } : null,
           extraRight: (
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               {batchProgress.running ? (
@@ -727,15 +713,15 @@ function AppContent() {
           ),
         }
       }
-      case 7:
-        return {
-          backLabel: '返回迭代计划', backAction: () => setStep(6),
-          nextLabel: null, nextAction: null,
-        }
       case 8:
         return {
-          backLabel: canClick(5) ? '返回用户需求分析' : '返回上传',
-          backAction: () => setStep(canClick(5) ? 5 : 1),
+          backLabel: '返回迭代计划', backAction: () => setStep(7),
+          nextLabel: null, nextAction: null,
+        }
+      case 9:
+        return {
+          backLabel: canClick(6) ? '返回用户需求分析' : '返回上传',
+          backAction: () => setStep(canClick(6) ? 6 : 1),
           nextLabel: null, nextAction: null,
         }
       default:
@@ -743,13 +729,13 @@ function AppContent() {
     }
   }
 
-  const steps = Object.entries(STEP_LABELS)
+  const steps = Object.entries(WORKFLOW_STEP_LABELS)
     .map(([k, label]) => ({
       key: parseInt(k) as Step,
       label,
-      icon: STEP_ICONS[parseInt(k) as Step],
+      icon: WORKFLOW_STEP_ICONS[parseInt(k) as Step],
     }))
-    .filter(s => !TEMP_DISABLED_STEPS.has(s.key))
+    .filter(s => !TEMP_DISABLED_WORKFLOW_STEPS.has(s.key))
 
   if (authLoading) {
     return (
@@ -854,7 +840,7 @@ function AppContent() {
                     {isDone ? 'check_circle' : s.icon}
                   </span>
                   <span className="sidebar-nav-label">{s.label}</span>
-                  {s.key === 7 && draftHistory.length > 0 && (
+                  {s.key === 8 && draftHistory.length > 0 && (
                     <span style={{
                       marginLeft: 'auto',
                       background: 'var(--m3-primary)',
@@ -868,7 +854,7 @@ function AppContent() {
                       {draftHistory.length}
                     </span>
                   )}
-                  {s.key === 8 && aiIntegrationHistory.length > 0 && (
+                  {s.key === 9 && aiIntegrationHistory.length > 0 && (
                     <span style={{
                       marginLeft: 'auto',
                       background: 'var(--m3-primary)',
@@ -910,7 +896,7 @@ function AppContent() {
       ) : (
         <main className="app-main">
           {/* 批量生成全局进度条 —— 在任意步骤都可见 */}
-          {batchProgress.running && step !== 7 && (
+          {batchProgress.running && step !== 8 && (
             <div style={{
               padding: '10px 20px', marginBottom: 12, borderRadius: 12,
               background: 'var(--dui-primary-container)', border: '0.5px solid var(--dui-primary)',
@@ -927,7 +913,7 @@ function AppContent() {
                 </div>
               </div>
               <button className="btn-m3-outline" style={{ fontSize: 12, padding: '4px 12px', flexShrink: 0 }}
-                onClick={() => { setSelectedGap(null); setSelectedGaps([]); setStep(7) }}>
+                onClick={() => { setSelectedGap(null); setSelectedGaps([]); setStep(8) }}>
                 查看稿件
               </button>
             </div>
@@ -954,17 +940,25 @@ function AppContent() {
           )}
 
           {step === 2 && (
+            <StepGuideLookup
+              disease={disease}
+              referenceDocs={referenceDocs}
+              setReferenceDocs={handleSetReferenceDocs}
+            />
+          )}
+
+          {step === 3 && (
             <StepRefReview
               disease={disease}
               referenceDocs={referenceDocs}
               refEvalResult={refEvalResult}
               setRefEvalResult={setRefEvalResult}
               refEvalStandardOverride={standardsOverride.refEvalText}
-              onBack={() => setStep(1)}
+              onBack={() => setStep(2)}
             />
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <StepSectionPreview
               articleContent={articleContent}
               articleParseContent={articleParseContent}
@@ -972,11 +966,11 @@ function AppContent() {
               parsedArticleSourceHash={parsedArticleSourceHash}
               parsedArticleParserVersion={parsedArticleParserVersion}
               setParsedArticle={handleSetParsedArticle}
-              onBack={() => setStep(2)}
+              onBack={() => setStep(3)}
             />
           )}
 
-          {step === 4 && parsedArticle && (
+          {step === 5 && parsedArticle && (
             <StepSectionAnalysis
               disease={disease}
               articleEntryType={articleEntryType}
@@ -994,7 +988,7 @@ function AppContent() {
             />
           )}
 
-          {step === 5 && parsedArticle && (
+          {step === 6 && parsedArticle && (
             <StepGapAnalysis
               disease={disease}
               qaItems={qaItems}
@@ -1002,13 +996,13 @@ function AppContent() {
               parsedArticle={parsedArticle}
               gapAnalysis={gapAnalysis}
               setGapAnalysis={setGapAnalysis}
-              onBack={() => setStep(4)}
+              onBack={() => setStep(5)}
             />
           )}
 
           {/*
           Temporarily disabled: review/iteration plan.
-          {step === 6 && parsedArticle && gapAnalysis && (
+          {step === 7 && parsedArticle && gapAnalysis && (
             <StepPlanReview
               disease={disease}
               parsedArticle={parsedArticle}
@@ -1019,14 +1013,14 @@ function AppContent() {
               draftHistory={draftHistory}
               onNext={handlePlanGapSelect}
               onBatchNext={handlePlanBatchSelect}
-              onBack={() => setStep(5)}
+              onBack={() => setStep(6)}
             />
           )}
           */}
 
           {/*
           Temporarily disabled: draft generation.
-          {step === 7 && (selectedGap || selectedGaps.length > 0 || draftHistory.length > 0) && (
+          {step === 8 && (selectedGap || selectedGaps.length > 0 || draftHistory.length > 0) && (
             <StepGenerate
               disease={disease}
               articleContent={articleContent}
@@ -1039,12 +1033,12 @@ function AppContent() {
               draftHistory={draftHistory}
               onAddDraft={addDraftRecord}
               onUpdateDraft={updateDraftRecord}
-              onBack={() => setStep(6)}
+              onBack={() => setStep(7)}
             />
           )}
           */}
 
-          {step === 8 && (
+          {step === 9 && (
             <StepAiIntegration
               disease={disease}
               articleContent={articleContent}
@@ -1052,6 +1046,7 @@ function AppContent() {
               sectionAnalyses={sectionAnalyses}
               gapAnalysis={gapAnalysis}
               referenceDocs={referenceDocs}
+              setReferenceDocs={handleSetReferenceDocs}
               history={aiIntegrationHistory}
               onAddRecord={addAiIntegrationRecord}
               onDeleteRecord={deleteAiIntegrationRecord}

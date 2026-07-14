@@ -40,6 +40,10 @@ def generate_signature(params: dict, app_sign_key: str) -> str:
     return hashlib.sha1(plaintext.encode("utf-8")).hexdigest()
 
 
+def generate_nonce() -> str:
+    return str(uuid.uuid4()).replace("-", "")[:16]
+
+
 def signed_params(params: dict) -> dict:
     app_id = str(getattr(settings, "clinic_master_app_id", "") or "").strip()
     sign_key = str(getattr(settings, "clinic_master_app_sign_key", "") or "").strip()
@@ -53,7 +57,7 @@ def signed_params(params: dict) -> dict:
     }
     request_params["appId"] = app_id
     request_params["timestamp"] = int(time.time())
-    request_params["nonce"] = str(uuid.uuid4())
+    request_params["nonce"] = generate_nonce()
     request_params["sign"] = generate_signature(request_params, sign_key)
     return request_params
 
@@ -269,7 +273,14 @@ async def get_chat_detail(chat_id: Optional[str] = None, request_id: Optional[st
         "chatId": chat_id,
         "requestId": request_id,
     }
-    return await _post_openapi("chat/detail", params, "获取对话详情")
+    url = _openapi_url("chat/detail")
+    signed = signed_params(params)
+    try:
+        async with httpx.AsyncClient(timeout=_timeout()) as client:
+            response = await client.get(url, params=signed)
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"Clinic Master 获取对话详情连接失败: {exc}")
+    return _extract_payload(response, "获取对话详情", url, signed)
 
 
 async def get_chat_references(message_id: str) -> dict:
@@ -297,7 +308,7 @@ async def get_reference_detail(chat_id: str, reference_payload: dict) -> dict:
         "chatId": chat_id,
         "chunkIds": _reference_chunk_id(reference_payload),
     }
-    data = {key: value for key, value in params.items() if value}
+    data = signed_params({key: value for key, value in params.items() if value})
     try:
         async with httpx.AsyncClient(timeout=_timeout()) as client:
             response = await client.post(
@@ -461,6 +472,60 @@ def _detail_payload_text(payload: dict) -> str:
     )
 
 
+def _detail_display_fields(payload: dict) -> dict:
+    data = _data_container(payload)
+    return {
+        "sourceName": _first_text_field(data, ("sourceName", "source_name")),
+        "mainTitle": _first_text_field(data, ("mainTitle", "main_title")),
+        "title": _first_text_field(data, ("title", "name", "docTitle", "doc_title")),
+        "publishTime": _first_text_field(data, ("publishTime", "publish_time", "publishedAt", "published_at")),
+    }
+
+
+def _detail_display_title(payload: dict, fallback: str) -> str:
+    fields = _detail_display_fields(payload)
+    parts = [
+        fields["sourceName"],
+        fields["mainTitle"],
+        fields["title"],
+        fields["publishTime"],
+    ]
+    return " · ".join(part for part in parts if part) or fallback
+
+
+def _detail_text_candidates(payload: dict) -> list[dict]:
+    candidates: list[dict] = []
+    wanted_keys = {
+        "content",
+        "htmlContent",
+        "html_content",
+        "detailContent",
+        "detail_content",
+        "abstract",
+        "summary",
+        "text",
+        "body",
+    }
+
+    def walk(value: Any, path: str):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                next_path = f"{path}.{key}" if path else key
+                if key in wanted_keys and isinstance(item, str) and item.strip():
+                    candidates.append({
+                        "path": next_path,
+                        "length": len(item),
+                        "preview": item.strip()[:240],
+                    })
+                walk(item, next_path)
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                walk(item, f"{path}[{index}]")
+
+    walk(_data_container(payload), "")
+    return candidates[:20]
+
+
 def _material_id() -> str:
     return str(uuid.uuid4())
 
@@ -508,9 +573,10 @@ def normalize_materials(
     for index, result in enumerate(detail_results, start=1):
         reference = result.get("reference") if isinstance(result, dict) else None
         payload = result.get("payload") if isinstance(result, dict) else result
+        request = result.get("request") if isinstance(result, dict) else None
         if not isinstance(payload, dict):
             continue
-        title = _reference_title(payload, "")
+        title = _detail_display_title(payload, "")
         if not title and isinstance(reference, dict):
             title = _reference_title(reference, "")
         title = title or f"文献详情 {index}"
@@ -524,7 +590,13 @@ def normalize_materials(
             "text": f"[H1] ClinMaster 文献详情：{title}\n\n{text}",
             "sourceLabel": "ClinMaster 文献详情",
             "selectedByDefault": True,
-            "metadata": {"reference": reference or {}, "detail": payload},
+            "metadata": {
+                "reference": reference or {},
+                "detail_request": request or {},
+                "detail_display_fields": _detail_display_fields(payload),
+                "detail_text_candidates": _detail_text_candidates(payload),
+                "detail": payload,
+            },
         })
 
     return materials

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
-import { AiIntegrationLinkedIssue, AiIntegrationRecord, GapAnalysis, ParsedArticle, ReferenceAnchor, ReferenceDoc, SectionAnalysis } from '../types'
+import { AiIntegrationLinkedIssue, AiIntegrationRecord, ConfirmedReferenceChunk, GapAnalysis, ParsedArticle, ReferenceAnchor, ReferenceDoc, SectionAnalysis } from '../types'
 import { apiFetch, safeJson } from '../api'
+import ChunkConfirmationPanel from './ChunkConfirmationPanel'
+import StepGuideLookup from './StepGuideLookup'
 import {
   buildReferenceAnchorFromSourceDoc,
   buildReferenceAnchorsFromDocs,
@@ -36,12 +38,17 @@ interface Props {
   sectionAnalyses?: SectionAnalysis[]
   gapAnalysis?: GapAnalysis | null
   referenceDocs?: ReferenceDoc[]
+  setReferenceDocs: (docs: ReferenceDoc[]) => void
   history: AiIntegrationRecord[]
   onAddRecord: (record: AiIntegrationRecord) => void
   onDeleteRecord: (id: string) => void
 }
 
 type OriginalScope = 'all' | 'sections' | 'none'
+
+export function isClinicMasterReferenceDoc(doc: Pick<ReferenceDoc, 'filename'>) {
+  return doc.filename.startsWith('ClinMaster-')
+}
 
 function buildSectionContent(parsedArticle: ParsedArticle | null | undefined, selectedIds: string[]) {
   if (!parsedArticle || selectedIds.length === 0) return ''
@@ -198,7 +205,7 @@ function AiIntegrationDiffView({
 }
 
 export default function StepAiIntegration({
-  disease, articleContent, parsedArticle, sectionAnalyses = [], gapAnalysis = null, referenceDocs = [], history, onAddRecord, onDeleteRecord,
+  disease, articleContent, parsedArticle, sectionAnalyses = [], gapAnalysis = null, referenceDocs = [], setReferenceDocs, history, onAddRecord, onDeleteRecord,
 }: Props) {
   const [userRequest, setUserRequest] = useState('')
   const [selectedRefs, setSelectedRefs] = useState<string[]>(() => referenceDocs.map(d => d.filename))
@@ -212,6 +219,16 @@ export default function StepAiIntegration({
   const [compareRecordId, setCompareRecordId] = useState<string | null>(null)
   const [selectedIssueKeys, setSelectedIssueKeys] = useState<string[]>([])
   const [expandedIssueSections, setExpandedIssueSections] = useState<Record<string, boolean>>({})
+  const [guidelineReferenceChunks, setGuidelineReferenceChunks] = useState<ConfirmedReferenceChunk[]>([])
+  const [viewingReference, setViewingReference] = useState<{ doc: ReferenceDoc; index: number } | null>(null)
+  const effectiveReferenceDocs = useMemo(
+    () => referenceDocs,
+    [referenceDocs],
+  )
+  const confirmedReferenceChunks = useMemo(
+    () => guidelineReferenceChunks,
+    [guidelineReferenceChunks],
+  )
 
   const reviewIssueSectionOrder = useMemo(
     () => parsedArticle?.sections.map(section => section.id) ?? [],
@@ -231,9 +248,24 @@ export default function StepAiIntegration({
   )
 
   useEffect(() => {
-    setSelectedRefs(referenceDocs.map(doc => doc.filename))
-    setPriorityRefs(prev => prev.filter(name => referenceDocs.some(doc => doc.filename === name)))
-  }, [referenceDocs])
+    setSelectedRefs(effectiveReferenceDocs.map(doc => doc.filename))
+    setPriorityRefs(prev => prev.filter(name => effectiveReferenceDocs.some(doc => doc.filename === name)))
+    setGuidelineReferenceChunks([])
+    setViewingReference(prev => (
+      prev && effectiveReferenceDocs.some(doc => doc.filename === prev.doc.filename)
+        ? prev
+        : null
+    ))
+  }, [effectiveReferenceDocs])
+
+  useEffect(() => {
+    if (!viewingReference) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setViewingReference(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [viewingReference])
 
   useEffect(() => {
     setSelectedIssueKeys(prev => {
@@ -254,6 +286,9 @@ export default function StepAiIntegration({
 
   const selectedRefSet = useMemo(() => new Set(selectedRefs), [selectedRefs])
   const priorityRefSet = useMemo(() => new Set(priorityRefs), [priorityRefs])
+  useEffect(() => {
+    setGuidelineReferenceChunks(prev => prev.filter(chunk => selectedRefSet.has(chunk.source_filename)))
+  }, [selectedRefSet])
   const selectedIssueKeySet = useMemo(() => new Set(selectedIssueKeys), [selectedIssueKeys])
   const selectedLinkedIssues = useMemo(
     () => allLinkedIssues.filter(issue => selectedIssueKeySet.has(linkedIssueKey(issue))),
@@ -294,6 +329,7 @@ export default function StepAiIntegration({
   )
   const referenceAnchors = useMemo(() => {
     if (!activeRecord) return []
+    const activeRecordReferenceDocs = activeRecord.referenceDocsSnapshot ?? effectiveReferenceDocs
     const currentOriginalContent = activeRecord.originalScope === 'none'
       ? ''
       : activeRecord.originalScope === 'sections'
@@ -307,11 +343,11 @@ export default function StepAiIntegration({
         articleContent,
       ]
     const selectedSourceIds = new Set<number>()
-    referenceDocs.forEach((doc, index) => {
+    activeRecordReferenceDocs.forEach((doc, index) => {
       if (activeRecordSelectedRefSet.has(doc.filename)) selectedSourceIds.add(index + 1)
     })
-    const sourceAnchors = buildSourceAnchors(referenceDocs, activeRecordSelectedRefSet, activeRecord.answer)
-    const internalAnchors = buildReferenceAnchorsFromDocs(referenceDocs)
+    const sourceAnchors = buildSourceAnchors(activeRecordReferenceDocs, activeRecordSelectedRefSet, activeRecord.answer)
+    const internalAnchors = buildReferenceAnchorsFromDocs(activeRecordReferenceDocs)
       .filter(anchor => selectedSourceIds.has(anchor.source_id))
     const originalAnchors = buildOriginalContentAnchorsFromSources(...originalContentSources)
     const mergedAnchors = mergeReferenceAnchors(
@@ -324,7 +360,7 @@ export default function StepAiIntegration({
       sourceAnchors,
       internalAnchors,
     )
-  }, [activeRecord, activeRecordSelectedRefSet, articleContent, parsedArticle, referenceDocs])
+  }, [activeRecord, activeRecordSelectedRefSet, articleContent, effectiveReferenceDocs, parsedArticle])
   const citationKeySet = useMemo(
     () => new Set(referenceAnchors.map(anchor => anchor.anchor_key ?? anchor.citation_key)),
     [referenceAnchors],
@@ -372,15 +408,31 @@ export default function StepAiIntegration({
     if (originalScope === 'sections') return buildSectionContent(parsedArticle, selectedSectionIds)
     return articleContent
   }, [articleContent, originalScope, parsedArticle, selectedSectionIds])
+  const chunkSearchQuery = useMemo(
+    () => [
+      userRequest,
+      originalContent.slice(0, 1500),
+      selectedLinkedIssues.map(issue => `${issue.section_heading} ${issue.description}`).join('\n'),
+    ].filter(Boolean).join('\n'),
+    [originalContent, selectedLinkedIssues, userRequest],
+  )
 
   const setAllRefs = () => {
-    setSelectedRefs(referenceDocs.map(d => d.filename))
-    setPriorityRefs(prev => prev.filter(name => referenceDocs.some(d => d.filename === name)))
+    setSelectedRefs(effectiveReferenceDocs.map(d => d.filename))
+    setPriorityRefs(prev => prev.filter(name => effectiveReferenceDocs.some(d => d.filename === name)))
   }
 
   const clearRefs = () => {
     setSelectedRefs([])
     setPriorityRefs([])
+  }
+
+  const deleteReferenceDoc = (filename: string) => {
+    setReferenceDocs(effectiveReferenceDocs.filter(doc => doc.filename !== filename))
+    setSelectedRefs(prev => prev.filter(name => name !== filename))
+    setPriorityRefs(prev => prev.filter(name => name !== filename))
+    setGuidelineReferenceChunks(prev => prev.filter(chunk => chunk.source_filename !== filename))
+    setViewingReference(prev => prev?.doc.filename === filename ? null : prev)
   }
 
   const toggleRef = (filename: string) => {
@@ -458,7 +510,7 @@ export default function StepAiIntegration({
     setLoading(true)
     setError('')
     try {
-      const referenceInputs = referenceDocs
+      const referenceInputs = effectiveReferenceDocs
         .map((doc, index) => ({ doc, id: index + 1 }))
         .filter(item => selectedRefSet.has(item.doc.filename))
         .map(item => ({
@@ -466,10 +518,13 @@ export default function StepAiIntegration({
           filename: item.doc.filename,
           text: item.doc.text,
         }))
-      const priorityReferenceIds = referenceDocs
+      const priorityReferenceIds = effectiveReferenceDocs
         .map((doc, index) => ({ doc, id: index + 1 }))
         .filter(item => selectedRefSet.has(item.doc.filename) && priorityRefSet.has(item.doc.filename))
         .map(item => item.id)
+      if (referenceInputs.length > 0 && guidelineReferenceChunks.length === 0) {
+        throw new Error('请先筛选并确认指南切片，或清空参考文献后再整合')
+      }
 
       const res = await apiFetch('/api/generate/ai-integration', {
         method: 'POST',
@@ -480,6 +535,7 @@ export default function StepAiIntegration({
           original_content: originalContent,
           reference_inputs: referenceInputs,
           priority_reference_ids: priorityReferenceIds,
+          confirmed_reference_chunks: confirmedReferenceChunks,
         }),
       })
       const data = await safeJson(res)
@@ -497,6 +553,8 @@ export default function StepAiIntegration({
         priorityReferences: priorityRefs,
         priorityGuidelineUsage: data.priority_guideline_usage,
         linkedIssues: selectedLinkedIssues,
+        confirmedReferenceChunks,
+        referenceDocsSnapshot: effectiveReferenceDocs,
         originalScope,
         selectedSectionIds,
         originalContentSnapshot: originalContent,
@@ -763,9 +821,9 @@ export default function StepAiIntegration({
           <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--m3-primary)' }}>library_books</span>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)' }}>参考文献</span>
           <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
-            已选 {selectedRefs.length} / {referenceDocs.length}，重点指南 {priorityRefs.length}
+            已选 {selectedRefs.length} / {effectiveReferenceDocs.length}，重点指南 {priorityRefs.length}
           </span>
-          {referenceDocs.length > 0 && (
+          {effectiveReferenceDocs.length > 0 && (
             <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
               <button className="btn btn-sm" style={{ padding: '3px 10px', fontSize: 12, color: 'var(--m3-primary)' }} onClick={setAllRefs}>全选</button>
               <button className="btn btn-sm" style={{ padding: '3px 10px', fontSize: 12, color: 'var(--gray-500)' }} onClick={clearRefs}>清空</button>
@@ -773,7 +831,20 @@ export default function StepAiIntegration({
           )}
         </div>
 
-        {referenceDocs.length === 0 ? (
+        <StepGuideLookup
+          disease={userRequest || disease}
+          referenceDocs={effectiveReferenceDocs}
+          setReferenceDocs={setReferenceDocs}
+          showRecommendedGuides={false}
+          placeholder="输入本次 AI 整合需要补充判断的临床问题"
+          addButtonLabel="加入数据源"
+          historyStorageKey="clinic-master-ai-integration-history"
+          listTitle="本次候选资料"
+          listEmptyText="暂无本次候选资料"
+          showHeader={false}
+        />
+
+        {effectiveReferenceDocs.length === 0 ? (
           <div style={{ fontSize: 13, color: 'var(--m3-on-surface-variant)' }}>未上传参考文献</div>
         ) : (
           <div style={{
@@ -784,9 +855,10 @@ export default function StepAiIntegration({
             overflowY: 'auto',
             paddingRight: 4,
           }}>
-            {referenceDocs.map((doc, refIndex) => {
+            {effectiveReferenceDocs.map((doc, refIndex) => {
               const checked = selectedRefSet.has(doc.filename)
               const priority = priorityRefSet.has(doc.filename)
+              const canDelete = isClinicMasterReferenceDoc(doc)
               return (
                 <label
                   key={`${doc.filename}-${refIndex}`}
@@ -842,12 +914,65 @@ export default function StepAiIntegration({
                   >
                     {priority ? '重点' : '设重点'}
                   </button>
+                  <button
+                    type="button"
+                    className="btn-m3-icon"
+                    onClick={e => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setViewingReference({ doc, index: refIndex })
+                    }}
+                    title="查看全文"
+                    aria-label={`查看全文：${doc.filename}`}
+                    style={{
+                      width: 26,
+                      height: 26,
+                      flexShrink: 0,
+                      color: 'var(--m3-primary)',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>visibility</span>
+                  </button>
+                  {canDelete && (
+                    <button
+                      type="button"
+                      className="btn-m3-icon"
+                      onClick={e => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        deleteReferenceDoc(doc.filename)
+                      }}
+                      title="删除ClinMaster数据源"
+                      aria-label={`删除ClinMaster数据源：${doc.filename}`}
+                      style={{
+                        width: 26,
+                        height: 26,
+                        flexShrink: 0,
+                        color: 'var(--m3-error)',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+                    </button>
+                  )}
                 </label>
               )
             })}
           </div>
         )}
       </div>
+
+      {effectiveReferenceDocs.length > 0 && selectedRefs.length > 0 && (
+        <ChunkConfirmationPanel
+          taskType="ai_integration"
+          disease={disease}
+          query={chunkSearchQuery || `${disease} ${userRequest}`}
+          referenceDocs={effectiveReferenceDocs}
+          selectedReferenceNames={selectedRefs}
+          priorityReferenceNames={priorityRefs}
+          value={guidelineReferenceChunks}
+          onChange={setGuidelineReferenceChunks}
+        />
+      )}
 
       <div className="section-card">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -1043,6 +1168,34 @@ export default function StepAiIntegration({
                 </article>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {viewingReference && (
+        <div className="modal-overlay" onClick={() => setViewingReference(null)}>
+          <div className="modal-card" style={{ width: 'min(900px, 92vw)', maxHeight: '82vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 4 }}>
+                  AI整合参考数据源 {viewingReference.index + 1}
+                </div>
+                <h3 style={{ margin: 0, fontSize: 16, color: 'var(--m3-on-surface)' }}>
+                  {viewingReference.doc.filename} · {viewingReference.doc.char_count.toLocaleString()} 字符
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="btn-m3-icon"
+                onClick={() => setViewingReference(null)}
+                aria-label="关闭"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div style={{ overflow: 'auto', border: '1px solid var(--dui-divider)', borderRadius: 8 }}>
+              <pre style={{ margin: 0, padding: 14, borderRadius: 8, background: 'var(--m3-surface-container-low)', color: 'var(--m3-on-surface)', fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{viewingReference.doc.text.trim() || '暂无可查看的解析文本'}</pre>
+            </div>
           </div>
         </div>
       )}

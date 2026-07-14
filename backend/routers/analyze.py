@@ -6,7 +6,7 @@ from typing import List, Optional
 from models import (
     QAItem, NeedsAnalysis, QualityReport, FullAnalysisResult,
     ArticleSection, SectionAnalysis, ParsedArticle, GapAnalysis,
-    NeedCluster, NeedSectionMapping, ReferenceDoc,
+    NeedCluster, NeedSectionMapping, ReferenceDoc, ConfirmedReferenceChunk,
 )
 from services.analyzer import (
     evaluate_article_quality, analyze_user_needs, generate_iteration_plan,
@@ -54,6 +54,7 @@ class SectionAnalyzeRequest(BaseModel):
     content_spec_text: Optional[str] = None
     reference_texts: List[str] = []
     priority_reference_texts: List[str] = []
+    confirmed_reference_chunks: List[ConfirmedReferenceChunk] = []
 
 
 @router.post("/section")
@@ -67,6 +68,7 @@ async def analyze_single_section(req: SectionAnalyzeRequest):
             req.disease, req.section, quality_std, content_spec, req.reference_texts,
             priority_reference_texts=req.priority_reference_texts,
             article_outline=req.article_outline,
+            confirmed_reference_chunks=req.confirmed_reference_chunks,
         )
         return result.model_dump()
     except Exception as e:

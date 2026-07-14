@@ -6,8 +6,9 @@ from models import (
     IssueItem, DimOneReport, DimTwoReport, DimThreeReport, DimFourReport,
     NeedCluster, GapItem,
     ArticleSection, SectionAnalysis, SectionIssue, IssueAnchor, GuidelineEvidence, GapAnalysis, ParsedArticle,
-    NeedSectionMapping, SectionNeedsGap, NeedCoverage,
+    NeedSectionMapping, SectionNeedsGap, NeedCoverage, ConfirmedReferenceChunk,
 )
+from services.guideline_chunk_usage import guideline_chunk_usage_prompt
 from services.text_llm import generate_json, generate_text
 
 SYSTEM_PROMPT = "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
@@ -1239,6 +1240,31 @@ def _build_reference_block(reference_texts: List[str], section_heading: str, sec
     return "\n\n" + "\n---\n".join(blocks)
 
 
+def _build_confirmed_reference_block(confirmed_chunks: List[ConfirmedReferenceChunk]) -> str:
+    clean_chunks = [chunk for chunk in (confirmed_chunks or []) if chunk.text.strip()]
+    if not clean_chunks:
+        return ""
+    blocks = [
+        "## 用户确认的指南切片",
+        "以下片段已由用户确认为本次章节质量评审可用证据；仅可基于这些可见片段判断指南依据。",
+    ]
+    for chunk in clean_chunks:
+        title = f"\n标题路径：{chunk.title_path}" if chunk.title_path else ""
+        source_refs = f"\n可用引用标记：{', '.join(f'[{chunk.source_id}-{ref_id}]' for ref_id in chunk.source_ref_ids)}" if chunk.source_ref_ids else f"\n可用引用标记：[{chunk.source_id}]"
+        blocks.append(
+            f"### 参考数据源 {chunk.source_id}：{chunk.source_filename}{title}{source_refs}\n{chunk.text.strip()}"
+        )
+    return "\n\n" + "\n---\n".join(blocks)
+
+
+def _confirmed_reference_texts(confirmed_chunks: Optional[List[ConfirmedReferenceChunk]]) -> List[str]:
+    return [
+        f"### 参考数据源 {chunk.source_id}：{chunk.source_filename}\n{chunk.text}"
+        for chunk in (confirmed_chunks or [])
+        if chunk.text.strip()
+    ]
+
+
 def _reference_source_label(text: str, fallback_idx: int) -> str:
     match = re.search(r"参考数据源\s*\d+(?:[：:][^\n]+)?", text)
     if match:
@@ -1421,6 +1447,7 @@ async def _analyze_section_with_reference_block(
 {content_spec[:CONTENT_SPEC_MAX_CHARS]}
 {priority_ref_block}
 {ref_block}
+{guideline_chunk_usage_prompt() if (priority_ref_block or ref_block) else ""}
 
 请从以下五类问题角度分析该章节存在的质量问题，以JSON格式输出。为避免输出被截断，最多输出{SECTION_ISSUE_OUTPUT_LIMIT}条最重要、证据最充分、可定位的问题；相同或高度相似问题必须合并：
 {{
@@ -1514,13 +1541,15 @@ async def _analyze_section_chunk(
     reference_texts: List[str],
     priority_reference_texts: List[str],
     article_outline: Optional[List[str]],
+    confirmed_reference_chunks: Optional[List[ConfirmedReferenceChunk]] = None,
 ) -> List[SectionIssue]:
     """Analyze one chunk of a section. Returns raw issues without verification."""
     chunk_note = f"（注：以下为该章节第{chunk_idx}/{total_chunks}段内容，请仅分析此段中实际存在的问题）"
-    reference_blocks = [_build_reference_block(reference_texts, chunk_section.heading, chunk_section.content)]
+    confirmed_ref_block = _build_confirmed_reference_block(confirmed_reference_chunks or [])
+    reference_blocks = [confirmed_ref_block or _build_reference_block(reference_texts, chunk_section.heading, chunk_section.content)]
     if not reference_blocks[0]:
         reference_blocks = [""]
-    priority_ref_block = _build_priority_reference_block(
+    priority_ref_block = "" if confirmed_ref_block else _build_priority_reference_block(
         priority_reference_texts,
         chunk_section.heading,
         chunk_section.content,
@@ -1637,8 +1666,10 @@ async def analyze_section(
     reference_texts: List[str],
     priority_reference_texts: Optional[List[str]] = None,
     article_outline: Optional[List[str]] = None,
+    confirmed_reference_chunks: Optional[List[ConfirmedReferenceChunk]] = None,
 ) -> SectionAnalysis:
     """Analyze a single article section against quality standards."""
+    evidence_reference_texts = [*(reference_texts or []), *_confirmed_reference_texts(confirmed_reference_chunks)]
     # Chunking path for very long sections
     if len(section.content) > CHUNK_THRESHOLD:
         print(f"[analyze_section] 章节「{section.heading}」内容超过 {CHUNK_THRESHOLD} 字符（{len(section.content)}），启用分块分析")
@@ -1656,12 +1687,13 @@ async def analyze_section(
             chunk_issues = await _analyze_section_chunk(
                 disease, chunk_section, i + 1, len(chunks),
                 quality_standard, content_spec, reference_texts, priority_reference_texts or [], article_outline,
+                confirmed_reference_chunks=confirmed_reference_chunks,
             )
             print(f"[analyze_section] 第 {i+1}/{len(chunks)} 块分析完毕，发现 {len(chunk_issues)} 个问题")
             all_issues.extend(chunk_issues)
         _sanitize_guideline_evidence_sources(
             all_issues,
-            reference_texts,
+            evidence_reference_texts,
             priority_reference_texts or [],
         )
         merged_issues, summary = await _merge_chunk_issues(
@@ -1669,12 +1701,13 @@ async def analyze_section(
         )
         _sanitize_guideline_evidence_sources(
             merged_issues,
-            reference_texts,
+            evidence_reference_texts,
             priority_reference_texts or [],
         )
         if not merged_issues:
-            ref_block = _build_reference_block(reference_texts, section.heading, section.content)
-            priority_ref_block = _build_priority_reference_block(
+            confirmed_ref_block = _build_confirmed_reference_block(confirmed_reference_chunks or [])
+            ref_block = confirmed_ref_block or _build_reference_block(reference_texts, section.heading, section.content)
+            priority_ref_block = "" if confirmed_ref_block else _build_priority_reference_block(
                 priority_reference_texts or [],
                 section.heading,
                 section.content,
@@ -1685,7 +1718,7 @@ async def analyze_section(
                 )
                 _sanitize_guideline_evidence_sources(
                     merged_issues,
-                    reference_texts,
+                    evidence_reference_texts,
                     priority_reference_texts or [],
                 )
                 summary = "\n".join(part for part in (summary, empty_summary) if part)
@@ -1697,7 +1730,7 @@ async def analyze_section(
                     )
                     _sanitize_guideline_evidence_sources(
                         merged_issues,
-                        reference_texts,
+                        evidence_reference_texts,
                         priority_reference_texts or [],
                     )
                     summary = "\n".join(part for part in (summary, verify_summary) if part)
@@ -1705,7 +1738,7 @@ async def analyze_section(
         merged_issues = _drop_false_covered_missing_content_issues(merged_issues, section.content)
         merged_issues = _drop_false_numbering_and_reference_style_issues(merged_issues, section.content)
         merged_issues = _drop_out_of_scope_disease_issues(merged_issues, disease)
-        merged_issues = _drop_false_rome_v_unpublished_issues(merged_issues, reference_texts)
+        merged_issues = _drop_false_rome_v_unpublished_issues(merged_issues, evidence_reference_texts)
         _attach_issue_anchors(merged_issues, section.content)
         merged_issues = _drop_false_abbreviation_full_name_issues(merged_issues)
         merged_issues = _drop_unlocated_required_anchor_issues(merged_issues)
@@ -1716,10 +1749,11 @@ async def analyze_section(
             verification_summary=summary,
         )
 
-    reference_blocks = [_build_reference_block(reference_texts, section.heading, section.content)]
+    confirmed_ref_block = _build_confirmed_reference_block(confirmed_reference_chunks or [])
+    reference_blocks = [confirmed_ref_block or _build_reference_block(reference_texts, section.heading, section.content)]
     if not reference_blocks[0]:
         reference_blocks = [""]
-    priority_ref_block = _build_priority_reference_block(
+    priority_ref_block = "" if confirmed_ref_block else _build_priority_reference_block(
         priority_reference_texts or [],
         section.heading,
         section.content,
@@ -1734,7 +1768,7 @@ async def analyze_section(
         ))
     _sanitize_guideline_evidence_sources(
         issues,
-        reference_texts,
+        evidence_reference_texts,
         priority_reference_texts or [],
     )
 
@@ -1744,7 +1778,7 @@ async def analyze_section(
         )
         _sanitize_guideline_evidence_sources(
             issues,
-            reference_texts,
+            evidence_reference_texts,
             priority_reference_texts or [],
         )
 
@@ -1757,7 +1791,7 @@ async def analyze_section(
             )
             _sanitize_guideline_evidence_sources(
                 issues,
-                reference_texts,
+                evidence_reference_texts,
                 priority_reference_texts or [],
             )
 
@@ -1776,7 +1810,7 @@ async def analyze_section(
     )
     _sanitize_guideline_evidence_sources(
         verified_issues,
-        reference_texts,
+        evidence_reference_texts,
         priority_reference_texts or [],
     )
     if empty_review_summary:
@@ -1787,7 +1821,7 @@ async def analyze_section(
     verified_issues = _drop_false_covered_missing_content_issues(verified_issues, section.content)
     verified_issues = _drop_false_numbering_and_reference_style_issues(verified_issues, section.content)
     verified_issues = _drop_out_of_scope_disease_issues(verified_issues, disease)
-    verified_issues = _drop_false_rome_v_unpublished_issues(verified_issues, reference_texts)
+    verified_issues = _drop_false_rome_v_unpublished_issues(verified_issues, evidence_reference_texts)
     _attach_issue_anchors(verified_issues, section.content)
     verified_issues = _drop_false_abbreviation_full_name_issues(verified_issues)
     verified_issues = _drop_unlocated_required_anchor_issues(verified_issues)

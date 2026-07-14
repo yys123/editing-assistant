@@ -24,8 +24,7 @@ class ClinicMasterSigningTests(unittest.TestCase):
 
         self.assertEqual(result, "892a5dd8950d6d2c4a4216f4545dd2e2fa81f3b7")
 
-    def test_signed_params_use_seconds_hyphenated_uuid_and_do_not_send_key(self):
-        fake_uuid = "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"
+    def test_signed_params_use_seconds_fixed_length_nonce_and_do_not_send_key(self):
         settings = type("Settings", (), {
             "clinic_master_app_id": "app-1",
             "clinic_master_app_sign_key": "secret-key",
@@ -34,15 +33,18 @@ class ClinicMasterSigningTests(unittest.TestCase):
         with (
             patch.object(clinic_master, "settings", settings),
             patch.object(clinic_master.time, "time", return_value=1742050000.9),
-            patch.object(clinic_master.uuid, "uuid4", return_value=fake_uuid),
+            patch.object(clinic_master, "generate_nonce", return_value="abc123def4567890"),
         ):
             params = clinic_master.signed_params({"question": "hello", "optional": None})
 
         self.assertEqual(params["timestamp"], 1742050000)
-        self.assertEqual(params["nonce"], fake_uuid)
-        self.assertRegex(params["nonce"], r"^[0-9a-f-]{36}$")
+        self.assertEqual(params["nonce"], "abc123def4567890")
+        self.assertEqual(len(params["nonce"]), 16)
         self.assertNotIn("appSignKey", params)
         self.assertIn("sign", params)
+
+    def test_generate_nonce_returns_16_characters(self):
+        self.assertEqual(len(clinic_master.generate_nonce()), 16)
 
 
 class FakeResponse:
@@ -148,6 +150,28 @@ class ClinicMasterClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["params"]["messageId"], "assistant-message-1")
         self.assertNotIn("appSignKey", kwargs["params"])
 
+    async def test_get_chat_detail_sends_get_mandatory_security_parameters(self):
+        FakeAsyncClient.responses = [FakeResponse({"code": "success", "data": {"messages": []}})]
+
+        with (
+            patch.object(clinic_master, "settings", self.settings),
+            patch.object(clinic_master.httpx, "AsyncClient", FakeAsyncClient),
+            patch.object(clinic_master.time, "time", return_value=1742050000.9),
+            patch.object(clinic_master.uuid, "uuid4", return_value="9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"),
+        ):
+            await clinic_master.get_chat_detail("chat-1", "request-1")
+
+        method, url, kwargs = FakeAsyncClient.calls[0]
+        self.assertEqual(method, "GET")
+        self.assertEqual(url, "https://clinic-master.test/openapi/p/chat/detail")
+        self.assertEqual(kwargs["params"]["chatId"], "chat-1")
+        self.assertEqual(kwargs["params"]["requestId"], "request-1")
+        self.assertEqual(kwargs["params"]["appId"], "app-1")
+        self.assertEqual(kwargs["params"]["timestamp"], 1742050000)
+        self.assertEqual(kwargs["params"]["nonce"], "9f3f0d1535a04b31")
+        self.assertIn("sign", kwargs["params"])
+        self.assertNotIn("appSignKey", kwargs["params"])
+
     async def test_success_false_payload_raises_safe_error(self):
         FakeAsyncClient.responses = [FakeResponse({"success": False, "errorCode": 100000, "message": "405 Method Not Allowed"})]
 
@@ -167,6 +191,8 @@ class ClinicMasterClientTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(clinic_master, "settings", self.settings),
             patch.object(clinic_master.httpx, "AsyncClient", FakeAsyncClient),
+            patch.object(clinic_master.time, "time", return_value=1742050000.9),
+            patch.object(clinic_master.uuid, "uuid4", return_value="9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"),
         ):
             result = await clinic_master.get_reference_detail(
                 "chat-1",
@@ -179,9 +205,11 @@ class ClinicMasterClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(url, "https://clinic-master.test/japi/platform/100000017")
         self.assertEqual(kwargs["data"]["chatId"], "chat-1")
         self.assertEqual(kwargs["data"]["chunkIds"], "chunk-1")
+        self.assertEqual(kwargs["data"]["appId"], "app-1")
+        self.assertEqual(kwargs["data"]["timestamp"], 1742050000)
+        self.assertEqual(kwargs["data"]["nonce"], "9f3f0d1535a04b31")
+        self.assertIn("sign", kwargs["data"])
         self.assertEqual(kwargs["headers"]["Content-Type"], "application/x-www-form-urlencoded")
-        self.assertNotIn("sign", kwargs["data"])
-        self.assertNotIn("appId", kwargs["data"])
         self.assertNotIn("appSignKey", kwargs["data"])
 
 
@@ -264,6 +292,12 @@ class ClinicMasterRouterStateTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(getattr(ctx.exception, "status_code", None), 404)
 
+    async def test_default_result_delay_is_immediate_to_preserve_reference_session(self):
+        settings_without_delay = type("Settings", (), {})()
+
+        with patch.object(self.router, "settings", settings_without_delay):
+            self.assertEqual(self.router._delay_seconds(), 0)
+
 
 class ClinicMasterRefreshTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -318,7 +352,16 @@ class ClinicMasterRefreshTests(unittest.IsolatedAsyncioTestCase):
                 {"referenceId": "ref-1", "title": "糖尿病指南", "summary": "诊断章节"}
             ]
         }
-        reference_detail = {"data": {"title": "糖尿病指南", "content": "<h2>诊断</h2><p>HbA1c 可用于诊断。</p>"}}
+        reference_detail = {
+            "data": {
+                "sourceName": "中国性学会私密整形与产业分会",
+                "mainTitle": "隐匿性阴茎诊断与治疗专家共识",
+                "title": "一、包皮的发生、解剖与病理生理",
+                "publishTime": "2026.04.29",
+                "content": "<h2>诊断</h2><p>HbA1c 可用于诊断。</p>",
+                "summary": "这段摘要不应覆盖 content。",
+            }
+        }
 
         with (
             patch.object(self.router.uuid, "uuid4", return_value=query_id),
@@ -340,6 +383,15 @@ class ClinicMasterRefreshTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(len(result["materials"]), 2)
         self.assertEqual(result["materials"][0]["type"], "answer")
         self.assertTrue(any("[H2] 诊断" in item["text"] for item in result["materials"]))
+        self.assertFalse(any("这段摘要不应覆盖 content" in item["text"] for item in result["materials"]))
+        detail_material = next(item for item in result["materials"] if item["type"] == "reference_detail")
+        self.assertEqual(
+            detail_material["title"],
+            "中国性学会私密整形与产业分会 · 隐匿性阴茎诊断与治疗专家共识 · 一、包皮的发生、解剖与病理生理 · 2026.04.29",
+        )
+        self.assertEqual(detail_material["metadata"]["detail_request"]["endpoint"], "/japi/platform/100000017")
+        self.assertEqual(detail_material["metadata"]["detail_request"]["chunkIds"], "ref-1")
+        self.assertEqual(detail_material["metadata"]["detail_text_candidates"][0]["path"], "content")
         get_detail.assert_awaited_once()
         get_refs.assert_awaited_once_with("assistant-1")
         get_ref_detail.assert_awaited_once_with(
@@ -419,8 +471,82 @@ class ClinicMasterRefreshTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["materials"][0]["type"], "answer")
         self.assertIn("流式回答", result["materials"][0]["text"])
         self.assertTrue(any(item["type"] == "reference" for item in result["materials"]))
-        self.assertTrue(any("对话详情获取失败" in warning for warning in result["warnings"]))
+        self.assertTrue(any("对话详情接口暂不可用" in warning for warning in result["warnings"]))
         get_refs.assert_awaited_once_with("assistant-from-stream")
+
+    async def test_external_detail_failures_are_reported_as_compact_degraded_warnings(self):
+        query_id = "72617247-3891-4a1f-897a-c2e5699df72a"
+        stream_payload = {
+            "data": {
+                "chatId": query_id,
+                "newAssistantMessageId": "assistant-from-stream",
+                "answer": "流式回答可作为参考。",
+            }
+        }
+        reference_payload = {
+            "success": True,
+            "results": {
+                "items": [
+                    {"id": "chunk-1", "title": "一、定义", "summary": "定义摘要"},
+                    {"id": "chunk-2", "title": "四、治疗", "summary": "治疗摘要"},
+                ]
+            },
+        }
+        detail_error = HTTPException(
+            502,
+            {
+                "message": "Clinic Master 获取对话详情 请求失败 (400)",
+                "response": '{"success":false,"message":"Access denied.path: /chat/detail"}',
+            },
+        )
+        expired_error = HTTPException(
+            502,
+            {
+                "message": "请求已失效",
+                "request": {
+                    "url": "https://ai.dxy.net/japi/platform/100000017",
+                    "params": {"chatId": query_id, "chunkIds": "chunk-1"},
+                },
+                "response": {"success": False, "message": "请求已失效", "errorCode": 0},
+            },
+        )
+
+        with (
+            patch.object(self.router.uuid, "uuid4", return_value=query_id),
+            patch.object(self.router.time, "time", return_value=1742050000),
+            patch.object(self.router, "settings", self.settings),
+            patch.object(self.router.clinic_master_service, "create_chat", AsyncMock(return_value=stream_payload)),
+        ):
+            await self.router.create_query(self.router.ClinicMasterQueryRequest(question="隐匿性阴茎"))
+
+        with (
+            patch.object(self.router.time, "time", return_value=1742050121),
+            patch.object(self.router.clinic_master_service, "get_chat_detail", AsyncMock(side_effect=detail_error)),
+            patch.object(self.router.clinic_master_service, "get_chat_references", AsyncMock(return_value=reference_payload)),
+            patch.object(self.router.clinic_master_service, "get_reference_detail", AsyncMock(side_effect=expired_error)),
+        ):
+            result = await self.router.refresh_query(query_id)
+
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(len(result["warnings"]), 2)
+        self.assertTrue(any("对话详情接口暂不可用" in warning for warning in result["warnings"]))
+        self.assertTrue(any("2 条参考文献详情暂不可用" in warning for warning in result["warnings"]))
+        self.assertFalse(any("https://ai.dxy.net" in warning for warning in result["warnings"]))
+        self.assertFalse(any("chunkIds" in warning for warning in result["warnings"]))
+        self.assertTrue(any(item["type"] == "reference" for item in result["materials"]))
+        self.assertEqual(len(result["debug"]["errors"]), 3)
+        self.assertEqual(result["debug"]["errors"][0]["stage"], "chat_detail")
+        self.assertIn("/chat/detail", str(result["debug"]["errors"][0]["detail"]))
+        self.assertEqual(result["debug"]["errors"][1]["stage"], "reference_detail")
+        self.assertEqual(
+            result["debug"]["errors"][1]["detail"]["request"]["url"],
+            "https://ai.dxy.net/japi/platform/100000017",
+        )
+        self.assertEqual(
+            result["debug"]["errors"][1]["detail"]["request"]["params"]["chunkIds"],
+            "chunk-1",
+        )
+        self.assertNotIn("appSignKey", str(result["debug"]))
 
     async def test_empty_answer_and_references_return_empty_status(self):
         query_id = "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a"

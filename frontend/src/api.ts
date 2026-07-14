@@ -1,4 +1,4 @@
-import type { ReferenceDoc } from './types'
+import type { ReferenceChunkSearchRequest, ReferenceChunkSearchResponse, ReferenceDoc } from './types'
 
 export interface GuideSearchItem {
   id: number
@@ -44,6 +44,30 @@ export interface ClinicalDecisionChunkSearchResponse {
   items: ClinicalDecisionChunk[]
   num_found: number
   num_returned: number
+}
+
+export type ClinicMasterQueryStatus = 'pending' | 'ready' | 'empty' | 'failed'
+
+export interface ClinicMasterMaterial {
+  id: string
+  type: 'answer' | 'chat_detail' | 'reference' | 'reference_detail'
+  title: string
+  text: string
+  sourceLabel: string
+  selectedByDefault: boolean
+  metadata?: Record<string, unknown>
+}
+
+export interface ClinicMasterQueryResponse {
+  query_id: string
+  status: ClinicMasterQueryStatus
+  question: string
+  created_at: string
+  ready_at: string
+  materials: ClinicMasterMaterial[]
+  warnings: string[]
+  error?: string
+  debug?: Record<string, unknown> | null
 }
 
 export function getToken(): string | null {
@@ -124,6 +148,10 @@ function errorMessage(data: any, fallback: string) {
   return fallback
 }
 
+function logClinicMasterApiError(url: string, status: number, data: any) {
+  console.error('[ClinicMaster API error]', { url, status, data })
+}
+
 export async function searchGuides(keyword: string): Promise<GuideSearchResponse> {
   const normalized = keyword.trim()
   if (!normalized) throw new Error('请输入指南名称')
@@ -175,6 +203,98 @@ export async function searchClinicalDecisionChunks({
   const data = await safeJson(res)
   if (!res.ok) throw new Error(errorMessage(data, '临床决策切片查询失败'))
   return data
+}
+
+export async function searchReferenceChunks(req: ReferenceChunkSearchRequest): Promise<ReferenceChunkSearchResponse> {
+  const res = await apiFetch('/api/generate/reference-chunks/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  const data = await safeJson(res)
+  if (!res.ok) throw new Error(errorMessage(data, '指南切片检索失败'))
+  return data
+}
+
+export async function createClinicMasterQuery(question: string): Promise<ClinicMasterQueryResponse> {
+  const normalized = question.trim()
+  if (!normalized) throw new Error('请输入临床决策问题')
+  const url = '/api/clinic-master/queries'
+  const res = await apiFetch('/api/clinic-master/queries', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: normalized }),
+  })
+  const data = await safeJson(res)
+  if (!res.ok) {
+    logClinicMasterApiError(url, res.status, data)
+    throw new Error(errorMessage(data, '临床决策查询创建失败'))
+  }
+  return data
+}
+
+export async function getClinicMasterQuery(queryId: string): Promise<ClinicMasterQueryResponse> {
+  const url = `/api/clinic-master/queries/${encodeURIComponent(queryId)}`
+  const res = await apiFetch(url)
+  const data = await safeJson(res)
+  if (!res.ok) {
+    logClinicMasterApiError(url, res.status, data)
+    throw new Error(errorMessage(data, '临床决策查询状态获取失败'))
+  }
+  return data
+}
+
+export async function refreshClinicMasterQuery(queryId: string): Promise<ClinicMasterQueryResponse> {
+  const url = `/api/clinic-master/queries/${encodeURIComponent(queryId)}/refresh`
+  const res = await apiFetch(url, {
+    method: 'POST',
+  })
+  const data = await safeJson(res)
+  if (!res.ok) {
+    logClinicMasterApiError(url, res.status, data)
+    throw new Error(errorMessage(data, '临床决策结果获取失败'))
+  }
+  return data
+}
+
+export function clinicMasterMaterialToReferenceDoc(material: ClinicMasterMaterial, fallbackIndex = 1): ReferenceDoc {
+  const safeTitle = (material.title || `${material.sourceLabel || 'ClinMaster'}-${fallbackIndex}`)
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .slice(0, 120)
+  const text = normalizeClinicMasterReferenceText(material)
+  return {
+    filename: `ClinMaster-${safeTitle || fallbackIndex}.md`,
+    text,
+    char_count: text.length,
+  }
+}
+
+function normalizeClinicMasterReferenceText(material: ClinicMasterMaterial) {
+  if (material.type !== 'answer' && material.type !== 'reference_detail') return material.text
+  return material.text
+    .split('\n')
+    .map(line => {
+      const markdownHeadingMatch = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/)
+      if (markdownHeadingMatch) {
+        return `[H${markdownHeadingMatch[1].length}] ${markdownHeadingMatch[2].trim()}`
+      }
+      const headingMatch = line.match(/^\s*\*\*([^*\n]+?)\*\*\s*$/)
+      if (headingMatch) {
+        const title = headingMatch[1].trim()
+        if (/^(?:\d+[.、．]\s*|[一二三四五六七八九十]+[、.．]\s*|总结$)/.test(title)) {
+          return `[H2] ${title}`
+        }
+      }
+      const summaryMatch = line.match(/^\s*\*\*(总结)\*\*\s*[:：]\s*(.+)$/)
+      if (summaryMatch) return `[H2] ${summaryMatch[1]}\n${summaryMatch[2].trim()}`
+      return line
+        .replace(/\*\*([^*\n]+?)\*\*/g, '$1')
+        .replace(/__([^_\n]+?)__/g, '$1')
+    })
+    .join('\n')
+    .replace(/\s*\^\[\s*[,，、\s]*\]\s*\^/g, '')
+    .replace(/\s+([。！？；，、,.!?;:：])/g, '$1')
 }
 
 export function guideDetailToReferenceDoc(detail: GuideDetail): ReferenceDoc {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { ArticleEntryType, ArticleSection, ParsedArticle, SectionAnalysis, SectionIssue, ReferenceDoc, StandardsOverride } from '../types'
+import { ArticleEntryType, ArticleSection, ConfirmedReferenceChunk, ParsedArticle, SectionAnalysis, SectionIssue, ReferenceDoc, StandardsOverride } from '../types'
 import { apiFetch, safeJson } from '../api'
+import ChunkConfirmationPanel from './ChunkConfirmationPanel'
 import {
   haveSectionAnalysisIdsChanged,
   remapSectionAnalysesToCurrentSections,
@@ -220,6 +221,7 @@ export default function StepSectionAnalysis({
   const [activeAnchor, setActiveAnchor] = useState<{ groupId: string; issueId: string; anchorIndex: number; lineStart: number; lineEnd: number } | null>(null)
   const [fullscreenGroupId, setFullscreenGroupId] = useState<string | null>(null)
   const [reviewFontSize, setReviewFontSize] = useState<ReviewFullscreenFontSize>(DEFAULT_REVIEW_FULLSCREEN_FONT_SIZE)
+  const [confirmedChunksByGroup, setConfirmedChunksByGroup] = useState<Record<string, ConfirmedReferenceChunk[]>>({})
   const sourceLineRefs = React.useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
@@ -368,8 +370,15 @@ export default function StepSectionAnalysis({
       content: group.combinedContent,
       word_count: getAnalysisGroupWordCount(group),
     }
-    const referenceTexts = getSelectedReferenceDocs(group.representative.id).map(d => getReferencePromptText(d))
-    const priorityReferenceTexts = getPriorityReferenceDocs(group.representative.id).map(d => getReferencePromptText(d, true))
+    const selectedReferenceDocs = getSelectedReferenceDocs(group.representative.id)
+    const selectedReferenceNameSet = new Set(selectedReferenceDocs.map(doc => doc.filename))
+    const confirmedReferenceChunks = (confirmedChunksByGroup[group.representative.id] ?? [])
+      .filter(chunk => selectedReferenceNameSet.has(chunk.source_filename))
+    if (selectedReferenceDocs.length > 0 && confirmedReferenceChunks.length === 0) {
+      throw new Error(`请先为「${group.representative.heading}」筛选并确认指南切片，或清空本章节参考文献`)
+    }
+    const referenceTexts = confirmedReferenceChunks.length > 0 ? [] : selectedReferenceDocs.map(d => getReferencePromptText(d))
+    const priorityReferenceTexts = confirmedReferenceChunks.length > 0 ? [] : getPriorityReferenceDocs(group.representative.id).map(d => getReferencePromptText(d, true))
     const res = await apiFetch('/api/analyze/section', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -384,6 +393,7 @@ export default function StepSectionAnalysis({
         content_spec_text: standardsOverride.specText ?? null,
         reference_texts: referenceTexts,
         priority_reference_texts: priorityReferenceTexts,
+        confirmed_reference_chunks: confirmedReferenceChunks,
       }),
     })
     const data = await safeJson(res)
@@ -836,6 +846,22 @@ export default function StepSectionAnalysis({
                       )
                     })}
                   </div>
+                )}
+                {referenceDocs.length > 0 && selectedRefNames.length > 0 && (
+                  <ChunkConfirmationPanel
+                    taskType="quality_review"
+                    disease={disease}
+                    query={`${group.representative.heading}\n${group.combinedContent.slice(0, 2000)}`}
+                    referenceDocs={referenceDocs}
+                    selectedReferenceNames={selectedRefNames}
+                    priorityReferenceNames={priorityRefNames}
+                    value={confirmedChunksByGroup[group.representative.id] ?? []}
+                    onChange={chunks => setConfirmedChunksByGroup(prev => ({
+                      ...prev,
+                      [group.representative.id]: chunks,
+                    }))}
+                    compact
+                  />
                 )}
               </div>
 

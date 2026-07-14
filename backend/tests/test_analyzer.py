@@ -5,6 +5,7 @@ from services import standards
 from services import analyzer
 from models import (
     ArticleSection,
+    ConfirmedReferenceChunk,
     GapAnalysis,
     NeedCoverage,
     SectionAnalysis,
@@ -481,6 +482,59 @@ class SectionAnalysisEmptyRecheckTests(unittest.IsolatedAsyncioTestCase):
 
 
 class GuidelineEvidenceSourceFilterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_analyze_section_uses_confirmed_chunks_instead_of_unconfirmed_reference_text(self):
+        prompts = {}
+
+        async def fake_generate_json(prompt, system_instruction=None, context="unknown", text_generator=None, **kwargs):
+            prompts[context] = prompt
+            issue = {
+                "issue_type": "style",
+                "description": "术语表达需要统一。",
+                "severity": "low",
+                "examples": ["HbA1c"],
+                "anchors": [{"quote": "HbA1c", "heading_hint": "诊断"}],
+                "deduction_score": 0.5,
+                "is_key_content": False,
+            }
+            if context == "section_issue_verify":
+                return {"verification_summary": "问题属实。", "issues": [issue]}
+            return {"issues": [issue]}
+
+        section = ArticleSection(
+            id="s1",
+            heading="诊断",
+            content="HbA1c 可作为诊断指标。",
+            word_count=20,
+            level=1,
+        )
+
+        with patch.object(analyzer, "generate_json", side_effect=fake_generate_json):
+            result = await analyzer.analyze_section(
+                "糖尿病",
+                section,
+                "质量标准",
+                "内容规范",
+                ["UNCONFIRMED_SECTION_REFERENCE_TEXT 不应进入 prompt。"],
+                confirmed_reference_chunks=[
+                    ConfirmedReferenceChunk(
+                        chunk_id="R1-C001",
+                        source_id=1,
+                        source_filename="糖尿病指南.pdf",
+                        title_path="诊断 / 标准",
+                        text="CONFIRMED_SECTION_CHUNK HbA1c 可用于糖尿病诊断。",
+                        source_ref_ids=["8"],
+                    )
+                ],
+            )
+
+        self.assertEqual(len(result.issues), 1)
+        self.assertIn("CONFIRMED_SECTION_CHUNK", prompts["section_analysis"])
+        self.assertIn("标题路径：诊断 / 标准", prompts["section_analysis"])
+        self.assertIn("指南切片使用规则", prompts["section_analysis"])
+        self.assertIn("诊断模块", prompts["section_analysis"])
+        self.assertIn("识别临床表现、辅助检查、诊断标准、诊断流程、筛查的相关切片", prompts["section_analysis"])
+        self.assertNotIn("UNCONFIRMED_SECTION_REFERENCE_TEXT", prompts["section_analysis"])
+
     async def test_analyze_section_removes_hallucinated_guideline_evidence_when_no_references_uploaded(self):
         async def fake_generate_json(prompt, system_instruction=None, context="unknown", text_generator=None, **kwargs):
             if context == "section_analysis":

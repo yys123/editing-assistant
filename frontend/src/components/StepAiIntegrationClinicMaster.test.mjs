@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+
+const stepSource = await readFile('src/components/StepAiIntegration.tsx', 'utf8')
+const appSource = await readFile('src/App.tsx', 'utf8')
+
+assert.match(stepSource, /setReferenceDocs:\s*\(docs:\s*ReferenceDoc\[\]\)\s*=>\s*void/)
+assert.match(stepSource, /referenceDocs=\{effectiveReferenceDocs\}/)
+assert.match(stepSource, /setReferenceDocs=\{setReferenceDocs\}/)
+assert.match(stepSource, /addButtonLabel="加入数据源"/)
+assert.match(stepSource, /viewingReference/)
+assert.match(stepSource, /title="查看全文"/)
+assert.match(stepSource, /setViewingReference\(\{ doc, index: refIndex \}\)/)
+assert.match(stepSource, /AI整合参考数据源/)
+assert.match(stepSource, /viewingReference\.doc\.text\.trim\(\) \|\| '暂无可查看的解析文本'/)
+assert.match(stepSource, /isClinicMasterReferenceDoc\(doc\)/)
+assert.match(stepSource, /doc\.filename\.startsWith\('ClinMaster-'\)/)
+assert.match(stepSource, /deleteReferenceDoc\(doc\.filename\)/)
+assert.match(stepSource, /title="删除ClinMaster数据源"/)
+assert.doesNotMatch(stepSource, /clinicMasterReferenceChunks/)
+assert.doesNotMatch(stepSource, /onConfirmReferenceChunks=\{setClinicMasterReferenceChunks\}/)
+assert.match(appSource, /setReferenceDocs=\{handleSetReferenceDocs\}/)
+
+console.log('StepAiIntegration ClinicMaster tests passed')

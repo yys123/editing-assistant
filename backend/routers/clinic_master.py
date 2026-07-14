@@ -43,6 +43,7 @@ class ClinicMasterQueryResponse(BaseModel):
     materials: List[ClinicMasterMaterial] = []
     warnings: List[str] = []
     error: Optional[str] = None
+    debug: Optional[Dict[str, Any]] = None
 
 
 def _iso(timestamp: float) -> str:
@@ -50,7 +51,7 @@ def _iso(timestamp: float) -> str:
 
 
 def _delay_seconds() -> int:
-    return int(getattr(settings, "clinic_master_result_delay_seconds", 120) or 120)
+    return int(getattr(settings, "clinic_master_result_delay_seconds", 0) or 0)
 
 
 def _public_response(state: dict) -> dict:
@@ -63,6 +64,7 @@ def _public_response(state: dict) -> dict:
         "materials": state.get("materials", []),
         "warnings": state.get("warnings", []),
         "error": state.get("error"),
+        "debug": state.get("debug"),
     }
 
 
@@ -80,6 +82,48 @@ def _exception_message(exc: Exception) -> str:
     if detail:
         return str(detail)
     return str(exc)
+
+
+def _redact_debug_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: "***" if key == "appSignKey" else _redact_debug_value(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_debug_value(item) for item in value]
+    return value
+
+
+def _exception_debug(stage: str, exc: Exception, context: Optional[dict] = None) -> dict:
+    return {
+        "stage": stage,
+        "message": _exception_message(exc),
+        "detail": _redact_debug_value(getattr(exc, "detail", None) or str(exc)),
+        "context": _redact_debug_value(context or {}),
+    }
+
+
+def _append_warning_once(warnings: List[str], warning: str):
+    if warning not in warnings:
+        warnings.append(warning)
+
+
+def _chat_detail_warning(exc: Exception) -> str:
+    message = _exception_message(exc)
+    if "/chat/detail" in message or "请求失败 (400)" in message:
+        return "Clinic Master 对话详情接口暂不可用，已使用流式回答继续；参考文档列表将基于流式 messageId 尝试获取。"
+    return f"Clinic Master 对话详情获取失败，已使用流式回答继续。错误：{message}"
+
+
+def _reference_detail_warning(failure_count: int, messages: List[str]) -> str:
+    if any("请求已失效" in message for message in messages):
+        reason = "接口返回“请求已失效”"
+    elif messages:
+        reason = messages[0]
+    else:
+        reason = "外部详情接口未返回可用内容"
+    return f"{failure_count} 条参考文献详情暂不可用（{reason}），已保留可用的参考摘要。"
 
 
 @router.post("/queries")
@@ -121,6 +165,7 @@ async def refresh_query(query_id: str):
         return _public_response(state)
 
     warnings = list(state.get("warnings", []))
+    debug = {"errors": []}
     try:
         stream_payload = state.get("stream_payload") or {}
         stream_data = stream_payload.get("data") if isinstance(stream_payload, dict) else {}
@@ -132,9 +177,13 @@ async def refresh_query(query_id: str):
             )
         except Exception as exc:
             detail_payload = {}
-            warnings.append(
-                "Clinic Master 对话详情获取失败，已仅使用流式回答；"
-                f"参考文档列表需要开通 /chat/detail 访问权限。错误：{_exception_message(exc)}"
+            _append_warning_once(warnings, _chat_detail_warning(exc))
+            debug["errors"].append(
+                _exception_debug(
+                    "chat_detail",
+                    exc,
+                    {"chatId": chat_id, "requestId": query_id},
+                )
             )
         answer = clinic_master_service.extract_answer_text(detail_payload, stream_payload)
         assistant_message_id = (
@@ -149,16 +198,48 @@ async def refresh_query(query_id: str):
                 references = clinic_master_service.extract_reference_items(reference_payload)
             except Exception as exc:
                 references = []
-                warnings.append(f"Clinic Master 参考文档列表获取失败: {_exception_message(exc)}")
+                _append_warning_once(warnings, f"Clinic Master 参考文档列表获取失败: {_exception_message(exc)}")
+                debug["errors"].append(
+                    _exception_debug(
+                        "chat_references",
+                        exc,
+                        {"messageId": assistant_message_id},
+                    )
+                )
+            reference_detail_failures: List[str] = []
             for item in references:
                 try:
+                    detail_chat_id = chat_id or query_id
+                    detail_chunk_ids = clinic_master_service._reference_chunk_id(item)
                     payload = await clinic_master_service.get_reference_detail(chat_id or query_id, item)
-                    detail_results.append({"reference": item, "payload": payload})
+                    detail_results.append({
+                        "reference": item,
+                        "payload": payload,
+                        "request": {
+                            "endpoint": "/japi/platform/100000017",
+                            "chatId": detail_chat_id,
+                            "chunkIds": detail_chunk_ids,
+                        },
+                    })
                 except Exception as exc:
-                    title = item.get("title") or item.get("name") or item.get("referenceId") or "参考文献"
-                    warnings.append(f"{title} 详情获取失败: {exc}")
+                    reference_detail_failures.append(_exception_message(exc))
+                    debug["errors"].append(
+                        _exception_debug(
+                            "reference_detail",
+                            exc,
+                            {
+                                "chatId": chat_id or query_id,
+                                "reference": item,
+                            },
+                        )
+                    )
+            if reference_detail_failures:
+                _append_warning_once(
+                    warnings,
+                    _reference_detail_warning(len(reference_detail_failures), reference_detail_failures),
+                )
         elif answer.strip():
-            warnings.append("Clinic Master 未返回 assistant messageId，无法获取参考文档列表")
+            _append_warning_once(warnings, "Clinic Master 未返回 assistant messageId，无法获取参考文档列表")
 
         materials = clinic_master_service.normalize_materials(
             state["question"],
@@ -171,8 +252,11 @@ async def refresh_query(query_id: str):
         state["warnings"] = warnings
         state["status"] = "ready" if materials else "empty"
         state["error"] = None
+        state["debug"] = debug if debug["errors"] else None
     except Exception as exc:
         state["status"] = "failed"
         state["error"] = str(exc)
         state["warnings"] = warnings
+        debug["errors"].append(_exception_debug("refresh", exc, {"queryId": query_id}))
+        state["debug"] = debug
     return _public_response(state)

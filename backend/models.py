@@ -245,6 +245,44 @@ class ReferenceInput(BaseModel):
     text: str
 
 
+class ConfirmedReferenceChunk(BaseModel):
+    chunk_id: str
+    source_id: int
+    source_filename: str
+    title_path: str = ""
+    text: str
+    source_ref_ids: List[str] = []
+    selected_by: str = "user"
+
+
+class ReferenceChunkCandidate(BaseModel):
+    chunk_id: str
+    source_id: int
+    source_filename: str
+    title_path: str = ""
+    text: str
+    context_before: str = ""
+    context_after: str = ""
+    paragraph_index: int = 0
+    source_ref_ids: List[str] = []
+    score: float = 0.0
+    reason: str = ""
+
+
+class ReferenceChunkSearchRequest(BaseModel):
+    task_type: str = ""
+    disease: str = ""
+    query: str = ""
+    reference_inputs: List[ReferenceInput] = []
+    priority_reference_ids: List[int] = []
+    limit: Optional[int] = None
+    return_all: bool = False
+
+
+class ReferenceChunkSearchResponse(BaseModel):
+    chunks: List[ReferenceChunkCandidate] = []
+
+
 class ReferenceAnchor(BaseModel):
     citation_key: str
     source_id: int
@@ -303,6 +341,7 @@ class AiIntegrationRequest(BaseModel):
     original_content: str = ""
     reference_inputs: List[ReferenceInput] = []
     priority_reference_ids: List[int] = []
+    confirmed_reference_chunks: List[ConfirmedReferenceChunk] = []
 
 
 class PriorityGuidelineUsage(BaseModel):

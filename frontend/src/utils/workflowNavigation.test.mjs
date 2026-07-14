@@ -5,10 +5,10 @@ import {
 } from './workflowNavigation.ts'
 
 assert.equal(
-  canOpenWorkflowStep(5, {
+  canOpenWorkflowStep(2, {
     disease: '糖尿病',
     articleContent: '原文',
-    hasParsedArticle: true,
+    hasParsedArticle: false,
     hasGapAnalysis: false,
     draftHistoryCount: 0,
     gapItemsCount: 0,
@@ -25,11 +25,23 @@ assert.equal(
     draftHistoryCount: 0,
     gapItemsCount: 0,
   }),
-  false,
+  true,
 )
 
 assert.equal(
   canOpenWorkflowStep(7, {
+    disease: '糖尿病',
+    articleContent: '原文',
+    hasParsedArticle: true,
+    hasGapAnalysis: false,
+    draftHistoryCount: 0,
+    gapItemsCount: 0,
+  }),
+  false,
+)
+
+assert.equal(
+  canOpenWorkflowStep(8, {
     disease: '糖尿病',
     articleContent: '原文',
     hasParsedArticle: true,
@@ -41,7 +53,7 @@ assert.equal(
 )
 
 assert.equal(
-  canOpenWorkflowStep(8, {
+  canOpenWorkflowStep(9, {
     disease: '糖尿病',
     articleContent: '原文',
     hasParsedArticle: true,

@@ -6,7 +6,7 @@ from typing import Optional
 from models import (
     GenerationRequest, GeneratedDraft, QAItem, ReferenceInput,
     BatchGenerationRequest, BatchGeneratedDraft, ReferenceAnchor,
-    AiIntegrationRequest, AiIntegrationResponse, PriorityGuidelineUsage,
+    AiIntegrationRequest, AiIntegrationResponse, ConfirmedReferenceChunk, PriorityGuidelineUsage,
 )
 from services.text_llm import generate_json, generate_text
 
@@ -241,6 +241,28 @@ class ReferenceChunk:
     paragraph_index: int
     source_ref_ids: list[str]
     score: float = 0.0
+    confirmed: bool = False
+
+
+def _reference_chunks_from_confirmed(confirmed_chunks: list[ConfirmedReferenceChunk]) -> list[ReferenceChunk]:
+    chunks: list[ReferenceChunk] = []
+    for idx, chunk in enumerate(confirmed_chunks):
+        source_ref_ids = [str(ref_id).strip() for ref_id in (chunk.source_ref_ids or []) if str(ref_id).strip()]
+        citation_key = f"{chunk.source_id}-{source_ref_ids[-1]}" if source_ref_ids else str(chunk.source_id)
+        chunks.append(ReferenceChunk(
+            chunk_id=chunk.chunk_id or f"R{chunk.source_id}-C{idx + 1:03d}",
+            citation_key=citation_key,
+            source_id=chunk.source_id,
+            source_filename=chunk.source_filename,
+            text=chunk.text,
+            title_path=chunk.title_path,
+            context_before="",
+            context_after="",
+            paragraph_index=idx,
+            source_ref_ids=source_ref_ids,
+            confirmed=True,
+        ))
+    return chunks
 
 
 def _split_reference_paragraphs(text: str) -> list[str]:
@@ -544,10 +566,13 @@ def _sentence_evidence_blocks_for_chunk(chunk: ReferenceChunk) -> list[str]:
     for idx, sentence in enumerate(sentences, 1):
         source_ref_ids = _extract_source_ref_ids(sentence["text"])
         if not source_ref_ids and chunk_has_source_refs:
-            blocks.append(
-                f"上下文{idx}｜无源内参考文献号，不能单独作为引用依据\n原文句子：{sentence['text']}"
-            )
-            continue
+            if chunk.confirmed:
+                source_ref_ids = chunk.source_ref_ids
+            else:
+                blocks.append(
+                    f"上下文{idx}｜无源内参考文献号，不能单独作为引用依据\n原文句子：{sentence['text']}"
+                )
+                continue
         citation_keys = (
             [f"{chunk.source_id}-{source_ref_id}" for source_ref_id in source_ref_ids]
             if source_ref_ids
@@ -1140,13 +1165,16 @@ async def generate_ai_integration_answer(
         else "（未选择原词条内容）"
     )
     priority_ids = set(req.priority_reference_ids or [])
-    reference_chunks = _select_reference_chunks(
-        req.reference_inputs,
-        f"{req.disease} {req.user_request} {req.original_content[:2000]}",
-        max_total_chars=160000,
-        max_chunks=200,
-        priority_source_ids=priority_ids,
-    )
+    if req.confirmed_reference_chunks:
+        reference_chunks = _reference_chunks_from_confirmed(req.confirmed_reference_chunks)
+    else:
+        reference_chunks = _select_reference_chunks(
+            req.reference_inputs,
+            f"{req.disease} {req.user_request} {req.original_content[:2000]}",
+            max_total_chars=160000,
+            max_chunks=200,
+            priority_source_ids=priority_ids,
+        )
     priority_chunks, supplementary_chunks = _partition_reference_chunks_by_priority(
         reference_chunks,
         priority_ids,

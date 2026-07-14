@@ -382,6 +382,23 @@ class ClinicalDecisionChunkEndpointTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("sign", params)
         self.assertNotIn("appSignKey", params)
 
+    async def test_upstream_empty_result_error_normalizes_to_empty_results(self):
+        result = await self.fetch_chunks(
+            {"code": "server.error", "message": "搜索组AI切片接口返回为空"},
+            guide_id="84915",
+        )
+
+        self.assertEqual(result, {"items": [], "num_found": 0, "num_returned": 0})
+        self.assertEqual(
+            FakeAsyncClient.calls,
+            [
+                (
+                    "https://newdrugs-test.dxy.net/open-sign-api/article-quality/chunk/list",
+                    self.signed_params(guideId="84915"),
+                )
+            ],
+        )
+
     async def test_non_object_json_from_proxy_path_reports_502_format_error(self):
         with self.assertRaises(HTTPException) as ctx:
             await self.fetch_chunks([], guide_id="42")

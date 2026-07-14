@@ -155,6 +155,9 @@ export interface AiIntegrationRecord {
   referencesUsed: string[]
   referenceAnchors?: ReferenceAnchor[]
   linkedIssues?: AiIntegrationLinkedIssue[]
+  confirmedReferenceChunks?: ConfirmedReferenceChunk[]
+  referenceDocsSnapshot?: ReferenceDoc[]
+  clinicMasterReferenceDocs?: ReferenceDoc[]
   selectedReferences: string[]
   priorityReferences: string[]
   priorityGuidelineUsage?: PriorityGuidelineUsage
@@ -282,6 +285,50 @@ export interface ReferenceDoc {
   char_count: number
 }
 
+export interface ReferenceInput {
+  id: number
+  filename: string
+  text: string
+}
+
+export interface ReferenceChunkCandidate {
+  chunk_id: string
+  source_id: number
+  source_filename: string
+  title_path: string
+  text: string
+  context_before: string
+  context_after: string
+  paragraph_index: number
+  source_ref_ids: string[]
+  score: number
+  reason: string
+}
+
+export interface ConfirmedReferenceChunk {
+  chunk_id: string
+  source_id: number
+  source_filename: string
+  title_path: string
+  text: string
+  source_ref_ids: string[]
+  selected_by?: string
+}
+
+export interface ReferenceChunkSearchRequest {
+  task_type: 'quality_review' | 'ai_integration' | 'user_needs' | string
+  disease: string
+  query: string
+  reference_inputs: ReferenceInput[]
+  priority_reference_ids?: number[]
+  limit?: number
+  return_all?: boolean
+}
+
+export interface ReferenceChunkSearchResponse {
+  chunks: ReferenceChunkCandidate[]
+}
+
 export interface RefEvalItemResult {
   filename: string
   authority_rating: string
@@ -309,7 +356,7 @@ export interface StandardsOverride {
   refEvalText?: string
 }
 
-export type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
+export type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 export type ArticleEntryType = 'disease' | 'non_disease' | 'tumor'
 
 export interface User {
@@ -331,6 +378,7 @@ export interface SessionRecord {
   qaCount: number
   qaItems?: QAItem[]
   currentStep?: Step
+  workflowVersion?: number
   // New fields
   parsedArticle?: ParsedArticle | null
   parsedArticleSourceHash?: string

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
 from typing import List
 
@@ -30,7 +32,7 @@ class Settings(BaseSettings):
     clinic_master_openapi_host: str = ""
     clinic_master_app_id: str = ""
     clinic_master_app_sign_key: str = ""
-    clinic_master_result_delay_seconds: int = 120
+    clinic_master_result_delay_seconds: int = 0
     clinic_master_timeout_seconds: int = 30
 
     @property
@@ -38,7 +40,7 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",")]
 
     class Config:
-        env_file = ".env"
+        env_file = str(Path(__file__).with_name(".env"))
 
 
 settings = Settings()

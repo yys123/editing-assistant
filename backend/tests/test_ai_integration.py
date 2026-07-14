@@ -1,6 +1,6 @@
 import unittest
 
-from models import AiIntegrationRequest, ReferenceInput
+from models import AiIntegrationRequest, ConfirmedReferenceChunk, ReferenceInput
 from services.generator import generate_ai_integration_answer
 
 
@@ -240,6 +240,44 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
         primary_start = captured["prompt"].index("## 重点指南主证据区")
         supplementary_start = captured["prompt"].index("## 普通参考资料补充区")
         self.assertIn("PRIORITY_ONLY_SENTENCE_XYZ", captured["prompt"][primary_start:supplementary_start])
+
+    async def test_ai_integration_uses_confirmed_chunks_instead_of_unconfirmed_reference_text(self):
+        captured = {}
+
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            captured["prompt"] = prompt
+            return "整合结果。"
+
+        await generate_ai_integration_answer(
+            AiIntegrationRequest(
+                disease="糖尿病",
+                user_request="根据确认切片修订诊断标准",
+                reference_inputs=[
+                    ReferenceInput(
+                        id=1,
+                        filename="糖尿病指南.pdf",
+                        text="UNCONFIRMED_FULL_REFERENCE_TEXT 不应进入最终 prompt。",
+                    )
+                ],
+                priority_reference_ids=[1],
+                confirmed_reference_chunks=[
+                    ConfirmedReferenceChunk(
+                        chunk_id="R1-C002",
+                        source_id=1,
+                        source_filename="糖尿病指南.pdf",
+                        title_path="诊断 / 标准",
+                        text="CONFIRMED_CHUNK_TEXT HbA1c 可用于糖尿病诊断。",
+                        source_ref_ids=["8"],
+                    )
+                ],
+            ),
+            text_generator=fake_generate_text,
+        )
+
+        self.assertIn("CONFIRMED_CHUNK_TEXT", captured["prompt"])
+        self.assertIn("标题路径：诊断 / 标准", captured["prompt"])
+        self.assertIn("引用标记：[1-8]", captured["prompt"])
+        self.assertNotIn("UNCONFIRMED_FULL_REFERENCE_TEXT", captured["prompt"])
 
     async def test_ai_integration_uses_source_ref_citation_keys_with_stable_chunk_anchors(self):
         calls = []

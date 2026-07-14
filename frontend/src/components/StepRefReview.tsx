@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { ReferenceDoc, RefEvalResult, RefEvalItemResult } from '../types'
-import { apiFetch } from '../api'
+import { ReferenceDoc, ReferenceChunkCandidate, RefEvalResult, RefEvalItemResult } from '../types'
+import { apiFetch, searchReferenceChunks } from '../api'
 
 interface Props {
   disease: string
@@ -36,7 +36,102 @@ function RatingBadge({ text }: { text: string }) {
   )
 }
 
-function RefItemCard({ item, index }: { item: RefEvalItemResult; index: number }) {
+function RefChunkList({
+  chunks,
+  loading,
+  error,
+}: {
+  chunks: ReferenceChunkCandidate[]
+  loading: boolean
+  error: string
+}) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  if (loading) {
+    return (
+      <div className="ref-review-chunks">
+        <div className="ref-review-chunks-head">
+          <span className="material-symbols-outlined">splitscreen</span>
+          正在生成切片...
+        </div>
+      </div>
+    )
+  }
+  if (error) {
+    return (
+      <div className="ref-review-chunks">
+        <div className="ref-review-chunks-error">{error}</div>
+      </div>
+    )
+  }
+  return (
+    <div className="ref-review-chunks">
+      <div className="ref-review-chunks-head">
+        <span className="material-symbols-outlined">splitscreen</span>
+        全部切片
+        <span className="ref-review-chunks-count">{chunks.length} 个</span>
+      </div>
+      {chunks.length === 0 ? (
+        <div className="ref-review-chunks-empty">暂无可展示切片。</div>
+      ) : (
+        <div className="ref-review-chunks-list">
+          {chunks.map(chunk => {
+            const isExpanded = expanded[chunk.chunk_id] ?? false
+            return (
+              <div key={chunk.chunk_id} className="ref-review-chunk">
+                <button
+                  type="button"
+                  className="ref-review-chunk-main"
+                  onClick={() => setExpanded(prev => ({ ...prev, [chunk.chunk_id]: !isExpanded }))}
+                >
+                  <span className="ref-review-chunk-code">{chunk.chunk_id}</span>
+                  <span className="ref-review-chunk-body">
+                    <span className="ref-review-chunk-meta">
+                      {chunk.title_path || '未识别标题'} · {chunk.text.length} 字
+                      {chunk.source_ref_ids.length > 0 ? ` · 引用号 ${chunk.source_ref_ids.join('、')}` : ''}
+                    </span>
+                    <span className="ref-review-chunk-preview">{chunk.text}</span>
+                  </span>
+                  <span className="material-symbols-outlined ref-review-chunk-icon" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none' }}>expand_more</span>
+                </button>
+                {isExpanded && (
+                  <div className="ref-review-chunk-detail">
+                    {chunk.context_before && (
+                      <div className="ref-review-chunk-context">
+                        <div className="ref-review-chunk-context-label">前文</div>
+                        {chunk.context_before}
+                      </div>
+                    )}
+                    <div className="ref-review-chunk-full">{chunk.text}</div>
+                    {chunk.context_after && (
+                      <div className="ref-review-chunk-context">
+                        <div className="ref-review-chunk-context-label">后文</div>
+                        {chunk.context_after}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RefItemCard({
+  item,
+  index,
+  chunks,
+  chunksLoading,
+  chunksError,
+}: {
+  item: RefEvalItemResult
+  index: number
+  chunks: ReferenceChunkCandidate[]
+  chunksLoading: boolean
+  chunksError: string
+}) {
   const [collapsed, setCollapsed] = useState(false)
   const recColor = RATING_COLORS[item.overall_recommendation] || { bg: 'var(--m3-surface-container-low)', color: 'var(--m3-on-surface)' }
   return (
@@ -71,22 +166,25 @@ function RefItemCard({ item, index }: { item: RefEvalItemResult; index: number }
         </div>
       </div>
       {!collapsed && (
-        <div style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, background: 'var(--m3-surface-container-lowest)' }}>
-          <div style={{ background: 'var(--m3-surface-container-low)', borderRadius: 8, padding: '12px 14px' }}>
-            <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 4, fontWeight: 500 }}>权威性</div>
-            <RatingBadge text={item.authority_rating} />
-            <div style={{ fontSize: 12, marginTop: 6, color: 'var(--m3-on-surface-variant)', lineHeight: 1.5 }}>{item.authority_note}</div>
+        <div style={{ padding: '14px 18px', background: 'var(--m3-surface-container-lowest)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+            <div style={{ background: 'var(--m3-surface-container-low)', borderRadius: 8, padding: '12px 14px' }}>
+              <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 4, fontWeight: 500 }}>权威性</div>
+              <RatingBadge text={item.authority_rating} />
+              <div style={{ fontSize: 12, marginTop: 6, color: 'var(--m3-on-surface-variant)', lineHeight: 1.5 }}>{item.authority_note}</div>
+            </div>
+            <div style={{ background: 'var(--m3-surface-container-low)', borderRadius: 8, padding: '12px 14px' }}>
+              <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 4, fontWeight: 500 }}>证据等级</div>
+              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--m3-on-surface)' }}>{item.evidence_level}</span>
+              <div style={{ fontSize: 12, marginTop: 6, color: 'var(--m3-on-surface-variant)', lineHeight: 1.5 }}>{item.evidence_note}</div>
+            </div>
+            <div style={{ background: 'var(--m3-surface-container-low)', borderRadius: 8, padding: '12px 14px' }}>
+              <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 4, fontWeight: 500 }}>时效性</div>
+              <RatingBadge text={item.timeliness_rating} />
+              <div style={{ fontSize: 12, marginTop: 6, color: 'var(--m3-on-surface-variant)', lineHeight: 1.5 }}>{item.timeliness_note}</div>
+            </div>
           </div>
-          <div style={{ background: 'var(--m3-surface-container-low)', borderRadius: 8, padding: '12px 14px' }}>
-            <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 4, fontWeight: 500 }}>证据等级</div>
-            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--m3-on-surface)' }}>{item.evidence_level}</span>
-            <div style={{ fontSize: 12, marginTop: 6, color: 'var(--m3-on-surface-variant)', lineHeight: 1.5 }}>{item.evidence_note}</div>
-          </div>
-          <div style={{ background: 'var(--m3-surface-container-low)', borderRadius: 8, padding: '12px 14px' }}>
-            <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)', marginBottom: 4, fontWeight: 500 }}>时效性</div>
-            <RatingBadge text={item.timeliness_rating} />
-            <div style={{ fontSize: 12, marginTop: 6, color: 'var(--m3-on-surface-variant)', lineHeight: 1.5 }}>{item.timeliness_note}</div>
-          </div>
+          <RefChunkList chunks={chunks} loading={chunksLoading} error={chunksError} />
         </div>
       )}
     </div>
@@ -99,6 +197,9 @@ export default function StepRefReview({
 }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [chunksLoading, setChunksLoading] = useState(false)
+  const [chunksError, setChunksError] = useState('')
+  const [chunksBySourceId, setChunksBySourceId] = useState<Record<number, ReferenceChunkCandidate[]>>({})
 
   const runEval = async () => {
     setLoading(true)
@@ -128,6 +229,45 @@ export default function StepRefReview({
       runEval()
     }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadAllChunks = async () => {
+      if (referenceDocs.length === 0) {
+        setChunksBySourceId({})
+        return
+      }
+      setChunksLoading(true)
+      setChunksError('')
+      try {
+        const data = await searchReferenceChunks({
+          task_type: 'reference_review',
+          disease,
+          query: '',
+          reference_inputs: referenceDocs.map((doc, index) => ({
+            id: index + 1,
+            filename: doc.filename,
+            text: doc.text,
+          })),
+          return_all: true,
+        })
+        if (cancelled) return
+        const grouped: Record<number, ReferenceChunkCandidate[]> = {}
+        data.chunks.forEach(chunk => {
+          grouped[chunk.source_id] = [...(grouped[chunk.source_id] ?? []), chunk]
+        })
+        setChunksBySourceId(grouped)
+      } catch (e: any) {
+        if (!cancelled) setChunksError(e.message || '参考文献切片加载失败')
+      } finally {
+        if (!cancelled) setChunksLoading(false)
+      }
+    }
+    loadAllChunks()
+    return () => {
+      cancelled = true
+    }
+  }, [disease, referenceDocs])
 
   if (referenceDocs.length === 0) {
     return (
@@ -253,7 +393,14 @@ export default function StepRefReview({
       {/* Per-doc evaluations */}
       <div style={{ display: 'grid', gap: 10 }}>
         {evalResult.item_evaluations.map((item, i) => (
-          <RefItemCard key={i} item={item} index={i} />
+          <RefItemCard
+            key={i}
+            item={item}
+            index={i}
+            chunks={chunksBySourceId[i + 1] ?? []}
+            chunksLoading={chunksLoading}
+            chunksError={chunksError}
+          />
         ))}
       </div>
 

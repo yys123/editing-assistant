@@ -1,6 +1,13 @@
 from fastapi import APIRouter, HTTPException, Depends
-from models import GenerationRequest, BatchGenerationRequest, AiIntegrationRequest
+from models import (
+    GenerationRequest,
+    BatchGenerationRequest,
+    AiIntegrationRequest,
+    ReferenceChunkSearchRequest,
+)
 from services.generator import generate_section_draft, generate_multi_section_draft, generate_ai_integration_answer
+from services.guideline_chunk_usage import build_guideline_chunk_query, get_guideline_chunk_search_policy
+from services.reference_chunks import list_reference_chunks, search_reference_chunks
 
 from auth import get_current_user
 
@@ -50,3 +57,30 @@ async def generate_ai_integration(req: AiIntegrationRequest):
         return result.model_dump()
     except Exception as e:
         raise HTTPException(500, f"AI整合失败: {str(e)}")
+
+
+@router.post("/reference-chunks/search")
+async def search_reference_chunk_candidates(req: ReferenceChunkSearchRequest):
+    query = build_guideline_chunk_query(req.disease, req.query, task_type=req.task_type).strip()
+    policy = get_guideline_chunk_search_policy(req.query, task_type=req.task_type)
+    if not query and not req.return_all:
+        raise HTTPException(400, "请输入检索内容")
+
+    try:
+        if req.return_all:
+            chunks = list_reference_chunks(
+                req.reference_inputs,
+                limit=max(1, req.limit) if req.limit else None,
+            )
+        else:
+            chunks = search_reference_chunks(
+                req.reference_inputs,
+                query,
+                priority_reference_ids=set(req.priority_reference_ids or []),
+                preferred_title_terms=policy.preferred_keywords,
+                excluded_title_terms=policy.excluded_title_keywords,
+                limit=max(1, min(req.limit or 30, 100)),
+            )
+        return {"chunks": [chunk.model_dump() for chunk in chunks]}
+    except Exception as e:
+        raise HTTPException(500, f"指南切片检索失败: {str(e)}")

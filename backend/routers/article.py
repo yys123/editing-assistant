@@ -207,7 +207,30 @@ async def _fetch_entry_api(path: str, params: dict) -> dict:
 
 
 async def _fetch_clinical_decision_chunk_api(params: dict) -> dict:
-    return await _fetch_signed_api("临床决策切片", _clinical_decision_chunk_base_url(), "list", params)
+    try:
+        return await _fetch_signed_api("临床决策切片", _clinical_decision_chunk_base_url(), "list", params)
+    except HTTPException as exc:
+        if _is_clinical_decision_empty_result_error(exc):
+            return _empty_clinical_decision_chunk_payload()
+        raise
+
+
+def _empty_clinical_decision_chunk_payload() -> dict:
+    return {
+        "code": "success",
+        "status": 200,
+        "data": {"results": {"numFound": 0, "numReturn": 0, "docs": []}},
+    }
+
+
+def _is_clinical_decision_empty_result_error(exc: HTTPException) -> bool:
+    if exc.status_code != 502 or not isinstance(exc.detail, dict):
+        return False
+    code = str(exc.detail.get("code") or "").strip().lower()
+    response = exc.detail.get("response")
+    response_message = response.get("message") if isinstance(response, dict) else ""
+    message = f"{exc.detail.get('message') or ''} {response_message or ''}"
+    return code == "server.error" and "切片" in message and "返回为空" in message
 
 
 async def _fetch_signed_api(label: str, base_url: str, path: str, params: dict) -> dict:
