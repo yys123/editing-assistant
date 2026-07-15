@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import {
+  clinicalDecisionChunksToReferenceDoc,
   clinicalDecisionChunkToReferenceDoc,
   clinicMasterMaterialToReferenceDoc,
   createClinicMasterQuery,
@@ -408,6 +409,47 @@ assert.deepEqual(mappedChunk, {
   text: '[H1] 指南主标题\n[H2] 临床/问题:标题?\n[临床决策切片ID] chunk/001\n\n推荐正文',
   char_count: '[H1] 指南主标题\n[H2] 临床/问题:标题?\n[临床决策切片ID] chunk/001\n\n推荐正文'.length,
 })
+
+const mappedChunkBatch = clinicalDecisionChunksToReferenceDoc([
+  {
+    id: '32',
+    main_id: ' guide/id:2026 ',
+    main_title: '指南主标题',
+    title: '临床/问题:标题?',
+    chunk_id: ' chunk/001 ',
+    content_text: '\n  推荐正文  \n',
+    usable: true,
+  },
+  {
+    id: '33',
+    main_id: 'guide/id:2026',
+    main_title: '指南主标题',
+    title: '第二个问题',
+    chunk_id: 'chunk/002',
+    content_text: '第二段正文',
+    usable: true,
+  },
+])
+assert.deepEqual(mappedChunkBatch, {
+  filename: '临床决策切片-guide_id_2026-指南主标题.md',
+  text: '[H1] 指南主标题\n\n[H2] 临床/问题:标题?\n[临床决策切片ID] chunk/001\n\n推荐正文\n\n[H2] 第二个问题\n[临床决策切片ID] chunk/002\n\n第二段正文',
+  char_count: '[H1] 指南主标题\n\n[H2] 临床/问题:标题?\n[临床决策切片ID] chunk/001\n\n推荐正文\n\n[H2] 第二个问题\n[临床决策切片ID] chunk/002\n\n第二段正文'.length,
+})
+
+assert.throws(
+  () => clinicalDecisionChunksToReferenceDoc([
+    {
+      id: '34',
+      main_id: 'guide',
+      main_title: '指南主标题',
+      title: '空正文',
+      chunk_id: 'chunk-empty',
+      content_text: ' ',
+      usable: true,
+    },
+  ]),
+  /没有可加入的临床决策切片/,
+)
 
 assert.equal(
   clinicalDecisionChunkToReferenceDoc({

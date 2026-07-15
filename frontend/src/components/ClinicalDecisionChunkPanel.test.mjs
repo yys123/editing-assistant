@@ -24,7 +24,6 @@ try {
     buildClinicalDecisionChunkAddition,
     default: ClinicalDecisionChunkPanel,
     formatClinicalDecisionChunkAddition,
-    selectableClinicalDecisionChunkIds,
   } = panelModule
 
   const currentDocs = [{
@@ -40,6 +39,15 @@ try {
     title: '新切片',
     chunk_id: 'chunk-new',
     content_text: '新正文',
+    usable: true,
+  }
+  const secondNewChunk = {
+    id: '4',
+    main_id: 'guide-1',
+    main_title: '指南一',
+    title: '第二个新切片',
+    chunk_id: 'chunk-new-2',
+    content_text: '第二段正文',
     usable: true,
   }
   const duplicateChunk = {
@@ -63,20 +71,24 @@ try {
 
   const addition = buildClinicalDecisionChunkAddition(currentDocs, [
     newChunk,
+    secondNewChunk,
     duplicateChunk,
     blankContentChunk,
   ])
   assert.equal(addition.docs.length, 1)
-  assert.equal(addition.added, 1)
+  assert.equal(addition.added, 2)
   assert.equal(addition.duplicates, 1)
   assert.equal(addition.unusable, 1)
+  assert.equal(addition.docs[0].filename, '临床决策切片-guide-1-指南一.md')
+  assert.match(addition.docs[0].text, /\[H2\] 新切片/)
+  assert.match(addition.docs[0].text, /\[临床决策切片ID\] chunk-new/)
+  assert.match(addition.docs[0].text, /\[H2\] 第二个新切片/)
+  assert.match(addition.docs[0].text, /\[临床决策切片ID\] chunk-new-2/)
+  assert.doesNotMatch(addition.docs[0].text, /chunk-existing/)
+  assert.doesNotMatch(addition.docs[0].text, /chunk-blank/)
   assert.equal(
     formatClinicalDecisionChunkAddition(addition),
-    '已加入 1 条；跳过重复 1 条；无可用正文 1 条',
-  )
-  assert.deepEqual(
-    selectableClinicalDecisionChunkIds([newChunk, duplicateChunk, blankContentChunk]),
-    ['chunk-new', 'chunk-existing'],
+    '已加入 1 个参考数据源，包含 2 条切片；跳过重复 1 条；无可用正文 1 条',
   )
 
   const batchDuplicate = buildClinicalDecisionChunkAddition([], [
@@ -88,15 +100,21 @@ try {
   assert.equal(batchDuplicate.duplicates, 1)
   assert.equal(batchDuplicate.unusable, 0)
 
-  assert.deepEqual(
-    selectableClinicalDecisionChunkIds([
-      newChunk,
-      { ...newChunk, id: '6', chunk_id: '   ' },
-      { ...newChunk, id: '7', content_text: '\n\t' },
-      { ...newChunk, id: '8', usable: false },
-    ]),
-    ['chunk-new'],
-  )
+  const noUsableAddition = buildClinicalDecisionChunkAddition([], [
+    { ...newChunk, id: '6', chunk_id: '   ' },
+    { ...newChunk, id: '7', content_text: '\n\t' },
+    { ...newChunk, id: '8', usable: false },
+  ])
+  assert.equal(noUsableAddition.docs.length, 0)
+  assert.equal(noUsableAddition.added, 0)
+  assert.equal(noUsableAddition.unusable, 3)
+
+  const source = await import('node:fs/promises').then(fs => fs.readFile(path.join(testDir, 'ClinicalDecisionChunkPanel.tsx'), 'utf8'))
+  assert.match(source, /加入参考数据源/)
+  assert.doesNotMatch(source, /加入已选/)
+  assert.doesNotMatch(source, /全选可加入/)
+  assert.doesNotMatch(source, /全部加入参考数据源/)
+  assert.doesNotMatch(source, /clinical-decision-chunk-checkbox/)
 
   assert.equal(typeof ClinicalDecisionChunkPanel, 'function')
 } finally {
