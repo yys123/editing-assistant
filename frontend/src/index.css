@@ -1494,10 +1494,7 @@ body {
 .guide-library-add-btn,
 .guide-library-chunk-btn,
 .clinical-decision-chunk-query-button,
-.clinical-decision-chunk-select-all-button,
-.clinical-decision-chunk-add-selected-button,
-.clinical-decision-chunk-add-all-button,
-.clinical-decision-chunk-expand-button {
+.clinical-decision-chunk-add-button {
   border: none;
   border-radius: 999px;
   display: inline-flex;
@@ -1525,9 +1522,7 @@ body {
 .guide-library-add-btn:disabled,
 .guide-library-chunk-btn:disabled,
 .clinical-decision-chunk-query-button:disabled,
-.clinical-decision-chunk-select-all-button:disabled,
-.clinical-decision-chunk-add-selected-button:disabled,
-.clinical-decision-chunk-add-all-button:disabled {
+.clinical-decision-chunk-add-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -1643,8 +1638,6 @@ body {
 }
 .clinical-decision-chunk-subtitle,
 .clinical-decision-chunk-field,
-.clinical-decision-chunk-row-meta,
-.clinical-decision-chunk-unusable,
 .clinical-decision-chunk-notice {
   color: var(--dui-text-sub);
 }
@@ -1699,62 +1692,12 @@ body {
   flex-wrap: wrap;
   gap: 8px;
 }
-.clinical-decision-chunk-select-all-button,
-.clinical-decision-chunk-add-selected-button,
-.clinical-decision-chunk-add-all-button {
+.clinical-decision-chunk-add-button {
   min-height: 32px;
   padding: 0 12px;
-  background: var(--dui-surface);
-  border: 0.5px solid var(--dui-divider);
-  color: var(--dui-text);
-  font-size: 12px;
-}
-.clinical-decision-chunk-add-selected-button,
-.clinical-decision-chunk-add-all-button {
   background: var(--dui-success-container);
   border-color: transparent;
   color: var(--dui-success);
-}
-.clinical-decision-chunk-results {
-  display: grid;
-  gap: 10px;
-}
-.clinical-decision-chunk-row,
-.clinical-decision-chunk-result {
-  border: 0.5px solid var(--dui-divider);
-  border-radius: 10px;
-  padding: 12px;
-  background: var(--dui-surface);
-}
-.clinical-decision-chunk-result.is-unusable,
-.clinical-decision-chunk-row:has(.clinical-decision-chunk-unusable) {
-  background: var(--dui-surface-soft);
-}
-.clinical-decision-chunk-row-header {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-}
-.clinical-decision-chunk-row-title-wrap {
-  flex: 1;
-  min-width: 0;
-}
-.clinical-decision-chunk-row-title {
-  color: var(--dui-text);
-  overflow-wrap: anywhere;
-}
-.clinical-decision-chunk-preview {
-  color: var(--dui-text);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 13px;
-  line-height: 1.6;
-}
-.clinical-decision-chunk-expand-button {
-  min-height: 28px;
-  padding: 0 10px;
-  background: var(--dui-surface-soft);
-  color: var(--dui-text-sub);
   font-size: 12px;
 }
 .clinic-master-panel {
@@ -2618,16 +2561,8 @@ a.clinic-master-guide-title:hover {
   .clinical-decision-chunk-toolbar {
     flex-direction: column;
   }
-  .clinical-decision-chunk-select-all-button,
-  .clinical-decision-chunk-add-selected-button,
-  .clinical-decision-chunk-add-all-button {
+  .clinical-decision-chunk-add-button {
     width: 100%;
-  }
-  .clinical-decision-chunk-row-header {
-    align-items: flex-start;
-  }
-  .clinical-decision-chunk-expand-button {
-    flex-shrink: 0;
   }
 }
 

@@ -79,7 +79,7 @@ try {
   assert.equal(addition.added, 2)
   assert.equal(addition.duplicates, 1)
   assert.equal(addition.unusable, 1)
-  assert.equal(addition.docs[0].filename, '临床决策切片-guide-1-指南一.md')
+  assert.equal(addition.docs[0].filename, '临床决策切片-guide-1-指南一')
   assert.match(addition.docs[0].text, /\[H2\] 新切片/)
   assert.match(addition.docs[0].text, /\[临床决策切片ID\] chunk-new/)
   assert.match(addition.docs[0].text, /\[H2\] 第二个新切片/)
@@ -110,11 +110,17 @@ try {
   assert.equal(noUsableAddition.unusable, 3)
 
   const source = await import('node:fs/promises').then(fs => fs.readFile(path.join(testDir, 'ClinicalDecisionChunkPanel.tsx'), 'utf8'))
+  assert.match(source, /placeholder="如84915"/)
+  assert.match(source, /setGuideId\(''\)/)
+  assert.match(source, /setDoi\(''\)/)
   assert.match(source, /加入参考数据源/)
   assert.doesNotMatch(source, /加入已选/)
   assert.doesNotMatch(source, /全选可加入/)
   assert.doesNotMatch(source, /全部加入参考数据源/)
   assert.doesNotMatch(source, /clinical-decision-chunk-checkbox/)
+  assert.doesNotMatch(source, /clinical-decision-chunk-results/)
+  assert.doesNotMatch(source, /clinical-decision-chunk-row/)
+  assert.doesNotMatch(source, /items\.map/)
 
   assert.equal(typeof ClinicalDecisionChunkPanel, 'function')
 } finally {

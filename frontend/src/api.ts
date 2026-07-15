@@ -326,10 +326,43 @@ export function clinicalDecisionChunkToReferenceDoc(chunk: ClinicalDecisionChunk
   const safeMainId = sanitizeClinicalDecisionChunkFilenamePart(chunk.main_id, 'unknown')
   const safeTitle = sanitizeClinicalDecisionChunkFilenamePart(chunk.title, '未命名切片')
   const safeChunkId = sanitizeClinicalDecisionChunkFilenamePart(chunkId, 'unknown')
-  const text = `[H1] ${mainTitle}\n[H2] ${title}\n[临床决策切片ID] ${chunkId}\n\n${contentText}`
+  const text = `[H1] ${mainTitle}\n${clinicalDecisionChunkReferenceBlock(title, chunkId, contentText)}`
 
   return {
-    filename: `临床决策切片-${safeMainId}-${safeTitle}-${safeChunkId}.md`,
+    filename: `临床决策切片-${safeMainId}-${safeTitle}-${safeChunkId}`,
+    text,
+    char_count: text.length,
+  }
+}
+
+function clinicalDecisionChunkReferenceBlock(title: string, chunkId: string, contentText: string) {
+  return `[H2] ${title}\n[临床决策切片ID] ${chunkId}\n\n${contentText}`
+}
+
+export function clinicalDecisionChunksToReferenceDoc(chunks: ClinicalDecisionChunk[]): ReferenceDoc {
+  const usableChunks = chunks.filter(chunk => {
+    const chunkId = String(chunk.chunk_id ?? '').trim()
+    const contentText = String(chunk.content_text ?? '').trim()
+    return Boolean(chunk.usable && chunkId && contentText)
+  })
+  if (usableChunks.length === 0) {
+    throw new Error('没有可加入的临床决策切片')
+  }
+
+  const firstChunk = usableChunks[0]
+  const mainTitle = String(firstChunk.main_title ?? '').trim() || '未命名临床决策资料'
+  const safeMainId = sanitizeClinicalDecisionChunkFilenamePart(firstChunk.main_id, 'unknown')
+  const safeMainTitle = sanitizeClinicalDecisionChunkFilenamePart(mainTitle, '未命名临床决策资料')
+  const blocks = usableChunks.map(chunk => {
+    const title = String(chunk.title ?? '').trim() || '未命名切片'
+    const chunkId = String(chunk.chunk_id ?? '').trim()
+    const contentText = String(chunk.content_text ?? '').trim()
+    return clinicalDecisionChunkReferenceBlock(title, chunkId, contentText)
+  })
+  const text = `[H1] ${mainTitle}\n\n${blocks.join('\n\n')}`
+
+  return {
+    filename: `临床决策切片-${safeMainId}-${safeMainTitle}`,
     text,
     char_count: text.length,
   }

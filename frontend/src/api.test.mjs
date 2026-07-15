@@ -405,7 +405,7 @@ const mappedChunk = clinicalDecisionChunkToReferenceDoc({
   usable: true,
 })
 assert.deepEqual(mappedChunk, {
-  filename: '临床决策切片-guide_id_2026-临床_问题_标题_-chunk_001.md',
+  filename: '临床决策切片-guide_id_2026-临床_问题_标题_-chunk_001',
   text: '[H1] 指南主标题\n[H2] 临床/问题:标题?\n[临床决策切片ID] chunk/001\n\n推荐正文',
   char_count: '[H1] 指南主标题\n[H2] 临床/问题:标题?\n[临床决策切片ID] chunk/001\n\n推荐正文'.length,
 })
@@ -431,7 +431,7 @@ const mappedChunkBatch = clinicalDecisionChunksToReferenceDoc([
   },
 ])
 assert.deepEqual(mappedChunkBatch, {
-  filename: '临床决策切片-guide_id_2026-指南主标题.md',
+  filename: '临床决策切片-guide_id_2026-指南主标题',
   text: '[H1] 指南主标题\n\n[H2] 临床/问题:标题?\n[临床决策切片ID] chunk/001\n\n推荐正文\n\n[H2] 第二个问题\n[临床决策切片ID] chunk/002\n\n第二段正文',
   char_count: '[H1] 指南主标题\n\n[H2] 临床/问题:标题?\n[临床决策切片ID] chunk/001\n\n推荐正文\n\n[H2] 第二个问题\n[临床决策切片ID] chunk/002\n\n第二段正文'.length,
 })
@@ -461,7 +461,7 @@ assert.equal(
     content_text: '正文',
     usable: true,
   }).filename,
-  `临床决策切片-guide-长标题-${`chunk-${'x'.repeat(100)}`.slice(0, 80)}.md`,
+  `临床决策切片-guide-长标题-${`chunk-${'x'.repeat(100)}`.slice(0, 80)}`,
 )
 
 const blankFallbackChunk = clinicalDecisionChunkToReferenceDoc({
@@ -474,7 +474,7 @@ const blankFallbackChunk = clinicalDecisionChunkToReferenceDoc({
   usable: true,
 })
 assert.deepEqual(blankFallbackChunk, {
-  filename: '临床决策切片-unknown-未命名切片-chunk-035.md',
+  filename: '临床决策切片-unknown-未命名切片-chunk-035',
   text: '[H1] 未命名临床决策资料\n[H2] 未命名切片\n[临床决策切片ID] chunk-035\n\n正文',
   char_count: '[H1] 未命名临床决策资料\n[H2] 未命名切片\n[临床决策切片ID] chunk-035\n\n正文'.length,
 })
