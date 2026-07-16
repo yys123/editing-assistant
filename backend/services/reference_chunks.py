@@ -5,6 +5,63 @@ from typing import Iterable, Optional
 from models import ReferenceInput
 
 
+_PLAIN_ENGLISH_HEADING_TERMS = {
+    "abstract",
+    "introduction",
+    "background",
+    "methods",
+    "results",
+    "discussion",
+    "conclusion",
+    "conclusions",
+    "definition",
+    "overview",
+    "epidemiology",
+    "etiology",
+    "pathogenesis",
+    "pathophysiology",
+    "classification",
+    "clinical presentation",
+    "clinical presentations",
+    "clinical manifestation",
+    "clinical manifestations",
+    "clinical features",
+    "symptom",
+    "symptoms",
+    "sign",
+    "signs",
+    "diagnosis",
+    "diagnostic evaluation",
+    "diagnostic workup",
+    "diagnostic criteria",
+    "physical examination",
+    "examination",
+    "examinations",
+    "investigation",
+    "investigations",
+    "laboratory examination",
+    "laboratory findings",
+    "imaging",
+    "imaging examination",
+    "differential diagnosis",
+    "treatment",
+    "therapy",
+    "management",
+    "surgical treatment",
+    "surgical management",
+    "operative technique",
+    "operation",
+    "complication",
+    "complications",
+    "prevention",
+    "screening",
+    "prognosis",
+    "follow up",
+    "follow-up",
+    "references",
+}
+
+
 @dataclass
 class ReferenceChunkCandidate:
     chunk_id: str
@@ -39,6 +96,34 @@ class ReferenceChunkCandidate:
         }
 
 
+def _strip_plain_heading_numbering(line: str) -> str:
+    return re.sub(
+        r"^\s*(?:\d+(?:\.\d+)*|[IVXLCDM]+|[A-Z])[\s.)、:-]+",
+        "",
+        line,
+        flags=re.IGNORECASE,
+    ).strip()
+
+
+def _parse_plain_english_heading(line: str) -> Optional[tuple[int, str]]:
+    title = _strip_plain_heading_numbering((line or "").strip()).strip(":：")
+    if not title or len(title) > 80:
+        return None
+    if re.search(r"[\u4e00-\u9fff]", title) or not re.search(r"[A-Za-z]", title):
+        return None
+    if re.search(r"[.!?]$", title):
+        return None
+
+    normalized = re.sub(r"[^a-z]+", " ", title.lower()).strip()
+    if not normalized:
+        return None
+    if len(normalized.split()) > 5:
+        return None
+    if normalized in _PLAIN_ENGLISH_HEADING_TERMS:
+        return 2, title
+    return None
+
+
 def _parse_heading(line: str) -> Optional[tuple[int, str]]:
     stripped = (line or "").strip()
     markdown_match = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", stripped)
@@ -47,6 +132,9 @@ def _parse_heading(line: str) -> Optional[tuple[int, str]]:
     structured_match = re.match(r"^\[H([1-6])\]\s*(.+?)\s*$", stripped, flags=re.IGNORECASE)
     if structured_match:
         return int(structured_match.group(1)), structured_match.group(2).strip()
+    plain_english_heading = _parse_plain_english_heading(stripped)
+    if plain_english_heading:
+        return plain_english_heading
     return None
 
 

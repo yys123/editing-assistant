@@ -261,6 +261,59 @@ class ReferenceChunkApiTests(unittest.IsolatedAsyncioTestCase):
             ["三、隐匿性阴茎的诊断及分型 / （一）诊断"],
         )
 
+    async def test_quality_review_diagnosis_matches_english_diagnosis_heading(self):
+        result = await search_reference_chunk_candidates(
+            ReferenceChunkSearchRequest(
+                task_type="quality_review",
+                disease="隐匿性阴茎",
+                query="诊断\n需要补充诊断标准、体格检查和辅助检查。",
+                reference_inputs=[
+                    ReferenceInput(
+                        id=1,
+                        filename="concealed-penis-review.md",
+                        text="\n\n".join([
+                            "## TREATMENT",
+                            "Surgical reconstruction is selected after full preoperative evaluation.",
+                            "## DIAGNOSIS",
+                            "Diagnosis depends on physical examination and classification of the anatomic layer.",
+                        ]),
+                    )
+                ],
+                limit=2,
+            )
+        )
+
+        self.assertGreaterEqual(len(result["chunks"]), 1)
+        self.assertEqual(result["chunks"][0]["title_path"], "DIAGNOSIS")
+        self.assertIn("Diagnosis depends on physical examination", result["chunks"][0]["text"])
+
+    async def test_quality_review_diagnosis_recognizes_plain_english_heading_lines(self):
+        result = await search_reference_chunk_candidates(
+            ReferenceChunkSearchRequest(
+                task_type="quality_review",
+                disease="隐匿性阴茎",
+                query="诊断\n需要补充诊断标准、体格检查和辅助检查。",
+                reference_inputs=[
+                    ReferenceInput(
+                        id=1,
+                        filename="concealed-penis-review.pdf",
+                        text="\n\n".join([
+                            "TREATMENT\nSurgical reconstruction is selected after full preoperative evaluation.",
+                            "DIAGNOSIS\nDiagnosis depends on physical examination and classification of the anatomic layer.",
+                        ]),
+                    )
+                ],
+                limit=2,
+            )
+        )
+
+        self.assertGreaterEqual(len(result["chunks"]), 1)
+        self.assertEqual(result["chunks"][0]["title_path"], "DIAGNOSIS")
+        self.assertEqual(
+            result["chunks"][0]["text"],
+            "Diagnosis depends on physical examination and classification of the anatomic layer.",
+        )
+
     async def test_search_reference_chunks_endpoint_returns_candidates(self):
         result = await search_reference_chunk_candidates(
             ReferenceChunkSearchRequest(
