@@ -45,6 +45,7 @@ interface Props {
 }
 
 type OriginalScope = 'all' | 'sections' | 'none'
+type ReferenceMode = 'full' | 'confirmed_chunks'
 
 export function isClinicMasterReferenceDoc(doc: Pick<ReferenceDoc, 'filename'>) {
   return doc.filename.startsWith('ClinMaster-')
@@ -220,14 +221,17 @@ export default function StepAiIntegration({
   const [selectedIssueKeys, setSelectedIssueKeys] = useState<string[]>([])
   const [expandedIssueSections, setExpandedIssueSections] = useState<Record<string, boolean>>({})
   const [guidelineReferenceChunks, setGuidelineReferenceChunks] = useState<ConfirmedReferenceChunk[]>([])
+  const [referenceMode, setReferenceMode] = useState<ReferenceMode>('full')
+  const [chunkPanelOpen, setChunkPanelOpen] = useState(false)
+  const [chunkSearchRunId, setChunkSearchRunId] = useState(0)
   const [viewingReference, setViewingReference] = useState<{ doc: ReferenceDoc; index: number } | null>(null)
   const effectiveReferenceDocs = useMemo(
     () => referenceDocs,
     [referenceDocs],
   )
   const confirmedReferenceChunks = useMemo(
-    () => guidelineReferenceChunks,
-    [guidelineReferenceChunks],
+    () => referenceMode === 'confirmed_chunks' ? guidelineReferenceChunks : [],
+    [guidelineReferenceChunks, referenceMode],
   )
 
   const reviewIssueSectionOrder = useMemo(
@@ -251,6 +255,8 @@ export default function StepAiIntegration({
     setSelectedRefs(effectiveReferenceDocs.map(doc => doc.filename))
     setPriorityRefs(prev => prev.filter(name => effectiveReferenceDocs.some(doc => doc.filename === name)))
     setGuidelineReferenceChunks([])
+    setReferenceMode('full')
+    setChunkPanelOpen(false)
     setViewingReference(prev => (
       prev && effectiveReferenceDocs.some(doc => doc.filename === prev.doc.filename)
         ? prev
@@ -420,18 +426,26 @@ export default function StepAiIntegration({
   const setAllRefs = () => {
     setSelectedRefs(effectiveReferenceDocs.map(d => d.filename))
     setPriorityRefs(prev => prev.filter(name => effectiveReferenceDocs.some(d => d.filename === name)))
+    setGuidelineReferenceChunks([])
+    setReferenceMode('full')
+    setChunkPanelOpen(false)
   }
 
   const clearRefs = () => {
     setSelectedRefs([])
     setPriorityRefs([])
+    setGuidelineReferenceChunks([])
+    setReferenceMode('full')
+    setChunkPanelOpen(false)
   }
 
   const deleteReferenceDoc = (filename: string) => {
     setReferenceDocs(effectiveReferenceDocs.filter(doc => doc.filename !== filename))
     setSelectedRefs(prev => prev.filter(name => name !== filename))
     setPriorityRefs(prev => prev.filter(name => name !== filename))
-    setGuidelineReferenceChunks(prev => prev.filter(chunk => chunk.source_filename !== filename))
+    setGuidelineReferenceChunks([])
+    setReferenceMode('full')
+    setChunkPanelOpen(false)
     setViewingReference(prev => prev?.doc.filename === filename ? null : prev)
   }
 
@@ -441,11 +455,17 @@ export default function StepAiIntegration({
       setPriorityRefs(priorityPrev => priorityPrev.filter(name => next.includes(name)))
       return next
     })
+    setGuidelineReferenceChunks([])
+    setReferenceMode('full')
+    setChunkPanelOpen(false)
   }
 
   const togglePriorityRef = (filename: string) => {
     if (!selectedRefSet.has(filename)) return
     setPriorityRefs(prev => prev.includes(filename) ? prev.filter(name => name !== filename) : [...prev, filename])
+    setGuidelineReferenceChunks([])
+    setReferenceMode('full')
+    setChunkPanelOpen(false)
   }
 
   const toggleSection = (id: string) => {
@@ -455,10 +475,16 @@ export default function StepAiIntegration({
   const toggleReviewIssue = (issue: AiIntegrationLinkedIssue) => {
     const key = linkedIssueKey(issue)
     setSelectedIssueKeys(prev => prev.includes(key) ? prev.filter(item => item !== key) : [...prev, key])
+    setGuidelineReferenceChunks([])
+    setReferenceMode('full')
+    setChunkPanelOpen(false)
   }
 
   const clearLinkedIssues = () => {
     setSelectedIssueKeys([])
+    setGuidelineReferenceChunks([])
+    setReferenceMode('full')
+    setChunkPanelOpen(false)
   }
 
   const toggleIssueSection = (key: string) => {
@@ -522,9 +548,6 @@ export default function StepAiIntegration({
         .map((doc, index) => ({ doc, id: index + 1 }))
         .filter(item => selectedRefSet.has(item.doc.filename) && priorityRefSet.has(item.doc.filename))
         .map(item => item.id)
-      if (referenceInputs.length > 0 && guidelineReferenceChunks.length === 0) {
-        throw new Error('请先筛选并确认指南切片，或清空参考文献后再整合')
-      }
 
       const res = await apiFetch('/api/generate/ai-integration', {
         method: 'POST',
@@ -535,6 +558,7 @@ export default function StepAiIntegration({
           original_content: originalContent,
           reference_inputs: referenceInputs,
           priority_reference_ids: priorityReferenceIds,
+          reference_mode: referenceMode,
           confirmed_reference_chunks: confirmedReferenceChunks,
         }),
       })
@@ -551,6 +575,7 @@ export default function StepAiIntegration({
         referenceAnchors: data.reference_anchors || [],
         selectedReferences: selectedRefs,
         priorityReferences: priorityRefs,
+        referenceMode,
         priorityGuidelineUsage: data.priority_guideline_usage,
         linkedIssues: selectedLinkedIssues,
         confirmedReferenceChunks,
@@ -585,7 +610,12 @@ export default function StepAiIntegration({
           <textarea
             className="m3-input"
             value={userRequest}
-            onChange={e => setUserRequest(e.target.value)}
+            onChange={e => {
+              setUserRequest(e.target.value)
+              setGuidelineReferenceChunks([])
+              setReferenceMode('full')
+              setChunkPanelOpen(false)
+            }}
             placeholder="输入问题或要求"
             style={{ minHeight: 96, resize: 'vertical', flex: 1, lineHeight: 1.7 }}
           />
@@ -962,7 +992,35 @@ export default function StepAiIntegration({
       </div>
 
       {effectiveReferenceDocs.length > 0 && selectedRefs.length > 0 && (
+        <div className="section-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn-m3-outline"
+              disabled={!userRequest.trim()}
+              onClick={() => {
+                setGuidelineReferenceChunks([])
+                setReferenceMode('full')
+                setChunkSearchRunId(prev => prev + 1)
+                setChunkPanelOpen(true)
+              }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 17 }}>auto_awesome</span>
+              AI筛选切片
+            </button>
+            {referenceMode === 'confirmed_chunks' && (
+              <span style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
+                已确认 {guidelineReferenceChunks.length} 个切片
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {chunkPanelOpen && effectiveReferenceDocs.length > 0 && selectedRefs.length > 0 && (
         <ChunkConfirmationPanel
+          key={chunkSearchRunId}
           taskType="ai_integration"
           disease={disease}
           query={chunkSearchQuery || `${disease} ${userRequest}`}
@@ -971,6 +1029,14 @@ export default function StepAiIntegration({
           priorityReferenceNames={priorityRefs}
           value={guidelineReferenceChunks}
           onChange={setGuidelineReferenceChunks}
+          autoSearchOnMount
+          triggerLabel="重新筛选"
+          fullscreenTitle="AI筛选切片"
+          confirmLabel="确认切片"
+          onConfirm={() => {
+            setReferenceMode('confirmed_chunks')
+            setChunkPanelOpen(false)
+          }}
         />
       )}
 

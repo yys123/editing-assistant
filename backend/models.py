@@ -342,6 +342,7 @@ class AiIntegrationRequest(BaseModel):
     reference_inputs: List[ReferenceInput] = []
     priority_reference_ids: List[int] = []
     confirmed_reference_chunks: List[ConfirmedReferenceChunk] = []
+    reference_mode: str = ""
 
 
 class PriorityGuidelineUsage(BaseModel):

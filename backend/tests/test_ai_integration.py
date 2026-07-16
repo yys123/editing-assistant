@@ -279,6 +279,62 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("引用标记：[1-8]", captured["prompt"])
         self.assertNotIn("UNCONFIRMED_FULL_REFERENCE_TEXT", captured["prompt"])
 
+    async def test_ai_integration_full_reference_mode_uses_all_selected_reference_text(self):
+        captured = {}
+
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            captured["prompt"] = prompt
+            return "整合结果。"
+
+        await generate_ai_integration_answer(
+            AiIntegrationRequest(
+                disease="糖尿病",
+                user_request="根据诊断资料修订",
+                reference_mode="full",
+                reference_inputs=[
+                    ReferenceInput(
+                        id=1,
+                        filename="糖尿病指南.pdf",
+                        text=(
+                            f"MATCHED_DIAGNOSIS_TEXT 诊断标准包括 HbA1c。{'诊断资料。' * 230}\n\n"
+                            "UNMATCHED_FULL_TEXT_STILL_INCLUDED 这是同一数据源中与当前问题关键词不重叠的全文段落。"
+                        ),
+                    )
+                ],
+            ),
+            text_generator=fake_generate_text,
+        )
+
+        self.assertIn("MATCHED_DIAGNOSIS_TEXT", captured["prompt"])
+        self.assertIn("UNMATCHED_FULL_TEXT_STILL_INCLUDED", captured["prompt"])
+
+    async def test_ai_integration_confirmed_chunk_mode_with_empty_selection_does_not_fall_back_to_full_text(self):
+        captured = {}
+
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            captured["prompt"] = prompt
+            return "整合结果。"
+
+        await generate_ai_integration_answer(
+            AiIntegrationRequest(
+                disease="糖尿病",
+                user_request="根据确认切片修订",
+                reference_mode="confirmed_chunks",
+                reference_inputs=[
+                    ReferenceInput(
+                        id=1,
+                        filename="糖尿病指南.pdf",
+                        text="UNCONFIRMED_FULL_REFERENCE_TEXT 不应在用户确认空切片后进入 prompt。",
+                    )
+                ],
+                confirmed_reference_chunks=[],
+            ),
+            text_generator=fake_generate_text,
+        )
+
+        self.assertNotIn("UNCONFIRMED_FULL_REFERENCE_TEXT", captured["prompt"])
+        self.assertIn("（未选择普通参考资料）", captured["prompt"])
+
     async def test_ai_integration_uses_source_ref_citation_keys_with_stable_chunk_anchors(self):
         calls = []
 

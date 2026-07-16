@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { searchReferenceChunks } from '../api'
 import type { ConfirmedReferenceChunk, ReferenceChunkCandidate, ReferenceDoc } from '../types'
 
@@ -12,6 +12,11 @@ interface Props {
   value: ConfirmedReferenceChunk[]
   onChange: (chunks: ConfirmedReferenceChunk[]) => void
   compact?: boolean
+  autoSearchOnMount?: boolean
+  triggerLabel?: string
+  fullscreenTitle?: string
+  confirmLabel?: string
+  onConfirm?: () => void
 }
 
 interface ChunkSourceGroup {
@@ -102,6 +107,11 @@ export default function ChunkConfirmationPanel({
   value,
   onChange,
   compact = false,
+  autoSearchOnMount = false,
+  triggerLabel = '筛选切片',
+  fullscreenTitle = '筛选指南切片',
+  confirmLabel = '退出全屏',
+  onConfirm,
 }: Props) {
   const [candidates, setCandidates] = useState<ReferenceChunkCandidate[]>([])
   const [loading, setLoading] = useState(false)
@@ -169,6 +179,13 @@ export default function ChunkConfirmationPanel({
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (!autoSearchOnMount) return
+    runSearch()
+    // Run once when the panel is opened for explicit search.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const toggleChunk = (chunk: ReferenceChunkCandidate) => {
     if (selectedChunkIds.has(chunk.chunk_id)) {
@@ -269,7 +286,7 @@ export default function ChunkConfirmationPanel({
         <div className="chunk-confirm-actions">
           <button type="button" className="btn btn-sm" onClick={() => onChange([])}>清空</button>
           <button type="button" className="btn btn-sm btn-primary" disabled={loading || selectedDocs.length === 0} onClick={runSearch}>
-            {loading ? '筛选中' : '筛选切片'}
+            {loading ? '筛选中' : triggerLabel}
           </button>
         </div>
       </div>
@@ -286,14 +303,23 @@ export default function ChunkConfirmationPanel({
           <div className="chunk-confirm-panel fullscreen">
             <div className="chunk-confirm-head">
               <div>
-                <div className="chunk-confirm-title">筛选指南切片</div>
+                <div className="chunk-confirm-title">{fullscreenTitle}</div>
                 <div className="chunk-confirm-meta">
                   已确认 {value.length} 个切片 / 共 {candidates.length} 个切片
                 </div>
               </div>
               <div className="chunk-confirm-actions">
                 <button type="button" className="btn btn-sm" onClick={() => onChange([])}>清空</button>
-                <button type="button" className="btn btn-sm btn-primary" onClick={() => setFullscreen(false)}>退出全屏</button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  onClick={() => {
+                    setFullscreen(false)
+                    onConfirm?.()
+                  }}
+                >
+                  {confirmLabel}
+                </button>
               </div>
             </div>
             <div className="chunk-confirm-layout">

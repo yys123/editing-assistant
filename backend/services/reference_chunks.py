@@ -14,6 +14,10 @@ _PLAIN_ENGLISH_HEADING_TERMS = {
     "discussion",
     "conclusion",
     "conclusions",
+    "author contributions",
+    "acknowledgment",
+    "acknowledgement",
+    "conflict of interest statement",
     "definition",
     "overview",
     "epidemiology",
@@ -58,7 +62,22 @@ _PLAIN_ENGLISH_HEADING_TERMS = {
     "prognosis",
     "follow up",
     "follow-up",
+    "reference",
     "references",
+    "bibliography",
+}
+
+_REFERENCE_SECTION_TITLES = {
+    "参考文献",
+    "参考资料",
+    "reference",
+    "references",
+    "reference list",
+    "bibliography",
+    "author contributions",
+    "acknowledgment",
+    "acknowledgement",
+    "conflict of interest statement",
 }
 
 
@@ -138,6 +157,18 @@ def _parse_heading(line: str) -> Optional[tuple[int, str]]:
     return None
 
 
+def _normalize_section_title(title: str) -> str:
+    clean = _strip_plain_heading_numbering((title or "").strip()).strip(":：")
+    clean = re.sub(r"\s+", " ", clean)
+    if re.search(r"[\u4e00-\u9fff]", clean):
+        return re.sub(r"\s+", "", clean)
+    return re.sub(r"[^a-z]+", " ", clean.lower()).strip()
+
+
+def _is_reference_section_title(title: str) -> bool:
+    return _normalize_section_title(title) in _REFERENCE_SECTION_TITLES
+
+
 def _has_markdown_headings(text: str) -> bool:
     return any(_parse_heading(line) for line in (text or "").splitlines())
 
@@ -208,6 +239,7 @@ def _build_heading_chunks(ref: ReferenceInput, target_chars: int) -> list[Refere
     buffer: list[str] = []
     buffer_start = 0
     body_index = 0
+    skip_reference_level: Optional[int] = None
 
     def flush() -> None:
         nonlocal buffer, buffer_start
@@ -224,6 +256,19 @@ def _build_heading_chunks(ref: ReferenceInput, target_chars: int) -> list[Refere
         if heading:
             flush()
             level, title = heading
+            if skip_reference_level is not None:
+                if level > skip_reference_level:
+                    continue
+                skip_reference_level = None
+            if _is_reference_section_title(title):
+                skip_reference_level = level
+                title_by_level = {
+                    existing_level: existing_title
+                    for existing_level, existing_title in title_by_level.items()
+                    if existing_level < level
+                }
+                current_title_path = " / ".join(title_by_level[key] for key in sorted(title_by_level))
+                continue
             title_by_level = {
                 existing_level: existing_title
                 for existing_level, existing_title in title_by_level.items()
@@ -231,6 +276,9 @@ def _build_heading_chunks(ref: ReferenceInput, target_chars: int) -> list[Refere
             }
             title_by_level[level] = title
             current_title_path = " / ".join(title_by_level[key] for key in sorted(title_by_level))
+            continue
+
+        if skip_reference_level is not None:
             continue
 
         if line.strip():

@@ -148,6 +148,70 @@ class ReferenceChunkSearchTests(unittest.TestCase):
             ],
         )
 
+    def test_reference_sections_are_excluded_from_heading_chunks(self):
+        chunks = list_reference_chunks([
+            ReferenceInput(
+                id=1,
+                filename="隐匿性阴茎综述.md",
+                text="\n\n".join([
+                    "# 隐匿性阴茎综述",
+                    "总论内容。",
+                    "## 诊断",
+                    "诊断内容。",
+                    "## 参考文献",
+                    "[1] 应被剔除的中文参考文献。",
+                    "### 期刊论文",
+                    "[2] 子标题下的参考文献也应被剔除。",
+                    "## 治疗",
+                    "治疗内容。",
+                    "## References",
+                    "1. English reference should be removed.",
+                    "### Books",
+                    "2. Child reference should also be removed.",
+                    "## Prognosis",
+                    "Prognosis content.",
+                ]),
+            )
+        ])
+
+        self.assertEqual(
+            [(chunk.title_path, chunk.text) for chunk in chunks],
+            [
+                ("隐匿性阴茎综述", "总论内容。"),
+                ("隐匿性阴茎综述 / 诊断", "诊断内容。"),
+                ("隐匿性阴茎综述 / 治疗", "治疗内容。"),
+                ("隐匿性阴茎综述 / Prognosis", "Prognosis content."),
+            ],
+        )
+
+    def test_source_metadata_sections_are_excluded_case_insensitively(self):
+        chunks = list_reference_chunks([
+            ReferenceInput(
+                id=1,
+                filename="concealed-penis-review.txt",
+                text="\n\n".join([
+                    "INTRODUCTION",
+                    "Clinical introduction content.",
+                    "author contributions",
+                    "AB wrote the first draft.",
+                    "Acknowledgment",
+                    "The authors thank the editorial team.",
+                    "CONFLICT OF INTEREST STATEMENT",
+                    "The authors declare no conflict of interest.",
+                    "DIAGNOSIS",
+                    "Diagnosis content.",
+                ]),
+            )
+        ])
+
+        self.assertEqual(
+            [(chunk.title_path, chunk.text) for chunk in chunks],
+            [
+                ("INTRODUCTION", "Clinical introduction content."),
+                ("DIAGNOSIS", "Diagnosis content."),
+            ],
+        )
+
     def test_structured_h_markers_create_section_chunks(self):
         chunks = list_reference_chunks([
             ReferenceInput(

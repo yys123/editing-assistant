@@ -610,6 +610,13 @@ def _partition_reference_chunks_by_priority(
     return priority_chunks, supplementary_chunks
 
 
+def _ai_integration_reference_mode(req: AiIntegrationRequest) -> str:
+    mode = (req.reference_mode or "").strip().lower()
+    if mode in {"full", "confirmed_chunks", "auto"}:
+        return mode
+    return "confirmed_chunks" if req.confirmed_reference_chunks else "full"
+
+
 def _chunk_sentence_evidence(chunk: ReferenceChunk) -> tuple[str, str, str, int]:
     sentences = _split_sentence_fragments(chunk.text, chunk.paragraph_index)
     if not sentences:
@@ -1165,9 +1172,10 @@ async def generate_ai_integration_answer(
         else "（未选择原词条内容）"
     )
     priority_ids = set(req.priority_reference_ids or [])
-    if req.confirmed_reference_chunks:
+    reference_mode = _ai_integration_reference_mode(req)
+    if reference_mode == "confirmed_chunks":
         reference_chunks = _reference_chunks_from_confirmed(req.confirmed_reference_chunks)
-    else:
+    elif reference_mode == "auto":
         reference_chunks = _select_reference_chunks(
             req.reference_inputs,
             f"{req.disease} {req.user_request} {req.original_content[:2000]}",
@@ -1175,6 +1183,8 @@ async def generate_ai_integration_answer(
             max_chunks=200,
             priority_source_ids=priority_ids,
         )
+    else:
+        reference_chunks = _build_reference_chunks(req.reference_inputs)
     priority_chunks, supplementary_chunks = _partition_reference_chunks_by_priority(
         reference_chunks,
         priority_ids,
@@ -1191,7 +1201,7 @@ async def generate_ai_integration_answer(
     )
     reference_anchors = [
         *original_anchors,
-        *_extract_reference_anchors(req.reference_inputs),
+        *(_extract_reference_anchors(req.reference_inputs) if reference_mode == "full" else []),
         *_anchors_from_reference_chunks(reference_chunks),
     ]
     references_used = [f"[{ref.id}] {ref.filename}" for ref in req.reference_inputs]

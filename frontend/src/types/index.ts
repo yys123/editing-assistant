@@ -160,6 +160,7 @@ export interface AiIntegrationRecord {
   clinicMasterReferenceDocs?: ReferenceDoc[]
   selectedReferences: string[]
   priorityReferences: string[]
+  referenceMode?: 'full' | 'confirmed_chunks'
   priorityGuidelineUsage?: PriorityGuidelineUsage
   originalScope: 'all' | 'sections' | 'none'
   selectedSectionIds: string[]
