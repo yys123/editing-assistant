@@ -60,6 +60,42 @@ function formatReferenceForPrompt(doc: ReferenceDoc, index: number, isPriority =
   return `### 参考数据源 ${index + 1}${marker}\n文件名：${doc.filename}\n\n${doc.text}`
 }
 
+interface SectionAnalysisReferencePayloadParams {
+  allReferenceDocs: ReferenceDoc[]
+  selectedReferenceDocs: ReferenceDoc[]
+  priorityReferenceDocs: ReferenceDoc[]
+  confirmedChunks: ConfirmedReferenceChunk[]
+}
+
+export function buildSectionAnalysisReferencePayload({
+  allReferenceDocs,
+  selectedReferenceDocs,
+  priorityReferenceDocs,
+  confirmedChunks,
+}: SectionAnalysisReferencePayloadParams) {
+  const selectedReferenceNameSet = new Set(selectedReferenceDocs.map(doc => doc.filename))
+  const confirmed_reference_chunks = (confirmedChunks ?? [])
+    .filter(chunk => selectedReferenceNameSet.has(chunk.source_filename))
+  const formatSelectedReference = (doc: ReferenceDoc, isPriority = false) => {
+    const index = allReferenceDocs.findIndex(item => item.filename === doc.filename)
+    return formatReferenceForPrompt(doc, index >= 0 ? index : 0, isPriority)
+  }
+
+  if (confirmed_reference_chunks.length > 0) {
+    return {
+      reference_texts: [],
+      priority_reference_texts: [],
+      confirmed_reference_chunks,
+    }
+  }
+
+  return {
+    reference_texts: selectedReferenceDocs.map(doc => formatSelectedReference(doc)),
+    priority_reference_texts: priorityReferenceDocs.map(doc => formatSelectedReference(doc, true)),
+    confirmed_reference_chunks,
+  }
+}
+
 interface AnalysisGroup {
   representative: ArticleSection
   childSections: ArticleSection[]
@@ -310,10 +346,6 @@ export default function StepSectionAnalysis({
     const selected = new Set(getSelectedReferenceNames(groupId))
     return referenceDocs.filter(d => selected.has(d.filename))
   }
-  const getReferencePromptText = (doc: ReferenceDoc, isPriority = false) => {
-    const index = referenceDocs.findIndex(d => d.filename === doc.filename)
-    return formatReferenceForPrompt(doc, index >= 0 ? index : 0, isPriority)
-  }
   const setGroupReferenceNames = (groupId: string, names: string[]) => {
     setSectionReferenceSelections(prev => {
       const next = { ...prev }
@@ -371,14 +403,12 @@ export default function StepSectionAnalysis({
       word_count: getAnalysisGroupWordCount(group),
     }
     const selectedReferenceDocs = getSelectedReferenceDocs(group.representative.id)
-    const selectedReferenceNameSet = new Set(selectedReferenceDocs.map(doc => doc.filename))
-    const confirmedReferenceChunks = (confirmedChunksByGroup[group.representative.id] ?? [])
-      .filter(chunk => selectedReferenceNameSet.has(chunk.source_filename))
-    if (selectedReferenceDocs.length > 0 && confirmedReferenceChunks.length === 0) {
-      throw new Error(`请先为「${group.representative.heading}」筛选并确认指南切片，或清空本章节参考文献`)
-    }
-    const referenceTexts = confirmedReferenceChunks.length > 0 ? [] : selectedReferenceDocs.map(d => getReferencePromptText(d))
-    const priorityReferenceTexts = confirmedReferenceChunks.length > 0 ? [] : getPriorityReferenceDocs(group.representative.id).map(d => getReferencePromptText(d, true))
+    const referencePayload = buildSectionAnalysisReferencePayload({
+      allReferenceDocs: referenceDocs,
+      selectedReferenceDocs,
+      priorityReferenceDocs: getPriorityReferenceDocs(group.representative.id),
+      confirmedChunks: confirmedChunksByGroup[group.representative.id] ?? [],
+    })
     const res = await apiFetch('/api/analyze/section', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -391,9 +421,7 @@ export default function StepSectionAnalysis({
           .map(s => s.heading),
         quality_standard_text: standardsOverride.qualityText ?? null,
         content_spec_text: standardsOverride.specText ?? null,
-        reference_texts: referenceTexts,
-        priority_reference_texts: priorityReferenceTexts,
-        confirmed_reference_chunks: confirmedReferenceChunks,
+        ...referencePayload,
       }),
     })
     const data = await safeJson(res)
