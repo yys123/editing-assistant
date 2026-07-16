@@ -24,6 +24,28 @@ _REFERENCE_STOP_KEYWORDS = {"参考文献", "相关指南", "参考资料", "ref
 _CN_NUMS = "一二三四五六七八九十百"
 _H2_NUM_RE = re.compile(r'^[' + _CN_NUMS + r']+[、]')
 _H3_PAREN_RE = re.compile(r'^（[' + _CN_NUMS + r']+）')
+_HTML_NOISE_ATTR_RE = re.compile(
+    r"(^|[-_\s])("
+    r"cookie|consent|privacy|banner|advert|advertisement|ads?|modal|popup|overlay|"
+    r"skip|accessibility|external|share|toolbar|breadcrumb|dropzone|recommend|related"
+    r")([-_\s]|$)",
+    re.I,
+)
+_READABLE_ROOT_SELECTORS = (
+    "article",
+    "main",
+    "[role='main']",
+    "#main-content",
+    "#content",
+    ".article",
+    ".article__body",
+    ".article-body",
+    ".article-section__content",
+    ".article-content",
+    ".entry-content",
+    ".post-content",
+    ".main-content",
+)
 _SUPERSCRIPT_MAP = str.maketrans("0123456789+-=()n", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿ")
 _SUBSCRIPT_MAP = str.maketrans("0123456789+-=()aeioruvxhklmnpst", "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑᵢₒᵣᵤᵥₓₕₖₗₘₙₚₛₜ")
 _SUPERSCRIPT_REF_DIGITS = "⁰¹²³⁴⁵⁶⁷⁸⁹"
@@ -96,9 +118,67 @@ def _clean_extracted_text(text: str) -> str:
     return text
 
 
+def _tag_attr_text(tag: Tag) -> str:
+    values = [
+        str(tag.get("id") or ""),
+        " ".join(tag.get("class") or []),
+        str(tag.get("role") or ""),
+        str(tag.get("aria-label") or ""),
+    ]
+    return " ".join(value for value in values if value).lower()
+
+
+def _is_obvious_html_noise_tag(tag: Tag) -> bool:
+    return bool(_HTML_NOISE_ATTR_RE.search(_tag_attr_text(tag)))
+
+
+def _remove_obvious_html_noise(soup: BeautifulSoup) -> None:
+    for tag in soup.find_all(_SKIP_TAGS):
+        tag.decompose()
+
+    for tag in soup.find_all(id=re.compile(r"footer|sidebar|aside|nav|menu|right", re.I)):
+        tag.decompose()
+    for tag in soup.find_all(class_=lambda c: c and any(
+        k in " ".join(c).lower()
+        for k in ("sidebar", "right__", "rightaside", "footer", "aside", "banner", "ad_")
+    )):
+        tag.decompose()
+    for tag in soup.find_all(_is_obvious_html_noise_tag):
+        tag.decompose()
+
+
+def _readable_root(soup: BeautifulSoup) -> Tag:
+    for selector in _READABLE_ROOT_SELECTORS:
+        candidates = [
+            tag for tag in soup.select(selector)
+            if isinstance(tag, Tag) and tag.get_text(" ", strip=True)
+        ]
+        if candidates:
+            return max(candidates, key=lambda tag: len(tag.get_text(" ", strip=True)))
+    return soup.find("body") or soup
+
+
+def _is_html_ui_noise_line(line: str) -> bool:
+    clean = _clean_extracted_text(line)
+    if not clean:
+        return True
+    lowered = clean.lower()
+    if clean == "Empty dropzone" or "?lit$" in clean:
+        return True
+    if re.search(r"打开外部网站|在新窗口中打开|open external website|opens? in (?:a )?new", clean, re.I):
+        return True
+    if re.search(r"cookie|cookies", lowered) and re.search(
+        r"网站|功能|分析|个性化|广告|隐私|privacy|policy|settings|consent|accept",
+        clean,
+        re.I,
+    ):
+        return True
+    return False
+
+
 def _append_line(lines: list[str], text: str) -> None:
     text = _clean_extracted_text(text)
-    if text:
+    if text and not _is_html_ui_noise_line(text):
         lines.append(text)
 
 
@@ -678,17 +758,7 @@ def parse_html_structured(html: str, preserve_leading_text: bool = False) -> str
     soup = BeautifulSoup(html, "lxml")
 
     # ── Remove obvious UI noise ────────────────────────────────────────────
-    for tag in soup.find_all(_SKIP_TAGS):
-        tag.decompose()
-
-    # Remove by id/class pattern (sidebars, ads, footers …)
-    for tag in soup.find_all(id=re.compile(r"footer|sidebar|aside|nav|menu|right", re.I)):
-        tag.decompose()
-    for tag in soup.find_all(class_=lambda c: c and any(
-        k in " ".join(c).lower()
-        for k in ("sidebar", "right__", "rightaside", "footer", "aside", "banner", "ad_")
-    )):
-        tag.decompose()
+    _remove_obvious_html_noise(soup)
 
     cnki_text = _parse_cnki_reader_page(soup, structured=True)
     if cnki_text:
@@ -903,7 +973,7 @@ def parse_html_structured(html: str, preserve_leading_text: bool = False) -> str
 
     else:
         # ── 兼容 fallback：原始平铺遍历 ──────────────────────
-        walk(soup.find("body") or soup)
+        walk(_readable_root(soup))
 
     # De-duplicate consecutive identical lines
     deduped: list[str] = []
@@ -921,7 +991,7 @@ def parse_html_structured(html: str, preserve_leading_text: bool = False) -> str
     )
     cleaned: list[str] = []
     for line in deduped:
-        if _UI_NOISE.match(line):
+        if _UI_NOISE.match(line) or _is_html_ui_noise_line(line):
             continue
         cleaned.append(line)
 
@@ -1136,8 +1206,7 @@ def parse_html_to_text(html: str) -> str:
     Used for reference document upload and URL fetch."""
     soup = BeautifulSoup(html, "lxml")
 
-    for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
-        tag.decompose()
+    _remove_obvious_html_noise(soup)
 
     cnki_text = _parse_cnki_reader_page(soup, structured=False)
     if cnki_text:
@@ -1147,16 +1216,7 @@ def parse_html_to_text(html: str) -> str:
     if cma_text:
         return cma_text
 
-    main = (
-        soup.find("article")
-        or soup.find("main")
-        or soup.find(class_=lambda c: c and any(
-            k in str(c).lower() for k in ["content", "article", "entry", "post", "body"]
-        ))
-        or soup.find("body")
-    )
-
-    root = main or soup
+    root = _readable_root(soup)
     reference_targets = _collect_reference_target_ids(root)
     block_tags = _HEADING_TAGS | _TEXT_BLOCK_TAGS
     blocks = [root] if isinstance(root, Tag) and root.name in block_tags else list(root.find_all(block_tags))
@@ -1174,13 +1234,13 @@ def parse_html_to_text(html: str) -> str:
             continue
         text = _extract_text_with_refs(tag, reference_targets)
         text = _mark_inline_sentence_citations(text)
-        if text:
+        if text and not _is_html_ui_noise_line(text):
             lines.append(text)
 
     if not lines:
         text = _extract_text_with_refs(root, reference_targets)
         text = _mark_inline_sentence_citations(text)
-        lines = [text] if text else []
+        lines = [text] if text and not _is_html_ui_noise_line(text) else []
     return "\n".join(lines)
 
 

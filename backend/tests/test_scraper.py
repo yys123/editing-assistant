@@ -238,6 +238,50 @@ class HtmlStructuredParserTests(unittest.TestCase):
 
 
 class HtmlReferenceParserTests(unittest.TestCase):
+    def test_wiley_style_reference_html_drops_page_chrome_before_chunking(self):
+        html = """
+        <html>
+          <body>
+            <div class="accessibility-links">
+              ?lit$2327208547在新窗口中打开
+              ?lit$2327208547打开外部网站
+              本网站利用 Cookie 等技术来启用基本网站功能以及分析、个性化定制和有针对性的广告。
+            </div>
+            <main id="main-content">
+              <article class="article">
+                <div class="article-header">
+                  <div>BJUI Compass</div>
+                  <div>Open Access</div>
+                  <h1>Concealed penis: A review of multilevel classification and surgical reconstruction techniques</h1>
+                  <div>Empty dropzone</div>
+                  <p>Bo-yu Xiang, Department of Urology, Xiangya Hospital, Central South University.</p>
+                </div>
+                <section class="article-section article-section__abstract">
+                  <h2>Abstract</h2>
+                  <p>Concealed penis is a common pediatric external genital condition.</p>
+                </section>
+                <section class="article-section article-section__full">
+                  <h2>1 INTRODUCTION</h2>
+                  <p>Classification and surgical reconstruction should be based on anatomical layers.</p>
+                </section>
+              </article>
+            </main>
+          </body>
+        </html>
+        """
+
+        text = parse_html_structured(html, preserve_leading_text=True)
+
+        self.assertIn("[H1] Concealed penis: A review of multilevel classification and surgical reconstruction techniques", text)
+        self.assertIn("[H2] Abstract", text)
+        self.assertIn("Concealed penis is a common pediatric external genital condition.", text)
+        self.assertIn("[H2] 1 INTRODUCTION", text)
+        self.assertIn("Classification and surgical reconstruction should be based on anatomical layers.", text)
+        self.assertNotIn("?lit$", text)
+        self.assertNotIn("Cookie", text)
+        self.assertNotIn("打开外部网站", text)
+        self.assertNotIn("Empty dropzone", text)
+
     def test_cnki_reference_text_keeps_full_article_and_references(self):
         html = """
         <html>
