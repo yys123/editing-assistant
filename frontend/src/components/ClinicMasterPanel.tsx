@@ -18,6 +18,10 @@ interface ClinicMasterPanelProps {
   showRecommendedGuides?: boolean
   confirmedChunkSourceIdBase?: number
   onConfirmReferenceChunks?: (chunks: ConfirmedReferenceChunk[]) => void
+  collapsibleSearch?: boolean
+  defaultSearchCollapsed?: boolean
+  collapsedTitle?: string
+  collapsedDescription?: string
 }
 
 interface ClinicMasterReferenceAdditionStats {
@@ -676,6 +680,10 @@ export default function ClinicMasterPanel({
   showRecommendedGuides = true,
   confirmedChunkSourceIdBase = 1,
   onConfirmReferenceChunks,
+  collapsibleSearch = false,
+  defaultSearchCollapsed = false,
+  collapsedTitle = '查询临床决策资料',
+  collapsedDescription = '需要补充数据源时展开，历史结果默认收起。',
 }: ClinicMasterPanelProps) {
   const [question, setQuestion] = useState(() => getClinicMasterInitialQuestion(defaultQuestion))
   const [query, setQuery] = useState<ClinicMasterQueryResponse | null>(null)
@@ -686,7 +694,8 @@ export default function ClinicMasterPanel({
   const [nowMs, setNowMs] = useState(Date.now())
   const [allCollapsed, setAllCollapsed] = useState(false)
   const [guidesExpanded, setGuidesExpanded] = useState(true)
-  const [historyCollapsed, setHistoryCollapsed] = useState(false)
+  const [historyCollapsed, setHistoryCollapsed] = useState(defaultSearchCollapsed)
+  const [searchCollapsed, setSearchCollapsed] = useState(defaultSearchCollapsed)
   const [additionNotice, setAdditionNotice] = useState('')
 
   useEffect(() => {
@@ -780,6 +789,7 @@ export default function ClinicMasterPanel({
       setSelectedIds([])
       setAllCollapsed(false)
       setGuidesExpanded(true)
+      setSearchCollapsed(false)
     } catch (e: any) {
       console.error('[ClinicMaster create exception]', e)
       setError(e.message || '临床决策查询失败')
@@ -809,6 +819,7 @@ export default function ClinicMasterPanel({
       saveHistoryItem(data)
       setAllCollapsed(false)
       setGuidesExpanded(true)
+      setSearchCollapsed(false)
       if (data.status === 'empty' && data.materials.length === 0) {
         setError('临床决策暂未返回可用资料，可稍后再获取')
       } else if (data.status === 'failed') {
@@ -850,6 +861,7 @@ export default function ClinicMasterPanel({
     setAdditionNotice('')
     setAllCollapsed(false)
     setGuidesExpanded(true)
+    setSearchCollapsed(false)
   }
 
   const addReferenceDocs = () => {
@@ -888,8 +900,47 @@ export default function ClinicMasterPanel({
   }
 
   return (
-    <div className="clinic-master-panel">
-      <div className={`clinic-master-layout${history.length > 0 ? ' has-history' : ''}${historyCollapsed ? ' history-collapsed' : ''}`}>
+    <div className={`clinic-master-panel${collapsibleSearch ? ' compact-query' : ''}`}>
+      {collapsibleSearch && searchCollapsed ? (
+        <div className="clinic-master-dock">
+          <span className="material-symbols-outlined clinic-master-dock-icon">travel_explore</span>
+          <div className="clinic-master-dock-main">
+            <div className="clinic-master-dock-title">{collapsedTitle}</div>
+            <div className="clinic-master-dock-description">{collapsedDescription}</div>
+          </div>
+          {history.length > 0 && <span className="clinic-master-dock-history">历史 {history.length}</span>}
+          <button
+            type="button"
+            className="clinic-master-dock-action"
+            aria-expanded={false}
+            aria-label={`展开${collapsedTitle}`}
+            onClick={() => {
+              setSearchCollapsed(false)
+              setHistoryCollapsed(true)
+            }}
+          >
+            <span className="material-symbols-outlined">expand_more</span>
+            <span className="clinic-master-dock-action-text">展开查询</span>
+          </button>
+        </div>
+      ) : (
+        <>
+          {collapsibleSearch && (
+            <div className="clinic-master-expanded-head">
+              <span className="clinic-master-expanded-title">{collapsedTitle}</span>
+              <button
+                type="button"
+                className="clinic-master-collapse-query"
+                aria-expanded={true}
+                aria-label={`收起${collapsedTitle}`}
+                onClick={() => setSearchCollapsed(true)}
+              >
+                <span className="material-symbols-outlined">expand_less</span>
+                收起查询
+              </button>
+            </div>
+          )}
+          <div className={`clinic-master-layout${history.length > 0 ? ' has-history' : ''}${historyCollapsed ? ' history-collapsed' : ''}`}>
         <div className="clinic-master-main">
           <div className="clinic-master-search">
             <span className="material-symbols-outlined">search</span>
@@ -1105,6 +1156,8 @@ export default function ClinicMasterPanel({
           </aside>
         )}
       </div>
+      </>
+      )}
     </div>
   )
 }

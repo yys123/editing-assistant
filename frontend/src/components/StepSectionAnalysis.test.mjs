@@ -39,6 +39,17 @@ try {
   assert.equal(payload.priority_reference_texts.length, 1)
   assert.match(payload.priority_reference_texts[0], /重点指南/)
 
+  const source = await import('node:fs/promises').then(fs => fs.readFile('src/components/StepSectionAnalysis.tsx', 'utf8'))
+  assert.match(source, /chunkSearchBaselinesByGroup/)
+  assert.match(source, /beginQualityReviewChunkSearch/)
+  assert.match(source, /discardQualityReviewChunkSearch/)
+  assert.match(source, /confirmQualityReviewChunkSearch/)
+  assert.match(source, /onSearchStart=\{\(\) => beginQualityReviewChunkSearch\(group\.representative\.id\)\}/)
+  assert.match(source, /exitLabel="退出"/)
+  assert.match(source, /confirmLabel="确认切片"/)
+  assert.match(source, /onExit=\{\(\) => discardQualityReviewChunkSearch\(group\.representative\.id\)\}/)
+  assert.match(source, /onConfirm=\{\(\) => confirmQualityReviewChunkSearch\(group\.representative\.id\)\}/)
+
   console.log('StepSectionAnalysis tests passed')
 } finally {
   await rm(join(process.cwd(), '.tmp-tests'), { recursive: true, force: true })

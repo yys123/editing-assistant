@@ -28,6 +28,10 @@ interface Props {
   showRecommendedGuides?: boolean
   confirmedChunkSourceIdBase?: number
   onConfirmReferenceChunks?: (chunks: ConfirmedReferenceChunk[]) => void
+  collapsibleSearch?: boolean
+  defaultSearchCollapsed?: boolean
+  collapsedTitle?: string
+  collapsedDescription?: string
 }
 
 export function buildReferenceDocAddition(current: ReferenceDoc[], additions: ReferenceDoc[]): ReferenceDocAdditionResult {
@@ -63,6 +67,10 @@ export default function StepGuideLookup({
   showRecommendedGuides = true,
   confirmedChunkSourceIdBase = 1,
   onConfirmReferenceChunks,
+  collapsibleSearch = false,
+  defaultSearchCollapsed = false,
+  collapsedTitle,
+  collapsedDescription,
 }: Props) {
   const [viewingReference, setViewingReference] = useState<{ doc: ReferenceDoc; index: number } | null>(null)
 
@@ -114,6 +122,10 @@ export default function StepGuideLookup({
             showRecommendedGuides={showRecommendedGuides}
             confirmedChunkSourceIdBase={confirmedChunkSourceIdBase}
             onConfirmReferenceChunks={onConfirmReferenceChunks}
+            collapsibleSearch={collapsibleSearch}
+            defaultSearchCollapsed={defaultSearchCollapsed}
+            collapsedTitle={collapsedTitle}
+            collapsedDescription={collapsedDescription}
           />
         </div>
 

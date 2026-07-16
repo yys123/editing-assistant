@@ -258,6 +258,7 @@ export default function StepSectionAnalysis({
   const [fullscreenGroupId, setFullscreenGroupId] = useState<string | null>(null)
   const [reviewFontSize, setReviewFontSize] = useState<ReviewFullscreenFontSize>(DEFAULT_REVIEW_FULLSCREEN_FONT_SIZE)
   const [confirmedChunksByGroup, setConfirmedChunksByGroup] = useState<Record<string, ConfirmedReferenceChunk[]>>({})
+  const [chunkSearchBaselinesByGroup, setChunkSearchBaselinesByGroup] = useState<Record<string, ConfirmedReferenceChunk[]>>({})
   const sourceLineRefs = React.useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
@@ -392,6 +393,36 @@ export default function StepSectionAnalysis({
       const names = Array.from(current)
       if (names.length === 0) delete next[groupId]
       else next[groupId] = names
+      return next
+    })
+  }
+  const setQualityReviewChunksForGroup = (groupId: string, chunks: ConfirmedReferenceChunk[]) => {
+    setConfirmedChunksByGroup(prev => {
+      const next = { ...prev }
+      if (chunks.length === 0) delete next[groupId]
+      else next[groupId] = chunks
+      return next
+    })
+  }
+  const beginQualityReviewChunkSearch = (groupId: string) => {
+    const baseline = confirmedChunksByGroup[groupId] ?? []
+    setChunkSearchBaselinesByGroup(prev => ({
+      ...prev,
+      [groupId]: [...baseline],
+    }))
+  }
+  const confirmQualityReviewChunkSearch = (groupId: string) => {
+    setChunkSearchBaselinesByGroup(prev => {
+      const next = { ...prev }
+      delete next[groupId]
+      return next
+    })
+  }
+  const discardQualityReviewChunkSearch = (groupId: string) => {
+    setQualityReviewChunksForGroup(groupId, chunkSearchBaselinesByGroup[groupId] ?? [])
+    setChunkSearchBaselinesByGroup(prev => {
+      const next = { ...prev }
+      delete next[groupId]
       return next
     })
   }
@@ -884,10 +915,12 @@ export default function StepSectionAnalysis({
                     selectedReferenceNames={selectedRefNames}
                     priorityReferenceNames={priorityRefNames}
                     value={confirmedChunksByGroup[group.representative.id] ?? []}
-                    onChange={chunks => setConfirmedChunksByGroup(prev => ({
-                      ...prev,
-                      [group.representative.id]: chunks,
-                    }))}
+                    onChange={chunks => setQualityReviewChunksForGroup(group.representative.id, chunks)}
+                    onSearchStart={() => beginQualityReviewChunkSearch(group.representative.id)}
+                    exitLabel="退出"
+                    confirmLabel="确认切片"
+                    onExit={() => discardQualityReviewChunkSearch(group.representative.id)}
+                    onConfirm={() => confirmQualityReviewChunkSearch(group.representative.id)}
                     compact
                   />
                 )}

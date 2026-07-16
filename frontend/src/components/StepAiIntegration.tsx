@@ -671,32 +671,28 @@ export default function StepAiIntegration({
           </button>
         </div>
         {effectiveReferenceDocs.length > 0 && (
-          <div style={{
-            marginTop: 10,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            flexWrap: 'wrap',
-            color: 'var(--m3-on-surface-variant)',
-            fontSize: 12,
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16, color: usingConfirmedReferenceChunks ? 'var(--m3-primary)' : 'var(--gray-500)' }}>
-              {usingConfirmedReferenceChunks ? 'fact_check' : 'database'}
-            </span>
-            <span>
-              {usingConfirmedReferenceChunks
-                ? `当前已选择切片：${guidelineReferenceChunks.length} 个`
-                : `当前没选择切片：使用选中的所有数据源（${selectedRefs.length} 个）`}
+          <div className="ai-reference-scope-strip">
+            <span className={`ai-reference-scope-status ${usingConfirmedReferenceChunks ? 'active' : ''}`}>
+              <span className="material-symbols-outlined ai-reference-scope-mark">
+                {usingConfirmedReferenceChunks ? 'fact_check' : 'database'}
+              </span>
+              <span className="ai-reference-scope-copy">
+                <strong>{usingConfirmedReferenceChunks ? '当前已选择切片' : '当前没选择切片'}</strong>
+                <span>
+                  {usingConfirmedReferenceChunks
+                    ? `${guidelineReferenceChunks.length} 个切片将用于 AI 整合`
+                    : `使用选中的所有数据源（${selectedRefs.length} 个）`}
+                </span>
+              </span>
             </span>
             <button
               type="button"
-              className="btn-m3-outline"
+              className="ai-reference-scope-toggle"
               onClick={toggleConfirmedReferenceMode}
               disabled={!usingConfirmedReferenceChunks && guidelineReferenceChunks.length === 0}
-              style={{ height: 28, padding: '0 10px', fontSize: 12 }}
               title={guidelineReferenceChunks.length > 0 ? '切换 AI 整合使用的参考范围' : '请先筛选并确认切片'}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
+              <span className="material-symbols-outlined">
                 {usingConfirmedReferenceChunks ? 'toggle_off' : 'toggle_on'}
               </span>
               {usingConfirmedReferenceChunks ? '不选择切片' : '选择已确认切片'}
@@ -951,6 +947,10 @@ export default function StepAiIntegration({
           listTitle="本次候选资料"
           listEmptyText="暂无本次候选资料"
           showHeader={false}
+          collapsibleSearch
+          defaultSearchCollapsed
+          collapsedTitle="查询临床决策资料"
+          collapsedDescription="需要补充数据源时展开，历史结果默认收起。"
         />
 
         {effectiveReferenceDocs.length === 0 ? (

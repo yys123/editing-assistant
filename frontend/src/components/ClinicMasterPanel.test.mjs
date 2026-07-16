@@ -199,6 +199,22 @@ try {
   assert.equal(shouldShowClinicMasterGuidesWhenCollapsed(true, 0), false)
   assert.equal(clinicMasterCollapseAllLabel(false), '收回')
   assert.equal(clinicMasterCollapseAllLabel(true), '展开内容')
+  const collapsibleSource = await readFile('src/components/ClinicMasterPanel.tsx', 'utf-8')
+  const collapsibleCss = await readFile('src/index.css', 'utf-8')
+  assert.match(collapsibleSource, /collapsibleSearch\?: boolean/)
+  assert.match(collapsibleSource, /defaultSearchCollapsed\?: boolean/)
+  assert.match(collapsibleSource, /collapsedTitle\?: string/)
+  assert.match(collapsibleSource, /searchCollapsed/)
+  assert.match(collapsibleSource, /clinic-master-dock/)
+  assert.match(collapsibleSource, /clinic-master-dock-action-text/)
+  assert.match(collapsibleSource, /展开查询/)
+  assert.match(collapsibleSource, /收起查询/)
+  assert.match(collapsibleCss, /\.clinic-master-dock/)
+  assert.match(collapsibleCss, /\.clinic-master-dock-action/)
+  assert.match(collapsibleCss, /\.clinic-master-panel\.compact-query\s*\{[\s\S]*border-color:/)
+  assert.match(collapsibleCss, /\.clinic-master-dock\s*\{[\s\S]*padding:/)
+  assert.match(collapsibleCss, /\.clinic-master-dock-action\s*\{[\s\S]*min-height:\s*40px/)
+  assert.match(collapsibleCss, /@media \(max-width: 720px\)[\s\S]*\.clinic-master-dock-action/)
   assert.equal(
     getClinicMasterReferenceChunkId({
       id: 'detail-1',

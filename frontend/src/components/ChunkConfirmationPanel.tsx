@@ -19,6 +19,7 @@ interface Props {
   exitLabel?: string
   onConfirm?: () => void
   onExit?: () => void
+  onSearchStart?: () => void
 }
 
 interface ChunkSourceGroup {
@@ -116,6 +117,7 @@ export default function ChunkConfirmationPanel({
   exitLabel = '退出',
   onConfirm,
   onExit,
+  onSearchStart,
 }: Props) {
   const [candidates, setCandidates] = useState<ReferenceChunkCandidate[]>([])
   const [loading, setLoading] = useState(false)
@@ -143,6 +145,7 @@ export default function ChunkConfirmationPanel({
       setError('请先选择参考文献')
       return
     }
+    onSearchStart?.()
     setLoading(true)
     setError('')
     try {
