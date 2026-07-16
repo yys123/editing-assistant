@@ -16,7 +16,7 @@ MODULE_RULES = [
     {
         "name": "基础知识模块",
         "triggers": ["基础知识", "概述", "定义", "流行病学", "分类", "分型", "发病机制", "病因", "危险因素", "病理生理", "definition", "epidemiology", "classification", "etiology", "pathophysiology"],
-        "keywords": ["定义", "流行病学", "分类与分型", "分类", "分型", "发病机制", "病因", "危险因素", "病理生理", "definition", "overview", "epidemiology", "classification", "etiology", "risk factor", "pathophysiology"],
+        "keywords": ["摘要", "概述", "引言", "背景", "定义", "流行病学", "分类与分型", "分类", "分型", "发病机制", "病因", "危险因素", "病理生理", "abstract", "overview", "introduction", "background", "definition", "epidemiology", "classification", "etiology", "aetiology", "pathogenesis", "risk factor", "pathophysiology"],
         "exclude_titles": ["临床表现", "辅助检查", "诊断", "鉴别诊断", "鉴别", "治疗", "手术", "术式", "术前", "术中", "术后", "并发症", "处理", "护理", "康复", "预防", "筛查", "预后", "随访", "分期", "clinical manifestation", "symptom", "sign", "examination", "diagnosis", "diagnostic", "differential diagnosis", "treatment", "therapy", "management", "surgery", "surgical", "operative", "preoperative", "postoperative", "complication", "prevention", "screening", "prognosis", "follow-up", "staging"],
     },
     {

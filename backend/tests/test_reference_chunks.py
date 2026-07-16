@@ -98,6 +98,28 @@ class ReferenceChunkSearchTests(unittest.TestCase):
         self.assertEqual([chunk.chunk_id for chunk in chunks], ["R1-C001", "R2-C001"])
         self.assertTrue(all(chunk.reason == "无关键词命中，按来源顺序兜底展示" for chunk in chunks))
 
+    def test_scoring_uses_local_heading_for_preferred_title_hits(self):
+        chunks = search_reference_chunks(
+            [
+                ReferenceInput(
+                    id=1,
+                    filename="concealed-penis-review.md",
+                    text="\n\n".join([
+                        "# Concealed penis classification review",
+                        "## Discussion",
+                        "Concealed penis overview text mentions the disease without a module heading.",
+                    ]),
+                )
+            ],
+            query="concealed penis",
+            preferred_title_terms=["classification"],
+            limit=1,
+        )
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].title_path, "Concealed penis classification review / Discussion")
+        self.assertNotIn("classification", chunks[0].reason.lower())
+
     def test_markdown_headings_create_section_chunks_without_sibling_title_leakage(self):
         chunks = list_reference_chunks([
             ReferenceInput(
@@ -209,6 +231,87 @@ class ReferenceChunkApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [chunk["title_path"] for chunk in result["chunks"]],
             ["一、定义与流行病学", "二、病因及发病机制"],
+        )
+
+    async def test_quality_review_basic_knowledge_covers_all_module_headings(self):
+        result = await search_reference_chunk_candidates(
+            ReferenceChunkSearchRequest(
+                task_type="quality_review",
+                disease="隐匿性阴茎",
+                query="基础知识\n需要完整核查基础知识是否覆盖充分。",
+                reference_inputs=[
+                    ReferenceInput(
+                        id=1,
+                        filename="隐匿性阴茎综述.md",
+                        text="\n\n".join([
+                            "## 概述",
+                            "隐匿性阴茎概述内容。",
+                            "## 引言",
+                            "引言中说明疾病背景和术语使用。",
+                            "## 分类与分型",
+                            "可按显露程度和解剖层次分类。",
+                            "## 发病机制",
+                            "发病机制包括肉膜筋膜发育异常。",
+                            "## 流行病学",
+                            "流行病学资料显示儿童中并不少见。",
+                            "## 病理生理",
+                            "病理生理涉及阴茎皮肤固定不足。",
+                            "## 病因",
+                            "病因包括先天发育和肥胖相关因素。",
+                            "## 危险因素",
+                            "危险因素包括肥胖和包皮异常。",
+                            "## 治疗",
+                            "治疗内容应留给治疗模块。",
+                        ]),
+                    )
+                ],
+                limit=20,
+            )
+        )
+
+        self.assertEqual(
+            [chunk["title_path"] for chunk in result["chunks"]],
+            ["概述", "引言", "分类与分型", "发病机制", "流行病学", "病理生理", "病因", "危险因素"],
+        )
+
+    async def test_quality_review_basic_knowledge_ignores_excluded_terms_in_article_title(self):
+        result = await search_reference_chunk_candidates(
+            ReferenceChunkSearchRequest(
+                task_type="quality_review",
+                disease="隐匿性阴茎",
+                query="基础知识\n需要完整核查基础知识是否覆盖充分。",
+                reference_inputs=[
+                    ReferenceInput(
+                        id=1,
+                        filename="concealed-penis-surgical-review.md",
+                        text="\n\n".join([
+                            "# Concealed penis: A review of classification and surgical reconstruction techniques",
+                            "Front matter should not force all child sections into treatment.",
+                            "## ABSTRACT",
+                            "Concealed penis is a pediatric condition with multiple causes.",
+                            "## 1 INTRODUCTION",
+                            "Introduction summarizes the disease background.",
+                            "## 2 CLASSIFICATION",
+                            "Classification covers multilevel concealed penis types.",
+                            "## 3 AETIOLOGY AND PATHOGENESIS",
+                            "Aetiology and pathogenesis include congenital and acquired factors.",
+                            "## 5 TREATMENT",
+                            "Treatment content should stay out of basic knowledge.",
+                        ]),
+                    )
+                ],
+                limit=20,
+            )
+        )
+
+        self.assertEqual(
+            [chunk["title_path"] for chunk in result["chunks"]],
+            [
+                "Concealed penis: A review of classification and surgical reconstruction techniques / ABSTRACT",
+                "Concealed penis: A review of classification and surgical reconstruction techniques / 1 INTRODUCTION",
+                "Concealed penis: A review of classification and surgical reconstruction techniques / 2 CLASSIFICATION",
+                "Concealed penis: A review of classification and surgical reconstruction techniques / 3 AETIOLOGY AND PATHOGENESIS",
+            ],
         )
 
     async def test_quality_review_search_uses_module_rule_expanded_query(self):

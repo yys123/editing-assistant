@@ -21,7 +21,13 @@ await esbuild.build({
 })
 
 try {
-  const { default: ChunkConfirmationPanel, chunkDisplayTitle, groupChunksBySource } = await import(pathToFileURL(outfile).href)
+  const {
+    default: ChunkConfirmationPanel,
+    chunkDisplayTitle,
+    groupChunksBySource,
+    recommendedChunkAutoConfirmLimit,
+    recommendedChunkSearchLimit,
+  } = await import(pathToFileURL(outfile).href)
 
   assert.equal(chunkDisplayTitle({
     chunk_id: 'R2-C001',
@@ -97,6 +103,11 @@ try {
   assert.deepEqual(grouped[0].chunks.map(chunk => chunk.chunk_id), ['R1-C001', 'R1-C002'])
   assert.equal(grouped[1].sourceId, 2)
   assert.deepEqual(grouped[1].chunks.map(chunk => chunk.chunk_id), ['R2-C001'])
+
+  assert.equal(recommendedChunkSearchLimit('quality_review', true), 40)
+  assert.equal(recommendedChunkAutoConfirmLimit('quality_review', true), 40)
+  assert.equal(recommendedChunkSearchLimit('ai_integration', false), 24)
+  assert.equal(recommendedChunkAutoConfirmLimit('ai_integration', false), 8)
 
   const html = renderToStaticMarkup(React.createElement(ChunkConfirmationPanel, {
     taskType: 'quality_review',

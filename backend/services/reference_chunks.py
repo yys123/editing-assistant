@@ -295,6 +295,40 @@ def _matching_terms(text: str, terms: Iterable[str]) -> list[str]:
     return [term for term in terms if term and str(term).lower() in lowered]
 
 
+def _local_title(title_path: str) -> str:
+    parts = [
+        part.strip()
+        for part in re.split(r"[/|]", title_path or "")
+        if part.strip()
+    ]
+    return parts[-1] if parts else ""
+
+
+def _allowed_title_match_chunks(
+    chunks: list[ReferenceChunkCandidate],
+    preferred_terms: Iterable[str],
+    excluded_terms: Iterable[str],
+) -> list[ReferenceChunkCandidate]:
+    preferred = list(preferred_terms or [])
+    excluded = list(excluded_terms or [])
+    if not preferred:
+        return []
+
+    matched: list[ReferenceChunkCandidate] = []
+    for chunk in chunks:
+        local_title = _local_title(chunk.title_path)
+        title_hits = _matching_terms(local_title, preferred)
+        if not title_hits:
+            continue
+        if excluded and _contains_any(local_title, excluded):
+            continue
+        if chunk.score <= 0:
+            chunk.score = 4.0 + len(title_hits)
+            chunk.reason = "命中标题：" + "、".join(_dedupe_hits(title_hits)[:8])
+        matched.append(chunk)
+    return matched
+
+
 def _score(
     query_tokens: set[str],
     chunk: ReferenceChunkCandidate,
@@ -307,7 +341,7 @@ def _score(
     if not hits:
         return 0.0, []
     score = float(len(hits))
-    title_hits = _matching_terms(chunk.title_path, preferred_title_terms)
+    title_hits = _matching_terms(_local_title(chunk.title_path), preferred_title_terms)
     if title_hits:
         score += 4.0 + len(title_hits)
         hits = [*title_hits, *hits]
@@ -357,19 +391,20 @@ def search_reference_chunks(
         if excluded_terms:
             filtered = [
                 chunk for chunk in scored
-                if not _contains_any(chunk.title_path, excluded_terms)
+                if not _contains_any(_local_title(chunk.title_path), excluded_terms)
             ]
             if filtered:
                 scored = filtered
         if preferred_terms:
-            title_matched = [
-                chunk for chunk in scored
-                if _contains_any(chunk.title_path, preferred_terms)
-            ]
+            title_matched = _allowed_title_match_chunks(chunks, preferred_terms, excluded_terms)
             if title_matched:
-                scored = title_matched
+                return title_matched[:limit]
         scored.sort(key=lambda item: (-item.score, item.source_id, item.paragraph_index, item.chunk_id))
         return scored[:limit]
+
+    title_matched = _allowed_title_match_chunks(chunks, preferred_terms, excluded_terms)
+    if title_matched:
+        return title_matched[:limit]
 
     fallback: list[ReferenceChunkCandidate] = []
     remaining = chunks[:]

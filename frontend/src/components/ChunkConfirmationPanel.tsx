@@ -20,6 +20,16 @@ interface ChunkSourceGroup {
   chunks: ReferenceChunkCandidate[]
 }
 
+export function recommendedChunkSearchLimit(taskType: Props['taskType'], compact = false): number {
+  if (taskType === 'quality_review') return compact ? 40 : 60
+  return compact ? 12 : 24
+}
+
+export function recommendedChunkAutoConfirmLimit(taskType: Props['taskType'], compact = false): number {
+  if (taskType === 'quality_review') return compact ? 40 : 60
+  return compact ? 5 : 8
+}
+
 function toConfirmed(chunk: ReferenceChunkCandidate): ConfirmedReferenceChunk {
   return {
     chunk_id: chunk.chunk_id,
@@ -138,7 +148,7 @@ export default function ChunkConfirmationPanel({
       const [recommendedData, allData] = await Promise.all([
         searchReferenceChunks({
           ...baseRequest,
-          limit: compact ? 12 : 24,
+          limit: recommendedChunkSearchLimit(taskType, compact),
         }),
         searchReferenceChunks({
           ...baseRequest,
@@ -152,7 +162,7 @@ export default function ChunkConfirmationPanel({
       setCandidates(mergedChunks)
       setActiveChunkKey(mergedChunks[0] ? chunkKey(mergedChunks[0]) : '')
       setFullscreen(true)
-      onChange(recommendedData.chunks.slice(0, compact ? 5 : 8).map(toConfirmed))
+      onChange(recommendedData.chunks.slice(0, recommendedChunkAutoConfirmLimit(taskType, compact)).map(toConfirmed))
     } catch (e: any) {
       setError(e.message || '指南切片检索失败')
     } finally {
