@@ -16,7 +16,9 @@ interface Props {
   triggerLabel?: string
   fullscreenTitle?: string
   confirmLabel?: string
+  exitLabel?: string
   onConfirm?: () => void
+  onExit?: () => void
 }
 
 interface ChunkSourceGroup {
@@ -111,7 +113,9 @@ export default function ChunkConfirmationPanel({
   triggerLabel = '筛选切片',
   fullscreenTitle = '筛选指南切片',
   confirmLabel = '退出全屏',
+  exitLabel = '退出',
   onConfirm,
+  onExit,
 }: Props) {
   const [candidates, setCandidates] = useState<ReferenceChunkCandidate[]>([])
   const [loading, setLoading] = useState(false)
@@ -310,6 +314,18 @@ export default function ChunkConfirmationPanel({
               </div>
               <div className="chunk-confirm-actions">
                 <button type="button" className="btn btn-sm" onClick={() => onChange([])}>清空</button>
+                {onExit && (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => {
+                      setFullscreen(false)
+                      onExit?.()
+                    }}
+                  >
+                    {exitLabel}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn btn-sm btn-primary"

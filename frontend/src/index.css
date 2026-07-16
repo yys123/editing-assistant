@@ -504,7 +504,13 @@ body {
   cursor: pointer; transition: background 0.15s, color 0.15s;
   font-family: inherit;
 }
-.btn-m3-outline:hover { background: var(--dui-primary-container); color: var(--dui-primary); }
+.btn-m3-outline:hover:not(:disabled) { background: var(--dui-primary-container); color: var(--dui-primary); }
+.btn-m3-outline:disabled {
+  background: var(--m3-surface-container);
+  color: var(--gray-400);
+  cursor: not-allowed;
+  opacity: 0.68;
+}
 
 /* Icon button — circular, transparent until hover */
 .btn-m3-icon {

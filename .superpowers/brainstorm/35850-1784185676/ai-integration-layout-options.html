@@ -1,0 +1,309 @@
+<style>
+  .ea-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+    align-items: start;
+  }
+  .ea-option {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card);
+    color: var(--card-foreground);
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .ea-option.is-selected {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+  }
+  .ea-option-head {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ea-letter {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-weight: 500;
+  }
+  .ea-title {
+    font-weight: 500;
+  }
+  .ea-note {
+    color: var(--muted-foreground);
+    font-size: 12px;
+  }
+  .ea-canvas {
+    padding: 16px;
+    background: var(--muted);
+  }
+  .ea-panel {
+    border-radius: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 14px;
+  }
+  .ea-textarea {
+    height: 54px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--background);
+    display: flex;
+    align-items: center;
+    color: var(--muted-foreground);
+    padding: 0 14px;
+  }
+  .ea-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .ea-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--primary) 10%, var(--card));
+    color: var(--foreground);
+    border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
+    padding: 0 12px;
+    font-size: 12px;
+  }
+  .ea-status strong {
+    font-weight: 500;
+    color: var(--primary);
+  }
+  .ea-pill-button {
+    min-height: 34px;
+    border-radius: 999px;
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    background: var(--card);
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .ea-send {
+    margin-left: auto;
+    min-height: 40px;
+    border-radius: 999px;
+    border: 0;
+    padding: 0 18px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-weight: 500;
+  }
+  .ea-ref-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 0 12px;
+  }
+  .ea-ref-head strong {
+    font-weight: 500;
+  }
+  .ea-ref-head span {
+    color: var(--muted-foreground);
+    font-size: 12px;
+  }
+  .ea-ref-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+  }
+  .ea-ghost {
+    border: 0;
+    border-radius: 999px;
+    min-height: 30px;
+    padding: 0 12px;
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+  }
+  .ea-decision-dock {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 14px;
+    border-radius: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+  }
+  .ea-dock-main {
+    flex: 1;
+    min-width: 0;
+  }
+  .ea-dock-title {
+    font-weight: 500;
+  }
+  .ea-dock-sub {
+    color: var(--muted-foreground);
+    font-size: 12px;
+  }
+  .ea-primary {
+    min-height: 34px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    padding: 0 14px;
+    white-space: nowrap;
+  }
+  .ea-expanded {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 150px;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .ea-search {
+    height: 42px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--background);
+    color: var(--muted-foreground);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+  }
+  .ea-history {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card);
+    padding: 9px 10px;
+    color: var(--muted-foreground);
+    font-size: 12px;
+  }
+  .ea-history div:first-child {
+    color: var(--foreground);
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .ea-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .ea-item {
+    height: 38px;
+    border-radius: 9px;
+    background: var(--background);
+    border: 1px solid var(--border);
+  }
+  @media (max-width: 640px) {
+    .ea-expanded,
+    .ea-list {
+      grid-template-columns: 1fr;
+    }
+    .ea-send,
+    .ea-ref-actions {
+      margin-left: 0;
+    }
+  }
+</style>
+
+<h2>AI整合局部构图</h2>
+<p class="subtitle">点击你更喜欢的方案。A 是推荐方案：默认更清爽，查询临床决策按需展开。</p>
+
+<div class="ea-options">
+  <div class="ea-option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="ea-option-head">
+      <div class="ea-letter">A</div>
+      <div>
+        <div class="ea-title">推荐：默认折叠查询条</div>
+        <div class="ea-note">把临床决策查询收成一条工具栏，点击后展开。</div>
+      </div>
+    </div>
+    <div class="ea-canvas">
+      <div class="ea-panel">
+        <div class="ea-textarea">输入问题或要求</div>
+        <div class="ea-row" style="margin-top: 10px;">
+          <span class="ea-status"><span>已选切片</span><strong>8 个</strong></span>
+          <button class="ea-pill-button" type="button"><i data-lucide="toggle-left" aria-hidden="true"></i>不选择切片</button>
+          <button class="ea-send" type="button">发送</button>
+        </div>
+      </div>
+      <div class="ea-panel" style="margin-top: 12px;">
+        <div class="ea-ref-head">
+          <strong>参考文献</strong>
+          <span>已选 4 / 4，重点指南 0</span>
+          <div class="ea-ref-actions">
+            <button class="ea-ghost" type="button">全选</button>
+            <button class="ea-ghost" type="button">清空</button>
+          </div>
+        </div>
+        <div class="ea-decision-dock">
+          <i data-lucide="search" aria-hidden="true"></i>
+          <div class="ea-dock-main">
+            <div class="ea-dock-title">查询临床决策资料</div>
+            <div class="ea-dock-sub">需要补充数据源时展开，历史结果默认收起。</div>
+          </div>
+          <button class="ea-ghost" type="button">历史 5</button>
+          <button class="ea-primary" type="button">展开查询</button>
+        </div>
+        <div class="ea-list">
+          <div class="ea-item"></div>
+          <div class="ea-item"></div>
+          <div class="ea-item"></div>
+          <div class="ea-item"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ea-option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="ea-option-head">
+      <div class="ea-letter">B</div>
+      <div>
+        <div class="ea-title">备选：紧凑展开卡片</div>
+        <div class="ea-note">查询区仍展开，但只占一行，历史变成右侧小块。</div>
+      </div>
+    </div>
+    <div class="ea-canvas">
+      <div class="ea-panel">
+        <div class="ea-textarea">输入问题或要求</div>
+        <div class="ea-row" style="margin-top: 10px;">
+          <span class="ea-status"><span>已选切片</span><strong>8 个</strong></span>
+          <button class="ea-pill-button" type="button"><i data-lucide="toggle-left" aria-hidden="true"></i>不选择切片</button>
+          <button class="ea-send" type="button">发送</button>
+        </div>
+      </div>
+      <div class="ea-panel" style="margin-top: 12px;">
+        <div class="ea-ref-head">
+          <strong>参考文献</strong>
+          <span>已选 4 / 4，重点指南 0</span>
+          <div class="ea-ref-actions">
+            <button class="ea-ghost" type="button">全选</button>
+            <button class="ea-ghost" type="button">清空</button>
+          </div>
+        </div>
+        <div class="ea-expanded">
+          <div class="ea-search">输入本次 AI 整合需要补充判断的临床问题</div>
+          <div class="ea-history">
+            <div>历史结果 · 5</div>
+            <span>点击展开列表</span>
+          </div>
+        </div>
+        <div class="ea-list">
+          <div class="ea-item"></div>
+          <div class="ea-item"></div>
+          <div class="ea-item"></div>
+          <div class="ea-item"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
