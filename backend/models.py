@@ -351,6 +351,22 @@ class PriorityGuidelineUsage(BaseModel):
     warnings: List[str] = []
 
 
+class CitationVerificationItem(BaseModel):
+    citation_key: str
+    anchor_key: str = ""
+    sentence: str = ""
+    source_label: str = ""
+    quote: str = ""
+    status: str = "unverified"
+    reason: str = ""
+
+
+class CitationVerificationResult(BaseModel):
+    status: str = "not_run"
+    items: List[CitationVerificationItem] = []
+    warnings: List[str] = []
+
+
 class AiIntegrationResponse(BaseModel):
     answer: str
     revision_text: str = ""
@@ -358,3 +374,4 @@ class AiIntegrationResponse(BaseModel):
     references_used: List[str] = []
     reference_anchors: List[ReferenceAnchor] = []
     priority_guideline_usage: Optional[PriorityGuidelineUsage] = None
+    citation_verification: Optional[CitationVerificationResult] = None
