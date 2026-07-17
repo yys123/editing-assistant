@@ -6,7 +6,10 @@ from models import (
     AiIntegrationResponse,
     ReferenceAnchor,
 )
-from services.citation_verification import build_citation_verification_inputs
+from services.citation_verification import (
+    build_citation_verification_inputs,
+    verify_ai_integration_citations,
+)
 
 
 class CitationVerificationModelTests(unittest.TestCase):
@@ -160,3 +163,170 @@ class CitationVerificationExtractionTests(unittest.TestCase):
         self.assertEqual(len(result.items), 2)
         self.assertEqual(len(result.ai_inputs), 2)
         self.assertNotEqual(result.ai_inputs[0].input_id, result.ai_inputs[1].input_id)
+
+
+class CitationVerificationServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_verify_supported_items_returns_passed(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            self.assertEqual(context, "ai_integration_citation_verification")
+            self.assertIn('"citation_key": "1-3"', prompt)
+            return '{"items":[{"input_id":"v1","citation_key":"1-3","anchor_key":"1-3","status":"supported","reason":"原文直接支持。"}]}'
+
+        anchors = [
+            ReferenceAnchor(
+                citation_key="1-3",
+                source_id=1,
+                source_filename="指南.pdf",
+                source_ref_id="3",
+                quote="第16周后复查内镜[3]。",
+                context_before="",
+                context_after="",
+                paragraph_index=0,
+            )
+        ]
+
+        result = await verify_ai_integration_citations(
+            "第16周后复查内镜[1-3]。",
+            anchors,
+            text_generator=fake_generate_text,
+        )
+
+        self.assertEqual(result.status, "passed")
+        self.assertEqual(result.items[0].status, "supported")
+        self.assertEqual(result.items[0].reason, "原文直接支持。")
+
+    async def test_verify_review_items_returns_needs_review(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            return '{"items":[{"input_id":"v1","citation_key":"1-3","anchor_key":"1-3","status":"mismatch","reason":"引用说复查，句子说用药。"}]}'
+
+        anchors = [
+            ReferenceAnchor(
+                citation_key="1-3",
+                source_id=1,
+                source_filename="指南.pdf",
+                source_ref_id="3",
+                quote="第16周后复查内镜[3]。",
+                context_before="",
+                context_after="",
+                paragraph_index=0,
+            )
+        ]
+
+        result = await verify_ai_integration_citations(
+            "应立即增加免疫抑制剂剂量[1-3]。",
+            anchors,
+            text_generator=fake_generate_text,
+        )
+
+        self.assertEqual(result.status, "needs_review")
+        self.assertEqual(result.items[0].status, "mismatch")
+
+    async def test_verify_failure_does_not_raise(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            raise RuntimeError("LLM unavailable")
+
+        anchors = [
+            ReferenceAnchor(
+                citation_key="1-3",
+                source_id=1,
+                source_filename="指南.pdf",
+                source_ref_id="3",
+                quote="证据。",
+                context_before="",
+                context_after="",
+                paragraph_index=0,
+            )
+        ]
+
+        result = await verify_ai_integration_citations(
+            "结论[1-3]。",
+            anchors,
+            text_generator=fake_generate_text,
+        )
+
+        self.assertEqual(result.status, "failed")
+        self.assertTrue(result.warnings)
+
+    async def test_verify_accepts_fenced_json(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            return '```json\n{"items":[{"input_id":"v1","citation_key":"1-3","anchor_key":"1-3","status":"supported","reason":"支持。"}]}\n```'
+
+        anchors = [
+            ReferenceAnchor(
+                citation_key="1-3",
+                source_id=1,
+                source_filename="指南.pdf",
+                source_ref_id="3",
+                quote="证据。",
+                context_before="",
+                context_after="",
+                paragraph_index=0,
+            )
+        ]
+
+        result = await verify_ai_integration_citations(
+            "结论[1-3]。",
+            anchors,
+            text_generator=fake_generate_text,
+        )
+
+        self.assertEqual(result.status, "passed")
+
+    async def test_verify_invalid_json_returns_failed_result(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            return "不是 JSON"
+
+        anchors = [
+            ReferenceAnchor(
+                citation_key="1-3",
+                source_id=1,
+                source_filename="指南.pdf",
+                source_ref_id="3",
+                quote="证据。",
+                context_before="",
+                context_after="",
+                paragraph_index=0,
+            )
+        ]
+
+        result = await verify_ai_integration_citations(
+            "结论[1-3]。",
+            anchors,
+            text_generator=fake_generate_text,
+        )
+
+        self.assertEqual(result.status, "failed")
+
+    async def test_verify_repeated_same_anchor_uses_input_id_to_merge(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            self.assertIn('"input_id": "v1"', prompt)
+            self.assertIn('"input_id": "v2"', prompt)
+            return (
+                '{"items":['
+                '{"input_id":"v1","citation_key":"1-3","anchor_key":"1-3","status":"supported","reason":"第一句支持。"},'
+                '{"input_id":"v2","citation_key":"1-3","anchor_key":"1-3","status":"mismatch","reason":"第二句不支持。"}'
+                ']}'
+            )
+
+        anchors = [
+            ReferenceAnchor(
+                citation_key="1-3",
+                source_id=1,
+                source_filename="指南.pdf",
+                source_ref_id="3",
+                quote="第16周后复查内镜[3]。",
+                context_before="",
+                context_after="",
+                paragraph_index=0,
+            )
+        ]
+
+        result = await verify_ai_integration_citations(
+            "第16周后复查内镜[1-3]。另一个不同结论也引用同一证据[1-3]。",
+            anchors,
+            text_generator=fake_generate_text,
+        )
+
+        self.assertEqual(result.status, "needs_review")
+        self.assertEqual(result.items[0].reason, "第一句支持。")
+        self.assertEqual(result.items[1].reason, "第二句不支持。")
