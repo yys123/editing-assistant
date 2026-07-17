@@ -1,7 +1,10 @@
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 from models import ReferenceInput, ReferenceChunkSearchRequest, ConfirmedReferenceChunk
 from routers.generate import search_reference_chunk_candidates
+from services import guideline_chunk_usage
 from services.guideline_chunk_usage import build_guideline_chunk_query, get_guideline_chunk_search_policy, get_guideline_chunk_usage_rules
 from services.reference_chunks import list_reference_chunks, search_reference_chunks
 
@@ -16,6 +19,17 @@ class ReferenceChunkSearchTests(unittest.TestCase):
         self.assertIn("识别临床表现、辅助检查、诊断标准、诊断流程、筛查的相关切片", rules)
         self.assertIn("质量模块", rules)
         self.assertIn("识别治疗的相关切片", rules)
+
+    def test_guideline_chunk_usage_rules_raise_when_file_is_missing(self):
+        get_guideline_chunk_usage_rules.cache_clear()
+        missing_rules_path = Path("/tmp/missing-guideline-chunk-usage-rules.md")
+
+        try:
+            with patch.object(guideline_chunk_usage, "RULES_PATH", missing_rules_path):
+                with self.assertRaises(FileNotFoundError):
+                    guideline_chunk_usage.guideline_chunk_usage_prompt()
+        finally:
+            get_guideline_chunk_usage_rules.cache_clear()
 
     def test_quality_review_guideline_query_expands_by_module_rules(self):
         query = build_guideline_chunk_query(
@@ -229,6 +243,25 @@ class ReferenceChunkSearchTests(unittest.TestCase):
         ])
 
         self.assertEqual([chunk.title_path for chunk in chunks], ["总则", "总则 / 筛查", "总则 / 随访"])
+
+    def test_clinical_question_group_heading_uses_complete_question_as_local_title(self):
+        chunks = list_reference_chunks([
+            ReferenceInput(
+                id=2,
+                filename="神经源性膀胱指南.html",
+                text="\n".join([
+                    "[H1] 神经源性膀胱临床实践指南",
+                    "[H2] 临床问题及推荐意见(6~12)",
+                    "临床问题6：在神经源性膀胱的治疗中，电刺激疗法的安全性与疗效如何？",
+                    "推荐意见：神经调控及神经电刺激治疗可能改善排尿症状。",
+                ]),
+            )
+        ])
+
+        self.assertEqual(
+            chunks[0].title_path,
+            "神经源性膀胱临床实践指南 / 临床问题6：在神经源性膀胱的治疗中，电刺激疗法的安全性与疗效如何？",
+        )
 
     def test_plain_text_without_headings_uses_paragraph_chunks(self):
         chunks = list_reference_chunks([

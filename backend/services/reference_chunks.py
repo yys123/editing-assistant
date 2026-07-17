@@ -80,6 +80,8 @@ _REFERENCE_SECTION_TITLES = {
     "conflict of interest statement",
 }
 
+_CLINICAL_QUESTION_TITLE_RE = re.compile(r"(临床问题\s*\d+\s*[：:]\s*[\s\S]{1,240}?[？?])")
+
 
 @dataclass
 class ReferenceChunkCandidate:
@@ -214,6 +216,32 @@ def _extract_source_ref_ids(text: str) -> list[str]:
     return ids
 
 
+def _local_title_from_joined_path(title_path: str) -> str:
+    return (title_path or "").rpartition(" / ")[2].strip()
+
+
+def _with_local_title(title_path: str, local_title: str) -> str:
+    parent, separator, _ = (title_path or "").rpartition(" / ")
+    return f"{parent}{separator}{local_title}" if separator else local_title
+
+
+def _normalize_clinical_question_title(title: str) -> str:
+    clean = re.sub(r"\s+", " ", title or "").strip()
+    clean = re.sub(r"\s*([：:])\s*", r"\1", clean, count=1)
+    clean = re.sub(r"(?<=[\u4e00-\u9fff，。；、（）：])\s+(?=[\u4e00-\u9fff，。；、（）？])", "", clean)
+    return clean
+
+
+def _clinical_question_title_path(title_path: str, text: str) -> str:
+    if "临床问题" not in _local_title_from_joined_path(title_path):
+        return title_path
+    match = _CLINICAL_QUESTION_TITLE_RE.search(text or "")
+    if not match:
+        return title_path
+    question_title = _normalize_clinical_question_title(match.group(1))
+    return _with_local_title(title_path, question_title) if question_title else title_path
+
+
 def _make_candidate(
     ref: ReferenceInput,
     chunk_number: int,
@@ -221,14 +249,15 @@ def _make_candidate(
     text: str,
     paragraph_index: int,
 ) -> ReferenceChunkCandidate:
+    clean_text = text.strip()
     return ReferenceChunkCandidate(
         chunk_id=f"R{ref.id}-C{chunk_number:03d}",
         source_id=ref.id,
         source_filename=ref.filename,
-        title_path=title_path,
-        text=text.strip(),
+        title_path=_clinical_question_title_path(title_path, clean_text),
+        text=clean_text,
         paragraph_index=paragraph_index,
-        source_ref_ids=_extract_source_ref_ids(text),
+        source_ref_ids=_extract_source_ref_ids(clean_text),
     )
 
 

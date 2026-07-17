@@ -46,3 +46,4 @@ deploy/local-runtime/*
 .dev_pids
 *.log
 .worktrees/
+.superpowers/

@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import * as esbuild from 'esbuild'
 
 const outdir = join(process.cwd(), '.tmp-tests', `step-guide-lookup-test-${process.pid}`)
@@ -19,20 +18,16 @@ await esbuild.build({
 })
 
 try {
-  const { buildReferenceDocAddition } = await import(pathToFileURL(outfile).href)
+  const source = await readFile('src/components/StepGuideLookup.tsx', 'utf8')
 
-  const result = buildReferenceDocAddition(
-    [{ filename: 'existing.md', text: 'A', char_count: 1 }],
-    [
-      { filename: 'existing.md', text: 'A2', char_count: 2 },
-      { filename: 'new.md', text: 'B', char_count: 1 },
-      { filename: 'new.md', text: 'B2', char_count: 2 },
-    ],
-  )
-
-  assert.deepEqual(result.docs.map(doc => doc.filename), ['existing.md', 'new.md'])
-  assert.equal(result.added, 1)
-  assert.equal(result.duplicates, 2)
+  assert.match(source, /historyStorageKey="clinic-master-guide-lookup-history"/)
+  assert.doesNotMatch(source, /ReferenceDoc/)
+  assert.doesNotMatch(source, /referenceDocs/)
+  assert.doesNotMatch(source, /setReferenceDocs/)
+  assert.doesNotMatch(source, /showReferenceList/)
+  assert.doesNotMatch(source, /onAddReferenceDocs/)
+  assert.doesNotMatch(source, /addButtonLabel/)
+  assert.doesNotMatch(source, /加入参考数据源/)
 
   console.log('StepGuideLookup tests passed')
 } finally {

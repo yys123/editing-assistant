@@ -3,8 +3,8 @@ import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 import { AiIntegrationLinkedIssue, AiIntegrationRecord, ConfirmedReferenceChunk, GapAnalysis, ParsedArticle, ReferenceAnchor, ReferenceDoc, SectionAnalysis } from '../types'
 import { apiFetch, safeJson } from '../api'
+import AiIntegrationClinicMasterLookup from './AiIntegrationClinicMasterLookup'
 import ChunkConfirmationPanel from './ChunkConfirmationPanel'
-import StepGuideLookup from './StepGuideLookup'
 import {
   buildReferenceAnchorFromSourceDoc,
   buildReferenceAnchorsFromDocs,
@@ -123,7 +123,7 @@ function AiCitationPanel({
   onClose: () => void
 }) {
   return (
-    <aside className="citation-panel" aria-label="引用定位">
+    <aside className="citation-panel ai-integration-citation-panel" aria-label="引用定位">
       <div className="citation-panel-header">
         <div>
           <div className="citation-panel-title">[{anchor.citation_key}]</div>
@@ -936,21 +936,9 @@ export default function StepAiIntegration({
           )}
         </div>
 
-        <StepGuideLookup
-          disease={userRequest || disease}
+        <AiIntegrationClinicMasterLookup
           referenceDocs={effectiveReferenceDocs}
           setReferenceDocs={setReferenceDocs}
-          showRecommendedGuides={false}
-          placeholder="输入本次 AI 整合需要补充判断的临床问题"
-          addButtonLabel="加入数据源"
-          historyStorageKey="clinic-master-ai-integration-history"
-          listTitle="本次候选资料"
-          listEmptyText="暂无本次候选资料"
-          showHeader={false}
-          collapsibleSearch
-          defaultSearchCollapsed
-          collapsedTitle="查询临床决策资料"
-          collapsedDescription="需要补充数据源时展开，历史结果默认收起。"
         />
 
         {effectiveReferenceDocs.length === 0 ? (
@@ -1257,7 +1245,7 @@ export default function StepAiIntegration({
                           revisionText={recordRevisionText}
                         />
                       ) : (
-                        <div className={`draft-preview-shell${activeCitation ? ' has-citation-panel' : ''}`}>
+                        <div className={`draft-preview-shell ai-integration-citation-shell${activeCitation ? ' has-citation-panel' : ''}`}>
                           <div className="diff-content md draft-preview-content" style={{ maxHeight: 'none', minHeight: 160 }}>
                             <ReactMarkdown remarkPlugins={markdownRemarkPlugins} components={markdownComponents}>
                               {renderedAnswer}

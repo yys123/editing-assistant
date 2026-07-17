@@ -3496,8 +3496,14 @@ a.clinic-master-guide-title:hover {
   gap: 12px;
   align-items: start;
 }
+.ai-integration-citation-shell {
+  --ai-integration-citation-panel-width: min(420px, max(280px, calc((100vw - var(--sidebar-width) - 72px) * 0.34)));
+}
 .draft-preview-shell.has-citation-panel {
   grid-template-columns: minmax(0, 1fr) minmax(280px, 34%);
+}
+.ai-integration-citation-shell.has-citation-panel {
+  grid-template-columns: minmax(0, 1fr) var(--ai-integration-citation-panel-width);
 }
 .draft-preview-content {
   border: 0.5px solid var(--dui-divider);
@@ -3530,6 +3536,18 @@ a.clinic-master-guide-title:hover {
   background: var(--dui-surface);
   box-shadow: var(--dui-shadow-s1);
   overflow: hidden;
+}
+.ai-integration-citation-panel {
+  position: fixed;
+  top: calc(var(--header-height) + 16px);
+  right: 24px;
+  width: var(--ai-integration-citation-panel-width);
+  max-width: calc(100vw - var(--sidebar-width) - 48px);
+  max-height: calc(100vh - var(--header-height) - 32px);
+  z-index: 35;
+}
+.ai-integration-citation-panel .citation-context {
+  max-height: calc(100vh - var(--header-height) - 150px);
 }
 .citation-panel-header {
   display: flex;
@@ -3604,7 +3622,7 @@ a.clinic-master-guide-title:hover {
   overflow: hidden;
 }
 .ai-history-item.expanded {
-  border-color: rgba(119, 83, 255, 0.35);
+  border-color: var(--dui-divider);
   box-shadow: var(--dui-shadow-s1);
 }
 .ai-history-item-header {
@@ -4274,6 +4292,20 @@ a.clinic-master-guide-title:hover {
   }
   .citation-panel {
     position: static;
+  }
+  .ai-integration-citation-panel {
+    position: fixed;
+    top: auto;
+    bottom: 16px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-width: none;
+    max-height: min(52vh, 420px);
+    z-index: 60;
+  }
+  .ai-integration-citation-panel .citation-context {
+    max-height: min(34vh, 300px);
   }
   .ai-history-item-header {
     align-items: flex-start;

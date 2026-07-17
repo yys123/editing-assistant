@@ -11,7 +11,7 @@ import type { ConfirmedReferenceChunk, ReferenceDoc } from '../types'
 interface ClinicMasterPanelProps {
   title: string
   placeholder: string
-  addButtonLabel: string
+  addButtonLabel?: string
   defaultQuestion?: string
   historyStorageKey?: string
   onAddReferenceDocs?: (docs: ReferenceDoc[]) => ClinicMasterReferenceAdditionStats | void
@@ -672,7 +672,7 @@ function ClinicMasterAnswerReferenceView({
 }
 
 export default function ClinicMasterPanel({
-  addButtonLabel,
+  addButtonLabel = '加入数据源',
   placeholder,
   defaultQuestion = '',
   historyStorageKey = 'clinic-master-query-history',

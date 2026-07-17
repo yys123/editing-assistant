@@ -940,11 +940,7 @@ function AppContent() {
           )}
 
           {step === 2 && (
-            <StepGuideLookup
-              disease={disease}
-              referenceDocs={referenceDocs}
-              setReferenceDocs={handleSetReferenceDocs}
-            />
+            <StepGuideLookup />
           )}
 
           {step === 3 && (
