@@ -8,6 +8,7 @@ from models import (
     BatchGenerationRequest, BatchGeneratedDraft, ReferenceAnchor,
     AiIntegrationRequest, AiIntegrationResponse, ConfirmedReferenceChunk, PriorityGuidelineUsage,
 )
+from services.citation_verification import verify_ai_integration_citations
 from services.text_llm import generate_json, generate_text
 
 SYSTEM_PROMPT = """你是一位资深临床医学编辑，专注于为临床医生撰写实用、循证的诊疗内容。
@@ -1272,6 +1273,11 @@ async def generate_ai_integration_answer(
         priority_ids,
         references_by_id,
     )
+    citation_verification = await verify_ai_integration_citations(
+        rewritten_revision_text or rewritten_answer,
+        reference_anchors,
+        text_generator=text_generator,
+    )
 
     return AiIntegrationResponse(
         answer=rewritten_answer,
@@ -1280,6 +1286,7 @@ async def generate_ai_integration_answer(
         references_used=references_used,
         reference_anchors=reference_anchors,
         priority_guideline_usage=priority_guideline_usage,
+        citation_verification=citation_verification,
     )
 
 

@@ -122,6 +122,56 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.revision_text, "急性中毒患者约占同期急诊患者的2.7%~3.6%[1]。")
         self.assertEqual(result.change_summary, ["补充国内急诊占比数据。", "保留原有疾病负担描述。"])
 
+    async def test_ai_integration_returns_citation_verification_metadata(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            if context == "ai_integration_citation_verification":
+                return '{"items":[{"input_id":"v1","citation_key":"1-3","anchor_key":"1-3","status":"supported","reason":"证据直接支持。"}]}'
+            return (
+                "## 修订后正文\n"
+                "乌司奴单抗诱导缓解者，首次内镜复查不早于第16周[1-3]。\n\n"
+                "## 修改说明\n"
+                "- 补充复查时间。"
+            )
+
+        result = await generate_ai_integration_answer(
+            AiIntegrationRequest(
+                disease="克罗恩病",
+                user_request="补充复查时间",
+                reference_inputs=[
+                    ReferenceInput(
+                        id=1,
+                        filename="克罗恩病指南.pdf",
+                        text="乌司奴单抗诱导缓解者建议第16周后复查内镜[3]。",
+                    ),
+                ],
+            ),
+            text_generator=fake_generate_text,
+        )
+
+        self.assertIsNotNone(result.citation_verification)
+        self.assertEqual(result.citation_verification.status, "passed")
+        self.assertEqual(result.citation_verification.items[0].status, "supported")
+
+    async def test_ai_integration_keeps_answer_when_citation_verification_fails(self):
+        async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            if context == "ai_integration_citation_verification":
+                raise RuntimeError("verification failed")
+            return "## 修订后正文\n治疗建议[1-3]。\n\n## 修改说明\n- 测试。"
+
+        result = await generate_ai_integration_answer(
+            AiIntegrationRequest(
+                disease="测试病种",
+                user_request="测试",
+                reference_inputs=[
+                    ReferenceInput(id=1, filename="指南.pdf", text="治疗建议[3]。"),
+                ],
+            ),
+            text_generator=fake_generate_text,
+        )
+
+        self.assertIn("治疗建议", result.answer)
+        self.assertEqual(result.citation_verification.status, "failed")
+
     async def test_ai_integration_revision_text_allows_nested_markdown_headings(self):
         async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
             return (
