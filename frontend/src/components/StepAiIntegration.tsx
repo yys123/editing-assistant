@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
-import { AiIntegrationLinkedIssue, AiIntegrationRecord, ConfirmedReferenceChunk, GapAnalysis, ParsedArticle, ReferenceAnchor, ReferenceDoc, SectionAnalysis } from '../types'
+import { AiIntegrationLinkedIssue, AiIntegrationRecord, CitationVerificationItem, ConfirmedReferenceChunk, GapAnalysis, ParsedArticle, ReferenceAnchor, ReferenceDoc, SectionAnalysis } from '../types'
 import { apiFetch, safeJson } from '../api'
 import AiIntegrationClinicMasterLookup from './AiIntegrationClinicMasterLookup'
 import ChunkConfirmationPanel from './ChunkConfirmationPanel'
@@ -20,6 +20,11 @@ import {
 import { canCompareAiIntegrationRecord, getAiIntegrationDisplayText, getAiIntegrationRevisionText, getNextAiIntegrationActiveId } from '../utils/aiIntegrationHistory'
 import { buildAiIntegrationDiff, type DiffToken } from '../utils/aiIntegrationDiff'
 import { getPriorityGuidelineUsageDisplay } from '../utils/priorityGuidelineUsage'
+import {
+  getCitationVerificationDisplay,
+  getCitationVerificationItemsForAnchor,
+  getCitationVerificationPanelDisplay,
+} from '../utils/citationVerification'
 import {
   buildAiIntegrationIssueRequest,
   collectAiIntegrationLinkedIssues,
@@ -117,11 +122,14 @@ function buildSourceAnchors(
 
 function AiCitationPanel({
   anchor,
+  verificationItems = [],
   onClose,
 }: {
   anchor: ReferenceAnchor
+  verificationItems?: CitationVerificationItem[]
   onClose: () => void
 }) {
+  const verificationDisplay = getCitationVerificationPanelDisplay(verificationItems)
   return (
     <aside className="citation-panel ai-integration-citation-panel" aria-label="引用定位">
       <div className="citation-panel-header">
@@ -139,6 +147,20 @@ function AiCitationPanel({
         <p className="citation-context-quote">{anchor.quote}</p>
         {anchor.context_after && <p className="citation-context-muted">{anchor.context_after}</p>}
       </div>
+      {verificationDisplay && (
+        <div className={`citation-verification-panel ${verificationDisplay.tone}`}>
+          <div className="citation-verification-panel-title">
+            <span className="material-symbols-outlined">fact_check</span>
+            <span>{verificationDisplay.label}</span>
+          </div>
+          {verificationItems.map((item, index) => (
+            <div key={`${item.anchor_key || item.citation_key}-${index}`} className="citation-verification-panel-item">
+              {item.sentence && <div className="citation-verification-sentence">{item.sentence}</div>}
+              {item.reason && <div className="citation-verification-reason">{item.reason}</div>}
+            </div>
+          ))}
+        </div>
+      )}
     </aside>
   )
 }
@@ -375,6 +397,12 @@ export default function StepAiIntegration({
     [referenceAnchors],
   )
   const activeCitation = referenceAnchors.find(anchor => (anchor.anchor_key ?? anchor.citation_key) === activeCitationKey) ?? null
+  const activeCitationVerificationItems = useMemo(
+    () => activeCitation && activeRecord
+      ? getCitationVerificationItemsForAnchor(activeRecord.citationVerification, activeCitation)
+      : [],
+    [activeCitation, activeRecord],
+  )
   const resolveCitation = useMemo(
     () => createCitationResolver(referenceAnchors),
     [referenceAnchors],
@@ -612,6 +640,7 @@ export default function StepAiIntegration({
         priorityReferences: priorityRefs,
         referenceMode: activeReferenceMode,
         priorityGuidelineUsage: data.priority_guideline_usage,
+        citationVerification: data.citation_verification,
         linkedIssues: selectedLinkedIssues,
         confirmedReferenceChunks,
         referenceDocsSnapshot: effectiveReferenceDocs,
@@ -1162,6 +1191,7 @@ export default function StepAiIntegration({
               const comparing = compareRecordId === record.id
               const recordRevisionText = getAiIntegrationRevisionText(record)
               const priorityGuidelineDisplay = getPriorityGuidelineUsageDisplay(record.priorityGuidelineUsage)
+              const citationVerificationDisplay = getCitationVerificationDisplay(record.citationVerification)
               return (
                 <article key={record.id} className={`ai-history-item${expanded ? ' expanded' : ''}`}>
                   <div className="ai-history-item-header">
@@ -1198,6 +1228,15 @@ export default function StepAiIntegration({
                           <span>{priorityGuidelineDisplay.label}</span>
                           {priorityGuidelineDisplay.detail && (
                             <small>{priorityGuidelineDisplay.detail}</small>
+                          )}
+                        </div>
+                      )}
+                      {citationVerificationDisplay && (
+                        <div className={`citation-verification-status ${citationVerificationDisplay.tone}`}>
+                          <span className="material-symbols-outlined">fact_check</span>
+                          <span>{citationVerificationDisplay.label}</span>
+                          {citationVerificationDisplay.detail && (
+                            <small>{citationVerificationDisplay.detail}</small>
                           )}
                         </div>
                       )}
@@ -1254,6 +1293,7 @@ export default function StepAiIntegration({
                           {activeCitation && (
                             <AiCitationPanel
                               anchor={activeCitation}
+                              verificationItems={activeCitationVerificationItems}
                               onClose={() => setActiveCitationKey(null)}
                             />
                           )}

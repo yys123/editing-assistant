@@ -3592,6 +3592,49 @@ a.clinic-master-guide-title:hover {
   padding: 9px 10px;
   margin: 10px 0 !important;
 }
+.citation-verification-panel {
+  margin: 0 14px 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 0.5px solid var(--dui-divider);
+  background: var(--m3-surface-container-low);
+}
+.citation-verification-panel.success {
+  background: var(--dui-success-container);
+  color: var(--dui-success);
+}
+.citation-verification-panel.warning {
+  background: var(--dui-warning-container);
+  color: var(--dui-warning);
+}
+.citation-verification-panel.danger {
+  background: var(--dui-danger-container);
+  color: var(--dui-danger);
+}
+.citation-verification-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.citation-verification-panel-title .material-symbols-outlined {
+  font-size: 16px;
+}
+.citation-verification-panel-item {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.citation-verification-sentence {
+  color: var(--m3-on-surface);
+  overflow-wrap: anywhere;
+}
+.citation-verification-reason {
+  margin-top: 3px;
+  color: inherit;
+  overflow-wrap: anywhere;
+}
 
 .ai-history-section-header {
   display: flex;
@@ -3716,6 +3759,42 @@ a.clinic-master-guide-title:hover {
   color: #92400e;
 }
 .priority-guideline-status.neutral {
+  background: #f3f4f6;
+  color: #374151;
+}
+.citation-verification-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+  border: 0.5px solid var(--dui-divider);
+}
+.citation-verification-status .material-symbols-outlined {
+  font-size: 17px;
+  flex: 0 0 auto;
+}
+.citation-verification-status small {
+  color: inherit;
+  opacity: 0.82;
+  overflow-wrap: anywhere;
+}
+.citation-verification-status.success {
+  background: var(--dui-success-container);
+  color: var(--dui-success);
+}
+.citation-verification-status.warning {
+  background: var(--dui-warning-container);
+  color: var(--dui-warning);
+}
+.citation-verification-status.danger {
+  background: var(--dui-danger-container);
+  color: var(--dui-danger);
+}
+.citation-verification-status.neutral {
   background: #f3f4f6;
   color: #374151;
 }

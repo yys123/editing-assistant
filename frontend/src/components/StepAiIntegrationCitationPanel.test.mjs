@@ -14,6 +14,46 @@ assert.match(
   /draft-preview-shell ai-integration-citation-shell/,
   'AI integration result shell should be marked for citation-specific layout',
 )
+assert.match(
+  stepSource,
+  /citationVerification:\s*data\.citation_verification/,
+  'AI integration records should save citation verification metadata from the backend',
+)
+assert.match(
+  stepSource,
+  /getCitationVerificationDisplay/,
+  'AI integration history should compute a citation verification summary',
+)
+assert.match(
+  stepSource,
+  /citation-verification-status/,
+  'AI integration history should render a citation verification status strip',
+)
+assert.match(
+  stepSource,
+  /getCitationVerificationItemsForAnchor/,
+  'AI citation panel should receive verification items for the active anchor',
+)
+assert.match(
+  stepSource,
+  /verificationItems=\{activeCitationVerificationItems\}/,
+  'AI citation panel should receive active citation verification items',
+)
+assert.match(
+  stepSource,
+  /citation-verification-panel/,
+  'AI citation panel should render citation verification detail',
+)
+assert.match(
+  cssSource,
+  /\.citation-verification-status/,
+  'citation verification status strip should have CSS',
+)
+assert.match(
+  cssSource,
+  /\.citation-verification-panel/,
+  'citation verification panel detail should have CSS',
+)
 
 const aiShellRule = cssSource.match(/\.ai-integration-citation-shell\.has-citation-panel\s*\{[\s\S]*?\n\}/)?.[0] ?? ''
 assert.match(
