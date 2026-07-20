@@ -146,6 +146,30 @@ export interface PriorityGuidelineUsage {
   warnings?: string[]
 }
 
+export type CitationVerificationStatus = 'passed' | 'needs_review' | 'not_run' | 'failed'
+export type CitationVerificationItemStatus =
+  | 'supported'
+  | 'weak'
+  | 'mismatch'
+  | 'unverifiable'
+  | 'unverified'
+
+export interface CitationVerificationItem {
+  citation_key: string
+  anchor_key?: string
+  sentence: string
+  source_label: string
+  quote: string
+  status: CitationVerificationItemStatus
+  reason: string
+}
+
+export interface CitationVerificationResult {
+  status: CitationVerificationStatus
+  items: CitationVerificationItem[]
+  warnings?: string[]
+}
+
 export interface AiIntegrationRecord {
   id: string
   request: string
@@ -162,6 +186,7 @@ export interface AiIntegrationRecord {
   priorityReferences: string[]
   referenceMode?: 'full' | 'confirmed_chunks'
   priorityGuidelineUsage?: PriorityGuidelineUsage
+  citationVerification?: CitationVerificationResult
   originalScope: 'all' | 'sections' | 'none'
   selectedSectionIds: string[]
   originalContentSnapshot?: string
