@@ -211,7 +211,7 @@ function formatCitationVerificationReviewText(anchor: ReferenceAnchor, verificat
 
 function AiCitationPanel({
   anchor,
-  occurrence = null,
+  canReviewOccurrence,
   occurrenceReviewStatus,
   verificationItems = [],
   onConfirmOccurrence,
@@ -219,7 +219,7 @@ function AiCitationPanel({
   onClose,
 }: {
   anchor: ReferenceAnchor
-  occurrence?: CitationOccurrence | null
+  canReviewOccurrence?: boolean
   occurrenceReviewStatus?: CitationOccurrenceReviewStatus
   verificationItems?: CitationVerificationItem[]
   onConfirmOccurrence?: () => void
@@ -285,7 +285,7 @@ function AiCitationPanel({
           </div>
         )}
       </div>
-      {occurrence && (
+      {canReviewOccurrence && (
         <div className="citation-occurrence-actions">
           {occurrenceReviewStatus === 'confirmed' && (
             <span className="citation-occurrence-confirmed">
@@ -1563,7 +1563,7 @@ export default function StepAiIntegration({
                           {activeCitation && (
                             <AiCitationPanel
                               anchor={activeCitation}
-                              occurrence={activeCitationOccurrence}
+                              canReviewOccurrence={Boolean(activeCitationOccurrenceKeyForReview)}
                               occurrenceReviewStatus={activeCitationOccurrenceReviewStatus}
                               verificationItems={activeCitationVerificationItems}
                               onConfirmOccurrence={confirmActiveCitationOccurrence}

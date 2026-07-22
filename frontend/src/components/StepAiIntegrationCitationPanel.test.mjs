@@ -143,6 +143,11 @@ assert.match(
 )
 assert.match(
   stepSource,
+  /canReviewOccurrence=\{Boolean\(activeCitationOccurrenceKeyForReview\)\}/,
+  'AI citation panel should show review buttons whenever a review occurrence key is available, even if the occurrence object is being recovered',
+)
+assert.match(
+  stepSource,
   /appendCitationReviewAction\([\s\S]*'confirmed'\)/,
   'confirming a citation as ok should be recorded as a confirmed review action',
 )
