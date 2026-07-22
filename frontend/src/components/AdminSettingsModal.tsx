@@ -100,18 +100,22 @@ interface AiIntegrationCitationStatsBucket {
   tone: 'success' | 'warning' | 'danger' | 'neutral'
   color: string
   count: number
+  summary_mode?: 'review_breakdown' | 'total_ratio'
   confirmed_issue_count: number
   confirmed_issue_ratio: number
   confirmed_ok_count: number
   confirmed_ok_ratio: number
   unconfirmed_count: number
   unconfirmed_ratio: number
+  total_ratio?: number
 }
 
 interface AiIntegrationCitationStats {
   total_sessions: number
   total_records: number
   total_citations: number
+  auto_deleted_citation_count?: number
+  auto_deleted_citation_ratio?: number
   buckets: AiIntegrationCitationStatsBucket[]
 }
 
@@ -516,7 +520,7 @@ export default function AdminSettingsModal({ onClose }: Props) {
                   {citationStatsError}
                 </div>
               )}
-              <div className="admin-metric-grid admin-metric-grid-three">
+              <div className="admin-metric-grid admin-metric-grid-four">
                 <div className="admin-metric-card">
                   <div className="admin-metric-label">引用序号</div>
                   <div className="admin-metric-value">{citationStats?.total_citations ?? 0}</div>
@@ -529,6 +533,10 @@ export default function AdminSettingsModal({ onClose }: Props) {
                   <div className="admin-metric-label">覆盖任务</div>
                   <div className="admin-metric-value">{citationStats?.total_sessions ?? 0}</div>
                 </div>
+                <div className="admin-metric-card">
+                  <div className="admin-metric-label">自动删除比例</div>
+                  <div className="admin-metric-value">{formatPercent(citationStats?.auto_deleted_citation_ratio)}</div>
+                </div>
               </div>
               <div className="admin-citation-stat-list">
                 {citationStats && citationStats.total_citations > 0 && (
@@ -540,9 +548,15 @@ export default function AdminSettingsModal({ onClose }: Props) {
                         <span className="admin-citation-stat-count">{bucket.count.toLocaleString()} 个</span>
                       </div>
                       <div className="admin-citation-stat-ratios">
-                        <span>有问题：{bucket.confirmed_issue_count.toLocaleString()}（{formatPercent(bucket.confirmed_issue_ratio)}）</span>
-                        <span>没问题：{bucket.confirmed_ok_count.toLocaleString()}（{formatPercent(bucket.confirmed_ok_ratio)}）</span>
-                        <span>未确认：{bucket.unconfirmed_count.toLocaleString()}（{formatPercent(bucket.unconfirmed_ratio)}）</span>
+                        {bucket.summary_mode === 'total_ratio' ? (
+                          <span>占参考文献总数：{formatPercent(bucket.total_ratio)}</span>
+                        ) : (
+                          <>
+                            <span>有问题：{bucket.confirmed_issue_count.toLocaleString()}（{formatPercent(bucket.confirmed_issue_ratio)}）</span>
+                            <span>没问题：{bucket.confirmed_ok_count.toLocaleString()}（{formatPercent(bucket.confirmed_ok_ratio)}）</span>
+                            <span>未确认：{bucket.unconfirmed_count.toLocaleString()}（{formatPercent(bucket.unconfirmed_ratio)}）</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))

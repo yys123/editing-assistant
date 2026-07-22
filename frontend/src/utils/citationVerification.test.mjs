@@ -7,17 +7,30 @@ import {
   getCitationVerificationPanelDisplay,
   getCitationVerificationStatusLabel,
   hasReviewCitationVerificationItems,
+  removeMismatchedCitationMarkers,
 } from './citationVerification.ts'
+import { createCitationResolver } from './citations.ts'
 
 const passed = getCitationVerificationDisplay({ status: 'passed', items: [], warnings: [] })
 assert.equal(passed?.label, '引用核对通过')
 assert.equal(passed?.tone, 'success')
 
-const needsReview = getCitationVerificationDisplay({
+const autoDeletedOnly = getCitationVerificationDisplay({
   status: 'needs_review',
   items: [
     { citation_key: '1-3', anchor_key: '1-3', status: 'supported', sentence: '', source_label: '', quote: '', reason: '' },
     { citation_key: '1-4', anchor_key: '1-4', status: 'mismatch', sentence: '', source_label: '', quote: '', reason: '不匹配' },
+  ],
+  warnings: [],
+})
+assert.equal(autoDeletedOnly?.label, '引用核对通过')
+assert.equal(autoDeletedOnly?.tone, 'success')
+
+const needsReview = getCitationVerificationDisplay({
+  status: 'needs_review',
+  items: [
+    { citation_key: '1-3', anchor_key: '1-3', status: 'supported', sentence: '', source_label: '', quote: '', reason: '' },
+    { citation_key: '1-4', anchor_key: '1-4', status: 'weak', sentence: '', source_label: '', quote: '', reason: '支撑较弱' },
   ],
   warnings: [],
 })
@@ -39,6 +52,12 @@ const panel = getCitationVerificationPanelDisplay(items)
 assert.equal(panel?.tone, 'danger')
 assert.equal(panel?.label, '引用可能不匹配')
 
+const weakPanel = getCitationVerificationPanelDisplay([
+  { citation_key: '2-8', anchor_key: '2-8~2', status: 'weak', sentence: '', source_label: '', quote: '', reason: '支撑较弱' },
+])
+assert.equal(weakPanel?.tone, 'danger')
+assert.equal(weakPanel?.label, '引用支撑较弱')
+
 const markerStatus = getCitationVerificationMarkerStatus({
   status: 'needs_review',
   warnings: [],
@@ -50,7 +69,10 @@ const markerStatus = getCitationVerificationMarkerStatus({
 }, '2-8~2')
 assert.equal(markerStatus, 'weak')
 assert.equal(getCitationVerificationStatusLabel(markerStatus), '支撑较弱')
-assert.equal(hasReviewCitationVerificationItems(items), true)
+assert.equal(hasReviewCitationVerificationItems(items), false)
+assert.equal(hasReviewCitationVerificationItems([
+  { citation_key: '2-8', anchor_key: '2-8~2', status: 'weak', sentence: '', source_label: '', quote: '', reason: '支撑较弱' },
+]), true)
 assert.equal(getCitationVerificationMarkerStatus({ status: 'passed', items: [], warnings: [] }, '2-8~2'), null)
 
 const repeatedAnchorResult = {
@@ -78,6 +100,50 @@ const suffixedAnchorResult = {
 }
 assert.equal(getCitationVerificationMarkerStatus(suffixedAnchorResult, '1-13~2', '定义内容[1-13、1-14]。'), 'weak')
 assert.equal(getCitationVerificationMarkerStatus(suffixedAnchorResult, '1-14~3', '定义内容[1-13、1-14]。'), 'unverifiable')
+
+const citationDeletedFromSameSentenceResult = {
+  status: 'needs_review',
+  warnings: [],
+  items: [
+    { citation_key: '1-3', anchor_key: '1-3', status: 'mismatch', sentence: '治疗建议需要综合判断[1-3、2-6]。', source_label: '', quote: '', reason: '第一条不匹配' },
+    { citation_key: '2-6', anchor_key: '2-6', status: 'mismatch', sentence: '治疗建议需要综合判断[1-3、2-6]。', source_label: '', quote: '', reason: '第二条不匹配' },
+  ],
+}
+assert.equal(
+  getCitationVerificationMarkerStatus(citationDeletedFromSameSentenceResult, '2-6', '治疗建议需要综合判断[2-6]。'),
+  'mismatch',
+)
+assert.equal(
+  getCitationVerificationItemsForAnchor(
+    citationDeletedFromSameSentenceResult,
+    { citation_key: '2-6', anchor_key: '2-6' },
+    '治疗建议需要综合判断[2-6]。',
+  )[0]?.reason,
+  '第二条不匹配',
+)
+
+const mismatchRemovalResolver = createCitationResolver([
+  { citation_key: '1-3', source_id: 1, source_filename: '指南A.pdf', source_ref_id: '3', quote: '证据A。', context_before: '', context_after: '', paragraph_index: 0 },
+  { citation_key: '2-6', source_id: 2, source_filename: '指南B.pdf', source_ref_id: '6', quote: '证据B。', context_before: '', context_after: '', paragraph_index: 0 },
+  { citation_key: '3-9', source_id: 3, source_filename: '指南C.pdf', source_ref_id: '9', quote: '证据C。', context_before: '', context_after: '', paragraph_index: 0 },
+])
+const mismatchRemovalResult = {
+  status: 'needs_review',
+  warnings: [],
+  items: [
+    { citation_key: '1-3', anchor_key: '1-3', status: 'mismatch', sentence: '治疗建议需要综合判断[1-3、2-6]。', source_label: '', quote: '', reason: '不匹配' },
+    { citation_key: '2-6', anchor_key: '2-6', status: 'weak', sentence: '治疗建议需要综合判断[1-3、2-6]。', source_label: '', quote: '', reason: '支撑较弱' },
+    { citation_key: '3-9', anchor_key: '3-9', status: 'mismatch', sentence: '另一条结论[3-9]。', source_label: '', quote: '', reason: '不匹配' },
+  ],
+}
+assert.equal(
+  removeMismatchedCitationMarkers(
+    '治疗建议需要综合判断[1-3、2-6]。另一条结论[3-9]。',
+    mismatchRemovalResult,
+    mismatchRemovalResolver,
+  ),
+  '治疗建议需要综合判断[2-6]。另一条结论。',
+)
 
 const visibleOccurrenceDisplay = getCitationVerificationDisplayForOccurrences({
   status: 'needs_review',

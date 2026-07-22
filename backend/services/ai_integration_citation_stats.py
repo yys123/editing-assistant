@@ -6,33 +6,38 @@ from typing import Any, Optional
 CITATION_STATUS_META = [
     {
         "status": "mismatch",
-        "label": "红色 / 引用不匹配",
+        "label": "不匹配已自动删除",
         "tone": "danger",
         "color": "#D92D20",
+        "summary_mode": "total_ratio",
     },
     {
         "status": "weak",
-        "label": "橙色 / 支撑较弱",
-        "tone": "warning",
-        "color": "#F79009",
+        "label": "红色 / 支撑较弱",
+        "tone": "danger",
+        "color": "#D92D20",
+        "summary_mode": "review_breakdown",
     },
     {
         "status": "unverifiable",
         "label": "黄色 / 无法判断",
         "tone": "warning",
         "color": "#D97706",
+        "summary_mode": "review_breakdown",
     },
     {
         "status": "unverified",
         "label": "灰色 / 未完成核对",
         "tone": "neutral",
         "color": "#667085",
+        "summary_mode": "review_breakdown",
     },
     {
         "status": "supported",
         "label": "默认 / 核对通过",
         "tone": "success",
         "color": "#5F3FE2",
+        "summary_mode": "review_breakdown",
     },
 ]
 
@@ -141,6 +146,7 @@ def _empty_bucket(meta: dict) -> dict:
         "confirmed_ok_ratio": 0.0,
         "unconfirmed_count": 0,
         "unconfirmed_ratio": 0.0,
+        "total_ratio": 0.0,
     }
 
 
@@ -215,6 +221,8 @@ def _latest_action_for_occurrence(actions: list[dict], occurrence: dict) -> Opti
 
 def _count_bucket(bucket: dict, review_status: str) -> None:
     bucket["count"] += 1
+    if bucket.get("summary_mode") == "total_ratio":
+        return
     if review_status == "rejected":
         bucket["confirmed_issue_count"] += 1
     elif review_status == "confirmed":
@@ -223,8 +231,9 @@ def _count_bucket(bucket: dict, review_status: str) -> None:
         bucket["unconfirmed_count"] += 1
 
 
-def _finalize_bucket(bucket: dict) -> dict:
+def _finalize_bucket(bucket: dict, total_citations: int) -> dict:
     count = bucket["count"]
+    bucket["total_ratio"] = round(count / total_citations, 4) if total_citations > 0 else 0.0
     if count <= 0:
         return bucket
     bucket["confirmed_issue_ratio"] = round(bucket["confirmed_issue_count"] / count, 4)
@@ -254,6 +263,15 @@ def summarize_ai_integration_citation_stats(sessions: list[dict]) -> dict:
             occurrence_reviews = _safe_dict(record.get("citationOccurrenceReviews"))
             visible_occurrences = _collect_visible_occurrences(record, items)
             matched_rejected_action_ids: set[str] = set()
+            counted_mismatch_keys: set[tuple[str, str]] = set()
+
+            for item in items:
+                if _item_status(item) != "mismatch":
+                    continue
+                _count_bucket(buckets["mismatch"], "")
+                total_citations += 1
+                session_has_citations = True
+                counted_mismatch_keys.update(_review_keys(item))
 
             for occurrence in visible_occurrences:
                 status = occurrence["status"]
@@ -262,6 +280,8 @@ def summarize_ai_integration_citation_stats(sessions: list[dict]) -> dict:
                 action_id = str(_safe_dict(action).get("id") or "")
                 if str(_safe_dict(action).get("review_status") or _safe_dict(action).get("status") or "") == "rejected" and action_id:
                     matched_rejected_action_ids.add(action_id)
+                if status == "mismatch":
+                    continue
                 review_status = str(_safe_dict(action).get("review_status") or _safe_dict(action).get("status") or "")
                 if not action and not actions:
                     review_status = str(occurrence_reviews.get(occurrence["occurrence_key"]) or "")
@@ -283,19 +303,29 @@ def summarize_ai_integration_citation_stats(sessions: list[dict]) -> dict:
                         None,
                     )
                     status = _item_status(item or {})
+                if status == "mismatch" and any(key in counted_mismatch_keys for key in _review_keys(action)):
+                    continue
                 _count_bucket(buckets[status], "rejected")
                 total_citations += 1
                 session_has_citations = True
 
-            if visible_occurrences or any(str(action.get("review_status") or action.get("status") or "") == "rejected" for action in actions):
+            if (
+                visible_occurrences
+                or counted_mismatch_keys
+                or any(str(action.get("review_status") or action.get("status") or "") == "rejected" for action in actions)
+            ):
                 total_records += 1
         if session_has_citations:
             total_sessions += 1
 
-    finalized = [_finalize_bucket(buckets[meta["status"]]) for meta in CITATION_STATUS_META]
+    finalized = [_finalize_bucket(buckets[meta["status"]], total_citations) for meta in CITATION_STATUS_META]
+    auto_deleted_citation_count = buckets["mismatch"]["count"]
+    auto_deleted_citation_ratio = round(auto_deleted_citation_count / total_citations, 4) if total_citations > 0 else 0.0
     return {
         "total_sessions": total_sessions,
         "total_records": total_records,
         "total_citations": total_citations,
+        "auto_deleted_citation_count": auto_deleted_citation_count,
+        "auto_deleted_citation_ratio": auto_deleted_citation_ratio,
         "buckets": finalized,
     }

@@ -33,6 +33,7 @@ import {
   getCitationVerificationPanelDisplay,
   getCitationVerificationStatusLabel,
   hasReviewCitationVerificationItems,
+  removeMismatchedCitationMarkers,
 } from '../utils/citationVerification'
 import {
   buildAiIntegrationIssueRequest,
@@ -549,7 +550,13 @@ export default function StepAiIntegration({
     () => createCitationResolver(referenceAnchors),
     [referenceAnchors],
   )
-  const activeDisplayText = getAiIntegrationDisplayText(activeRecord)
+  const rawActiveDisplayText = getAiIntegrationDisplayText(activeRecord)
+  const activeDisplayText = useMemo(
+    () => activeRecord
+      ? removeMismatchedCitationMarkers(rawActiveDisplayText, activeRecord.citationVerification, resolveCitation)
+      : '',
+    [activeRecord, rawActiveDisplayText, resolveCitation],
+  )
   const citationOccurrences = useMemo(
     () => activeRecord ? collectCitationOccurrences(activeDisplayText, resolveCitation) : [],
     [activeDisplayText, activeRecord, resolveCitation],
@@ -892,19 +899,27 @@ export default function StepAiIntegration({
       const data = await safeJson(res)
       if (!res.ok) throw new Error(data.detail || 'AI整合失败')
 
+      const rawAnswer = data.answer || ''
+      const rawRevisionText = data.revision_text || ''
+      const responseReferenceAnchors = data.reference_anchors || []
+      const responseCitationVerification = data.citation_verification
+      const responseCitationResolver = createCitationResolver(responseReferenceAnchors)
+      const cleanedAnswer = removeMismatchedCitationMarkers(rawAnswer, responseCitationVerification, responseCitationResolver)
+      const cleanedRevisionText = removeMismatchedCitationMarkers(rawRevisionText, responseCitationVerification, responseCitationResolver)
+
       const record: AiIntegrationRecord = {
         id: `ai-integration-${Date.now()}`,
         request,
-        answer: data.answer || '',
-        revisionText: data.revision_text || '',
+        answer: cleanedAnswer,
+        revisionText: cleanedRevisionText,
         changeSummary: Array.isArray(data.change_summary) ? data.change_summary : [],
         referencesUsed: data.references_used || [],
-        referenceAnchors: data.reference_anchors || [],
+        referenceAnchors: responseReferenceAnchors,
         selectedReferences: selectedRefs,
         priorityReferences: priorityRefs,
         referenceMode: activeReferenceMode,
         priorityGuidelineUsage: data.priority_guideline_usage,
-        citationVerification: data.citation_verification,
+        citationVerification: responseCitationVerification,
         linkedIssues: selectedLinkedIssues,
         confirmedReferenceChunks,
         referenceDocsSnapshot: effectiveReferenceDocs,

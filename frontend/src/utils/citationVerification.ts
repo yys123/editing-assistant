@@ -1,4 +1,5 @@
 import type { CitationOccurrenceReviewStatus, CitationVerificationItem, CitationVerificationItemStatus, CitationVerificationResult, ReferenceAnchor } from '../types'
+import { CITATION_MARKER_PATTERN, collectCitationOccurrences, removeCitationOccurrence, type CitationResolver } from './citations.ts'
 
 export type CitationVerificationTone = 'success' | 'warning' | 'danger' | 'neutral'
 
@@ -8,7 +9,8 @@ type CitationVerificationOccurrenceLike = {
   sentence: string
 }
 
-const REVIEW_STATUSES = new Set<CitationVerificationItemStatus>(['weak', 'mismatch', 'unverifiable', 'unverified'])
+const REVIEW_STATUSES = new Set<CitationVerificationItemStatus>(['weak', 'unverifiable', 'unverified'])
+const MARKER_STATUSES = new Set<CitationVerificationItemStatus>(['weak', 'mismatch', 'unverifiable', 'unverified'])
 const STATUS_RANK: Record<string, number> = {
   mismatch: 4,
   weak: 3,
@@ -38,6 +40,19 @@ function itemMatchesCitationKey(item: CitationVerificationItem, citationKey: str
   if (!allowBaseFallback) return false
   const baseKey = stripCitationAnchorSuffix(citationKey)
   return keys.some(key => stripCitationAnchorSuffix(key) === baseKey)
+}
+
+function normalizeCitationSentence(value: string | undefined | null) {
+  return (value || '')
+    .replace(new RegExp(CITATION_MARKER_PATTERN, 'gi'), ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function itemMatchesSentence(item: CitationVerificationItem, sentence?: string) {
+  if (!sentence) return true
+  if (item.sentence === sentence) return true
+  return normalizeCitationSentence(item.sentence) === normalizeCitationSentence(sentence)
 }
 
 export function hasReviewCitationVerificationItems(items: CitationVerificationItem[]) {
@@ -74,7 +89,7 @@ export function getCitationVerificationDisplayForOccurrences(
   const reviewCount = occurrences.filter(occurrence => (
     occurrenceReviews[occurrence.occurrence_key] !== 'confirmed'
     && reviewItems.some(item => (
-      occurrence.sentence === item.sentence
+      itemMatchesSentence(item, occurrence.sentence)
       && itemMatchesCitationKey(item, occurrence.citation_key, { allowBaseFallback: true })
     ))
   )).length
@@ -91,12 +106,12 @@ export function getCitationVerificationItemsForAnchor(
   const activeKey = anchor.anchor_key ?? anchor.citation_key
   const exact = result.items.filter(item => (
     itemMatchesCitationKey(item, activeKey)
-    && (!sentence || item.sentence === sentence)
+    && itemMatchesSentence(item, sentence)
   ))
   if (exact.length > 0) return exact
   return result.items.filter(item => (
     itemMatchesCitationKey(item, anchor.citation_key, { allowBaseFallback: true })
-    && (!sentence || item.sentence === sentence)
+    && itemMatchesSentence(item, sentence)
   ))
 }
 
@@ -107,8 +122,8 @@ export function getCitationVerificationMarkerStatus(
 ): CitationVerificationItemStatus | null {
   if (!result?.items?.length || !citationKey) return null
   const reviewItemsForSentence = result.items
-    .filter(item => REVIEW_STATUSES.has(item.status))
-    .filter(item => !sentence || item.sentence === sentence)
+    .filter(item => MARKER_STATUSES.has(item.status))
+    .filter(item => itemMatchesSentence(item, sentence))
   const exact = reviewItemsForSentence.filter(item => itemMatchesCitationKey(item, citationKey))
   const reviewItems = exact.length > 0
     ? exact
@@ -118,11 +133,33 @@ export function getCitationVerificationMarkerStatus(
   return worst.status
 }
 
+function citationOccurrenceIndex(occurrenceKey: string) {
+  const match = occurrenceKey.match(/(\d+)$/)
+  return match ? Number(match[1]) : -1
+}
+
+export function removeMismatchedCitationMarkers(
+  content: string,
+  result: CitationVerificationResult | undefined | null,
+  resolveCitation: CitationResolver,
+) {
+  if (!content || !result?.items?.length) return content
+  const mismatchOccurrenceKeys = collectCitationOccurrences(content, resolveCitation)
+    .filter(occurrence => getCitationVerificationMarkerStatus(result, occurrence.citation_key, occurrence.sentence) === 'mismatch')
+    .map(occurrence => occurrence.occurrence_key)
+    .sort((a, b) => citationOccurrenceIndex(b) - citationOccurrenceIndex(a))
+
+  return mismatchOccurrenceKeys.reduce(
+    (nextContent, occurrenceKey) => removeCitationOccurrence(nextContent, occurrenceKey, resolveCitation),
+    content,
+  )
+}
+
 export function getCitationVerificationPanelDisplay(items: CitationVerificationItem[]) {
   if (items.length === 0) return null
   const worst = [...items].sort((a, b) => (STATUS_RANK[b.status] ?? 0) - (STATUS_RANK[a.status] ?? 0))[0]
   if (worst.status === 'mismatch') return { label: '引用可能不匹配', tone: 'danger' as const }
-  if (worst.status === 'weak') return { label: '引用支撑较弱', tone: 'warning' as const }
+  if (worst.status === 'weak') return { label: '引用支撑较弱', tone: 'danger' as const }
   if (worst.status === 'unverifiable' || worst.status === 'unverified') {
     return { label: '引用无法判断', tone: 'warning' as const }
   }

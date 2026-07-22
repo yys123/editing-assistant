@@ -23,8 +23,8 @@ assert.match(
 )
 assert.match(
   stepSource,
-  /citationVerification:\s*data\.citation_verification/,
-  'AI integration records should save citation verification metadata from the backend',
+  /responseCitationVerification\s*=\s*data\.citation_verification[\s\S]*citationVerification:\s*responseCitationVerification/,
+  'AI integration records should keep citation verification metadata so auto-deleted mismatches remain countable',
 )
 assert.match(
   stepSource,
@@ -40,6 +40,21 @@ assert.match(
   stepSource,
   /getCitationVerificationMarkerStatus/,
   'AI integration answer citations should compute marker status for inline highlighting',
+)
+assert.match(
+  stepSource,
+  /removeMismatchedCitationMarkers/,
+  'AI integration should automatically remove citation markers verified as mismatched',
+)
+assert.match(
+  stepSource,
+  /removeMismatchedCitationMarkers\(\s*rawActiveDisplayText/,
+  'expanded AI integration records should hide mismatched citation markers before rendering',
+)
+assert.match(
+  stepSource,
+  /removeMismatchedCitationMarkers\(\s*rawRevisionText/,
+  'new AI integration records should persist revision text without mismatched citation markers',
 )
 assert.match(
   stepSource,
@@ -175,6 +190,27 @@ assert.match(
   cssSource,
   /\.citation-link-weak/,
   'weakly supported citations should have a visible inline highlight style',
+)
+const weakCitationRule = cssRule('.citation-link-weak')
+assert.match(
+  weakCitationRule,
+  /color:\s*#B42318/,
+  'weakly supported citations should use the red text color',
+)
+assert.match(
+  weakCitationRule,
+  /background:\s*#FEE4E2/,
+  'weakly supported citations should use the red background color',
+)
+assert.match(
+  weakCitationRule,
+  /box-shadow:\s*inset 0 -2px 0 #D92D20/,
+  'weakly supported citations should use the red underline color',
+)
+assert.doesNotMatch(
+  weakCitationRule,
+  /#F79009|#FEF0C7|#B54708/,
+  'weakly supported citations should no longer use the orange palette',
 )
 assert.match(
   cssSource,

@@ -3639,14 +3639,14 @@ a.clinic-master-guide-title:hover {
   background: #FECDCA;
 }
 .citation-link-weak {
-  color: #B54708;
-  background: #FEF0C7;
-  box-shadow: inset 0 -2px 0 #F79009;
+  color: #B42318;
+  background: #FEE4E2;
+  box-shadow: inset 0 -2px 0 #D92D20;
 }
 .citation-link-weak:hover,
 .citation-link-weak.active {
-  color: #93370D;
-  background: #FEDF89;
+  color: #912018;
+  background: #FECDCA;
 }
 .citation-link-unverifiable {
   color: #854D0E;

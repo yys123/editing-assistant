@@ -453,12 +453,21 @@ class AdminAiIntegrationCitationStatsTests(unittest.TestCase):
         self.assertEqual(result["total_sessions"], 1)
         self.assertEqual(result["total_records"], 1)
         self.assertEqual(result["total_citations"], 4)
+        self.assertEqual(result["auto_deleted_citation_count"], 1)
+        self.assertEqual(result["auto_deleted_citation_ratio"], 0.25)
         by_status = {bucket["status"]: bucket for bucket in result["buckets"]}
         self.assertEqual(by_status["mismatch"]["count"], 1)
-        self.assertEqual(by_status["mismatch"]["confirmed_issue_count"], 1)
-        self.assertEqual(by_status["mismatch"]["confirmed_issue_ratio"], 1.0)
+        self.assertEqual(by_status["mismatch"]["label"], "不匹配已自动删除")
+        self.assertEqual(by_status["mismatch"]["summary_mode"], "total_ratio")
+        self.assertEqual(by_status["mismatch"]["total_ratio"], 0.25)
+        self.assertEqual(by_status["mismatch"]["confirmed_issue_count"], 0)
+        self.assertEqual(by_status["mismatch"]["confirmed_ok_count"], 0)
+        self.assertEqual(by_status["mismatch"]["unconfirmed_count"], 0)
         self.assertEqual(by_status["weak"]["confirmed_ok_count"], 1)
         self.assertEqual(by_status["weak"]["confirmed_ok_ratio"], 1.0)
+        self.assertEqual(by_status["weak"]["label"], "红色 / 支撑较弱")
+        self.assertEqual(by_status["weak"]["tone"], "danger")
+        self.assertEqual(by_status["weak"]["color"], "#D92D20")
         self.assertEqual(by_status["supported"]["unconfirmed_count"], 1)
         self.assertEqual(by_status["unverified"]["unconfirmed_ratio"], 1.0)
 
@@ -541,7 +550,9 @@ class AdminAiIntegrationCitationStatsTests(unittest.TestCase):
         mismatch = {bucket["status"]: bucket for bucket in result["buckets"]}["mismatch"]
         self.assertEqual(result["total_citations"], 1)
         self.assertEqual(mismatch["count"], 1)
-        self.assertEqual(mismatch["confirmed_issue_count"], 1)
+        self.assertEqual(mismatch["summary_mode"], "total_ratio")
+        self.assertEqual(mismatch["total_ratio"], 1.0)
+        self.assertEqual(mismatch["confirmed_issue_count"], 0)
 
     def test_admin_citation_stats_rejects_non_admin(self):
         with self.assertRaises(HTTPException) as ctx:

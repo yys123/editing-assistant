@@ -30,6 +30,26 @@ assert.match(
   'admin citation statistics should display the unconfirmed ratio',
 )
 assert.match(
+  source,
+  /summary_mode\s*===\s*'total_ratio'/,
+  'admin citation statistics should support total-ratio-only rows',
+)
+assert.match(
+  source,
+  /占参考文献总数/,
+  'auto-deleted mismatch citations should show their share of all citations',
+)
+assert.match(
+  source,
+  /auto_deleted_citation_ratio/,
+  'admin citation statistics should expose the total auto-deleted citation ratio',
+)
+assert.match(
+  source,
+  /自动删除比例/,
+  'admin citation statistics should show the auto-deleted ratio in the metric summary',
+)
+assert.match(
   cssSource,
   /\.admin-citation-stat-row/,
   'admin citation statistic rows should have dedicated CSS',
