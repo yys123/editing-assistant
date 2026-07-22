@@ -207,10 +207,11 @@ assert.doesNotMatch(
 const panelRule = cssSource.match(/\.ai-integration-citation-panel\s*\{[\s\S]*?\n\}/)?.[0] ?? ''
 assert.match(panelRule, /position:\s*fixed/, 'AI integration citation panel should stay fixed in the viewport on desktop')
 assert.match(panelRule, /top:\s*calc\(var\(--header-height\) \+ 16px\)/, 'desktop panel should sit below the fixed app header')
+assert.match(panelRule, /bottom:\s*calc\(var\(--footer-height\) \+ 16px\)/, 'desktop panel should sit above the fixed app footer so review buttons are not covered')
 assert.match(panelRule, /right:\s*24px/, 'desktop panel should stay inside the visible app gutter')
 assert.match(panelRule, /width:\s*var\(--ai-integration-citation-panel-width\)/, 'desktop panel width should match the reserved result safe lane')
-assert.match(panelRule, /(?:^|\n)\s*height:\s*calc\(100vh - var\(--header-height\) - 32px\)/, 'desktop panel should have a definite viewport-bound height so flex can keep review buttons visible')
-assert.match(panelRule, /max-height:\s*calc\(100vh - var\(--header-height\) - 32px\)/, 'desktop panel should fit within the viewport')
+assert.doesNotMatch(panelRule, /(?:^|\n)\s*height:\s*calc\(100vh - var\(--header-height\) - 32px\)/, 'desktop panel should not extend behind the fixed app footer')
+assert.match(panelRule, /max-height:\s*calc\(100vh - var\(--header-height\) - var\(--footer-height\) - 32px\)/, 'desktop panel should fit between the fixed app header and footer')
 assert.match(panelRule, /z-index:\s*35/, 'fixed panel should layer above the long AI result content')
 assert.match(panelRule, /display:\s*flex/, 'AI integration citation panel should be a flex column so only the detail body scrolls')
 assert.match(panelRule, /flex-direction:\s*column/, 'AI integration citation panel should stack header, body, and actions vertically')
@@ -229,8 +230,8 @@ assert.match(occurrenceActionsRule, /flex-shrink:\s*0/, 'citation review action 
 
 assert.match(
   cssSource,
-  /@media \(max-width: 980px\)[\s\S]*\.ai-integration-citation-panel\s*\{[\s\S]*position:\s*fixed[\s\S]*top:\s*auto[\s\S]*bottom:\s*16px[\s\S]*left:\s*16px[\s\S]*right:\s*16px/,
-  'narrow screens should show AI integration citation details as a bottom sheet',
+  /@media \(max-width: 980px\)[\s\S]*\.ai-integration-citation-panel\s*\{[\s\S]*position:\s*fixed[\s\S]*top:\s*auto[\s\S]*bottom:\s*calc\(var\(--footer-height\) \+ 16px\)[\s\S]*left:\s*16px[\s\S]*right:\s*16px/,
+  'narrow screens should show AI integration citation details as a bottom sheet above the fixed footer',
 )
 
 const expandedHistoryRule = cssSource.match(/\.ai-history-item\.expanded\s*\{[\s\S]*?\n\}/)?.[0] ?? ''
