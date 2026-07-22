@@ -252,36 +252,38 @@ function AiCitationPanel({
           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
         </button>
       </div>
-      <div className="citation-context">
-        {anchor.context_before && <p className="citation-context-muted">{anchor.context_before}</p>}
-        <p className="citation-context-quote">{anchor.quote}</p>
-        {anchor.context_after && <p className="citation-context-muted">{anchor.context_after}</p>}
-      </div>
-      {verificationDisplay && (
-        <div className={`citation-verification-panel ${verificationDisplay.tone}`}>
-          <div className="citation-verification-panel-title">
-            <span className="material-symbols-outlined">fact_check</span>
-            <span>{verificationDisplay.label}</span>
-          </div>
-          {verificationItems.map((item, index) => (
-            <div key={`${item.anchor_key || item.citation_key}-${index}`} className="citation-verification-panel-item">
-              <div className={`citation-verification-item-status citation-verification-item-status-${item.status}`}>
-                {getCitationVerificationStatusLabel(item.status)}
-              </div>
-              {item.sentence && <div className="citation-verification-sentence">{item.sentence}</div>}
-              {item.reason && <div className="citation-verification-reason">{item.reason}</div>}
-            </div>
-          ))}
-          {hasReviewItems && (
-            <div className="citation-verification-actions">
-              <button type="button" className="btn-m3-outline citation-verification-copy" onClick={copyCitationVerificationReview}>
-                <span className="material-symbols-outlined" style={{ fontSize: 15 }}>content_copy</span>
-                {reviewCopied ? '已复制' : '复制待核对信息'}
-              </button>
-            </div>
-          )}
+      <div className="citation-panel-scroll">
+        <div className="citation-context">
+          {anchor.context_before && <p className="citation-context-muted">{anchor.context_before}</p>}
+          <p className="citation-context-quote">{anchor.quote}</p>
+          {anchor.context_after && <p className="citation-context-muted">{anchor.context_after}</p>}
         </div>
-      )}
+        {verificationDisplay && (
+          <div className={`citation-verification-panel ${verificationDisplay.tone}`}>
+            <div className="citation-verification-panel-title">
+              <span className="material-symbols-outlined">fact_check</span>
+              <span>{verificationDisplay.label}</span>
+            </div>
+            {verificationItems.map((item, index) => (
+              <div key={`${item.anchor_key || item.citation_key}-${index}`} className="citation-verification-panel-item">
+                <div className={`citation-verification-item-status citation-verification-item-status-${item.status}`}>
+                  {getCitationVerificationStatusLabel(item.status)}
+                </div>
+                {item.sentence && <div className="citation-verification-sentence">{item.sentence}</div>}
+                {item.reason && <div className="citation-verification-reason">{item.reason}</div>}
+              </div>
+            ))}
+            {hasReviewItems && (
+              <div className="citation-verification-actions">
+                <button type="button" className="btn-m3-outline citation-verification-copy" onClick={copyCitationVerificationReview}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 15 }}>content_copy</span>
+                  {reviewCopied ? '已复制' : '复制待核对信息'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       {occurrence && (
         <div className="citation-occurrence-actions">
           {occurrenceReviewStatus === 'confirmed' && (

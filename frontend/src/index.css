@@ -3694,16 +3694,17 @@ a.clinic-master-guide-title:hover {
   width: var(--ai-integration-citation-panel-width);
   max-width: calc(100vw - var(--sidebar-width) - 48px);
   max-height: calc(100vh - var(--header-height) - 32px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   z-index: 35;
-}
-.ai-integration-citation-panel .citation-context {
-  max-height: calc(100vh - var(--header-height) - 150px);
 }
 .citation-panel-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  flex-shrink: 0;
   padding: 12px 14px;
   background: var(--dui-surface-soft);
   border-bottom: 0.5px solid var(--dui-divider);
@@ -3723,6 +3724,16 @@ a.clinic-master-guide-title:hover {
   padding: 14px;
   max-height: 520px;
   overflow: auto;
+}
+.citation-panel-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.ai-integration-citation-panel .citation-context {
+  max-height: none;
+  overflow: visible;
 }
 .citation-context p {
   white-space: pre-wrap;
@@ -3813,6 +3824,7 @@ a.clinic-master-guide-title:hover {
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+  flex-shrink: 0;
   margin: 0 14px 14px;
   padding-top: 10px;
   border-top: 0.5px solid var(--dui-divider);
@@ -4626,9 +4638,6 @@ a.clinic-master-guide-title:hover {
     max-width: none;
     max-height: min(52vh, 420px);
     z-index: 60;
-  }
-  .ai-integration-citation-panel .citation-context {
-    max-height: min(34vh, 300px);
   }
   .ai-history-item-header {
     align-items: flex-start;

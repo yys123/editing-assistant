@@ -6,6 +6,11 @@ const appSource = await readFile('src/App.tsx', 'utf8')
 const typesSource = await readFile('src/types/index.ts', 'utf8')
 const cssSource = await readFile('src/index.css', 'utf8')
 
+function cssRule(selector) {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return cssSource.match(new RegExp(`${escapedSelector}\\s*\\{[\\s\\S]*?\\n\\}`))?.[0] ?? ''
+}
+
 assert.match(
   stepSource,
   /className="citation-panel ai-integration-citation-panel"/,
@@ -55,6 +60,16 @@ assert.match(
   stepSource,
   /citation-verification-panel/,
   'AI citation panel should render citation verification detail',
+)
+assert.match(
+  stepSource,
+  /className="citation-panel-scroll"/,
+  'AI citation panel should wrap long citation detail content in a dedicated scroll area',
+)
+assert.match(
+  stepSource,
+  /className="citation-panel-scroll"[\s\S]*className="citation-context"[\s\S]*citation-verification-panel[\s\S]*className="citation-occurrence-actions"/,
+  'AI citation panel should keep citation context and verification details scrollable above the fixed review actions',
 )
 assert.match(
   stepSource,
@@ -181,6 +196,20 @@ assert.match(panelRule, /right:\s*24px/, 'desktop panel should stay inside the v
 assert.match(panelRule, /width:\s*var\(--ai-integration-citation-panel-width\)/, 'desktop panel width should match the reserved result safe lane')
 assert.match(panelRule, /max-height:\s*calc\(100vh - var\(--header-height\) - 32px\)/, 'desktop panel should fit within the viewport')
 assert.match(panelRule, /z-index:\s*35/, 'fixed panel should layer above the long AI result content')
+assert.match(panelRule, /display:\s*flex/, 'AI integration citation panel should be a flex column so only the detail body scrolls')
+assert.match(panelRule, /flex-direction:\s*column/, 'AI integration citation panel should stack header, body, and actions vertically')
+assert.match(panelRule, /overflow:\s*hidden/, 'AI integration citation panel should clip to the viewport while its inner body scrolls')
+
+const panelHeaderRule = cssRule('.citation-panel-header')
+assert.match(panelHeaderRule, /flex-shrink:\s*0/, 'citation panel header should remain visible while long citation details scroll')
+
+const panelScrollRule = cssRule('.citation-panel-scroll')
+assert.match(panelScrollRule, /flex:\s*1 1 auto/, 'citation panel detail area should fill the remaining panel height')
+assert.match(panelScrollRule, /min-height:\s*0/, 'citation panel detail area should be allowed to shrink inside the fixed-height panel')
+assert.match(panelScrollRule, /overflow-y:\s*auto/, 'citation panel detail area should scroll vertically when content is too long')
+
+const occurrenceActionsRule = cssRule('.citation-occurrence-actions')
+assert.match(occurrenceActionsRule, /flex-shrink:\s*0/, 'citation review action buttons should stay visible below the scrollable detail area')
 
 assert.match(
   cssSource,
