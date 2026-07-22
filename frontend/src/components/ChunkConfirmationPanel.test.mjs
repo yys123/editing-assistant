@@ -24,9 +24,11 @@ try {
   const {
     default: ChunkConfirmationPanel,
     chunkDisplayTitle,
+    clearChunksForSource,
     groupChunksBySource,
     recommendedChunkAutoConfirmLimit,
     recommendedChunkSearchLimit,
+    selectAllChunksForSource,
   } = await import(pathToFileURL(outfile).href)
 
   assert.equal(chunkDisplayTitle({
@@ -104,6 +106,27 @@ try {
   assert.equal(grouped[1].sourceId, 2)
   assert.deepEqual(grouped[1].chunks.map(chunk => chunk.chunk_id), ['R2-C001'])
 
+  const sourceBulkValue = [
+    {
+      chunk_id: 'R2-C001',
+      source_id: 2,
+      source_filename: '指南B.md',
+      title_path: 'Disease / Abstract',
+      text: '正文B1',
+      source_ref_ids: [],
+      selected_by: 'user',
+    },
+  ]
+  const afterSelectAllSourceOne = selectAllChunksForSource(sourceBulkValue, grouped[0].chunks)
+  assert.deepEqual(
+    afterSelectAllSourceOne.map(chunk => chunk.chunk_id),
+    ['R2-C001', 'R1-C001', 'R1-C002'],
+  )
+  assert.deepEqual(
+    clearChunksForSource(afterSelectAllSourceOne, grouped[0].chunks).map(chunk => chunk.chunk_id),
+    ['R2-C001'],
+  )
+
   assert.equal(recommendedChunkSearchLimit('quality_review', true), 40)
   assert.equal(recommendedChunkAutoConfirmLimit('quality_review', true), 40)
   assert.equal(recommendedChunkSearchLimit('ai_integration', false), 24)
@@ -146,6 +169,18 @@ try {
   assert.match(source, /\$\{group\.sourceId\}:\$\{chunk\.chunk_id\}:\$\{chunk\.paragraph_index\}/)
   assert.match(source, /groupSelectedCount/)
   assert.match(source, /groupRecommendedCount/)
+  assert.match(source, /collapsedSourceIds/)
+  assert.match(source, /toggleSourceCollapsed/)
+  assert.match(source, /selectAllChunksForSource/)
+  assert.match(source, /clearChunksForSource/)
+  assert.match(source, /chunk-confirm-source-bulk-actions/)
+  assert.match(source, /chunk-confirm-source-bulk-actions[\s\S]*全选[\s\S]*全部取消/)
+  assert.match(source, /sourceCollapsed/)
+  assert.match(source, /aria-expanded=\{!sourceCollapsed\}/)
+  assert.match(source, /title=\{sourceCollapsed \? '展开参考数据源切片' : '折叠参考数据源切片'\}/)
+  assert.match(source, /className=\{`chunk-confirm-source-group \$\{sourceCollapsed \? 'collapsed' : ''\}`\}/)
+  assert.match(source, /keyboard_arrow_right/)
+  assert.match(source, /keyboard_arrow_down/)
   assert.match(source, /推荐/)
   assert.match(source, /未推荐/)
   assert.doesNotMatch(source, /完整列表/)
@@ -170,6 +205,10 @@ try {
   assert.match(css, /grid-template-columns:\s*minmax\(360px, 0\.95fr\) minmax\(360px, 1\.05fr\)/)
   assert.match(css, /\.chunk-confirm-list\s*{[^}]*display:\s*flex[^}]*flex-direction:\s*column/s)
   assert.match(css, /\.chunk-confirm-source-group\s*{[^}]*overflow:\s*visible/s)
+  assert.match(css, /\.chunk-confirm-source-collapse\s*{[^}]*display:\s*inline-flex/s)
+  assert.match(css, /\.chunk-confirm-source-group\.collapsed \.chunk-confirm-source-title\s*{[^}]*border-bottom:\s*none/s)
+  assert.match(css, /\.chunk-confirm-source-bulk-actions\s*{[^}]*display:\s*inline-flex/s)
+  assert.match(css, /\.chunk-confirm-source-bulk-actions \.btn\s*{[^}]*white-space:\s*nowrap/s)
   assert.match(css, /\.chunk-confirm-directory\s*{[^}]*overflow-y:\s*auto/s)
   assert.match(css, /chunk-confirm-directory/)
   assert.match(css, /chunk-confirm-preview/)

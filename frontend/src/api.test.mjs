@@ -63,6 +63,19 @@ globalThis.fetch = async (url, options = {}) => {
       content: '<p>这里是指南详情内容</p>',
     }), { status: 200 })
   }
+  if (url === '/api/article/guides/85527') {
+    return new Response(JSON.stringify({
+      detail: {
+        message: '指南详情内容为空',
+        dataKeys: ['content'],
+        stringFields: [{
+          path: 'data.content',
+          length: 972998,
+          preview: '<div data-core-wrapper="content"><div class="core-relations my-3"></div><div id=',
+        }],
+      },
+    }), { status: 502 })
+  }
   if (url.startsWith('/api/article/entries/search')) {
     return new Response(JSON.stringify({
       items: [{ id: 21, name: '2型糖尿病' }],
@@ -354,6 +367,14 @@ assert.equal(
   }).filename,
   '3921-指南_名称_2026',
 )
+
+await assert.rejects(
+  () => fetchGuideDetail(85527),
+  {
+    message: '指南详情内容为空，请到指南数据库pdf解析全文后再检索~',
+  },
+)
+assert.equal(fetchCalls.at(-1).url, '/api/article/guides/85527')
 
 const clinicalChunkFetchStart = fetchCalls.length
 

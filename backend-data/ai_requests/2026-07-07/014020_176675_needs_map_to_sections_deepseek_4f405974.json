@@ -1,0 +1,39 @@
+{
+  "id": "4f4059746580436696c87562d16acc6b",
+  "created_at": "2026-07-07T01:40:20.176675+00:00",
+  "user_id": "3271b62a1c20474d9bf8ac4b82e52361",
+  "context": "needs_map_to_sections",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 1295,
+    "estimated_prompt_tokens": 721,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.000721,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "以下是【妊娠剧吐】知识库词条的章节结构和用户需求聚类。\n\n## 章节结构\n- section_id:4436f381 | 一、定义\n- section_id:65e6cee5 | 二、发病机制\n- section_id:6566f219 | 三、危险因素\n- section_id:f65fcaa8 | 四、流行病学\n- section_id:ad9c0137 | 一、临床表现\n- section_id:08509173 | 二、辅助检查\n- section_id:1b402ed6 | 三、诊断流程\n- section_id:485ce609 | 四、诊断标准\n- section_id:b36ed417 | 五、分级\n- section_id:c5164b75 | 一、鉴别诊断\n- section_id:acbc99fe | 一、分级诊疗\n- section_id:e744b127 | 二、非药物治疗\n- section_id:e1afac0b | 三、药物治疗\n- section_id:f681eff8 | 四、难治性 NVP 和 HG 的管理\n- section_id:123e08f2 | 五、终止妊娠指征\n- section_id:0ffc5fee | 一、住院孕妇的出院指导\n- section_id:f1552bf0 | 二、预后\n- section_id:5abd99d0 | 一、预防\n\n## 用户需求聚类\n- 妊娠剧吐的药物治疗方案与安全性（约390次，已覆盖）\n- 妊娠剧吐的补液、电解质管理与营养支持（约195次，已覆盖）\n- 妊娠剧吐的并发症识别与处理（约120次，未覆盖）\n- 妊娠剧吐的鉴别诊断（非典型表现与合并疾病）（约110次，未覆盖）\n- 妊娠剧吐的维生素补充（B1、B6）细节（约85次，已覆盖）\n- 妊娠剧吐合并甲状腺功能异常（约30次，未覆盖）\n- 妊娠剧吐的非药物疗法与生活方式干预（约75次，未覆盖）\n- 妊娠剧吐的诊断标准与评估工具（约20次，已覆盖）\n- 妊娠剧吐的病因与机制探讨（约15次，未覆盖）\n- 妊娠剧吐的终止妊娠指征与重症处理（约8次，未覆盖）\n\n请判断每个章节与哪些需求类型最相关，以JSON格式输出：\n{\n  \"mappings\": [\n    {\n      \"section_id\": \"章节ID（原样复制）\",\n      \"section_heading\": \"章节标题\",\n      \"cluster_topics\": [\"需求主题1\", \"需求主题2\"],\n      \"relevance\": \"high\"\n    }\n  ]\n}\n\nrelevance取值：\n- high：该章节是满足这些需求的核心章节\n- medium：有一定相关性\n- low：相关性较弱，或该章节无对应需求\n\n每个章节必须出现在mappings中（即使cluster_topics为空也要包含）。"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      },
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "max_tokens": 32768
+    }
+  }
+}

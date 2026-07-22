@@ -1186,20 +1186,33 @@ async def generate_ai_integration_answer(
         )
     else:
         reference_chunks = _build_reference_chunks(req.reference_inputs)
-    priority_chunks, supplementary_chunks = _partition_reference_chunks_by_priority(
-        reference_chunks,
-        priority_ids,
-    )
-    primary_reference_text = (
-        "（未设置重点指南）"
-        if not priority_ids
-        else _format_reference_chunks(priority_chunks, priority_ids)
-    )
-    supplementary_reference_text = (
-        "（未选择普通参考资料）"
-        if not supplementary_chunks
-        else _format_reference_chunks(supplementary_chunks, priority_ids)
-    )
+    if priority_ids:
+        priority_chunks, supplementary_chunks = _partition_reference_chunks_by_priority(
+            reference_chunks,
+            priority_ids,
+        )
+        primary_reference_text = _format_reference_chunks(priority_chunks, priority_ids)
+        supplementary_reference_text = (
+            "（未选择普通参考资料）"
+            if not supplementary_chunks
+            else _format_reference_chunks(supplementary_chunks, priority_ids)
+        )
+        reference_sections = f"""## 重点指南主证据区
+{primary_reference_text}
+
+## 普通参考资料补充区
+{supplementary_reference_text}"""
+        priority_guideline_requirements = """
+- 若“重点指南主证据区”中有相关证据，必须优先以重点指南为准，并采用重点指南作为主体依据。
+- 若普通参考资料与重点指南不一致，必须说明冲突，并采用重点指南结论，除非用户明确要求比较不同资料。
+- 不要因为普通参考资料数量更多就覆盖重点指南；普通参考资料补充区只能补充重点指南未覆盖的内容。"""
+        priority_usage_requirement = """
+- 必须包含“## 重点指南使用情况”区块；若重点指南覆盖了本次任务，列出采用的参考数据源和引用标记；若未覆盖，明确写“重点指南未覆盖”并说明使用了哪些普通资料补充。"""
+    else:
+        reference_sections = f"""## 参考资料
+{_format_reference_chunks(reference_chunks)}"""
+        priority_guideline_requirements = ""
+        priority_usage_requirement = ""
     reference_anchors = [
         *original_anchors,
         *(_extract_reference_anchors(req.reference_inputs) if reference_mode == "full" else []),
@@ -1219,16 +1232,10 @@ async def generate_ai_integration_answer(
 ## 原词条可引用证据（引用时使用[0-原文献号]）
 {original_evidence_text}
 
-## 重点指南主证据区
-{primary_reference_text}
-
-## 普通参考资料补充区
-{supplementary_reference_text}
+{reference_sections}
 
 ## 回答要求
-- 若“重点指南主证据区”中有相关证据，必须优先以重点指南为准，并采用重点指南作为主体依据。
-- 若普通参考资料与重点指南不一致，必须说明冲突，并采用重点指南结论，除非用户明确要求比较不同资料。
-- 不要因为普通参考资料数量更多就覆盖重点指南；普通参考资料补充区只能补充重点指南未覆盖的内容。
+{priority_guideline_requirements}
 - 只使用上方提供的原词条内容和参考文献，不要引入未提供的数据或指南。
 - 如证据不足，明确说明“现有材料不足以判断”，并说明还需要哪类资料。
 - 引用原词条内容时必须使用[0-原文献号]，例如原词条句子原本标注[18]，回答中应写作[0-18]；只有原词条可引用证据列出的编号才能这样使用。
@@ -1236,7 +1243,7 @@ async def generate_ai_integration_answer(
 - 不要沿用原词条或参考资料中的原有条目序号，例如“4.”、“（3）”、“2、”。除非用户明确要求编号列表，列举要点时统一使用 Markdown 无序列表“-”；如必须编号，应从 1 开始连续编号，且同一级编号样式保持一致。
 - 必须包含“## 修订后正文”区块，区块内只放可直接粘贴到词条中的清洁修订正文。
 - 修订后正文应是可直接粘贴到词条中的清洁文本，不要混入修改说明、证据不足提示、待确认事项。
-- 必须包含“## 重点指南使用情况”区块；若重点指南覆盖了本次任务，列出采用的参考数据源和引用标记；若未覆盖，明确写“重点指南未覆盖”并说明使用了哪些普通资料补充。
+{priority_usage_requirement}
 - 必须包含“## 修改说明”区块，用 Markdown 无序列表简要说明本次修改了哪些内容。
 - 直接回答用户问题，使用 Markdown，语言专业、清晰、便于医学编辑继续使用。"""
 
@@ -1267,12 +1274,14 @@ async def generate_ai_integration_answer(
         if revision_text
         else ""
     )
-    references_by_id = {ref.id: ref.filename for ref in req.reference_inputs}
-    priority_guideline_usage = _infer_priority_guideline_usage(
-        f"{rewritten_answer}\n{rewritten_revision_text}",
-        priority_ids,
-        references_by_id,
-    )
+    priority_guideline_usage = None
+    if priority_ids:
+        references_by_id = {ref.id: ref.filename for ref in req.reference_inputs}
+        priority_guideline_usage = _infer_priority_guideline_usage(
+            f"{rewritten_answer}\n{rewritten_revision_text}",
+            priority_ids,
+            references_by_id,
+        )
     citation_verification = await verify_ai_integration_citations(
         rewritten_revision_text or rewritten_answer,
         reference_anchors,

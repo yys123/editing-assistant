@@ -68,6 +68,7 @@ GUIDE_PARSE_TEXT_CONTAINER_KEYS = (
 GUIDE_PARSE_TEXT_CONTENT_KEYS = ("process_context", "processContext")
 GUIDE_PARSE_TEXT_STATUS_KEYS = ("item_status", "itemStatus")
 GUIDE_AI_EN_BODY_KEYS = ("ai_en_body", "aiEnBody")
+GUIDE_DETAIL_NOISE_LINE_RE = re.compile(r"^(?:\[H[1-6]\]\s*)?eLetters\s*$", re.I)
 ENTRY_DETAIL_NAME_KEYS = ("name", "title", "entryName", "entry_name", "ncdName", "ncd_name")
 ENTRY_DETAIL_CONTENT_KEYS = (
     "content",
@@ -748,7 +749,16 @@ def _guide_detail_content(data: dict) -> str:
 
 
 def _normalize_guide_detail_content(content: str) -> str:
-    return _normalize_reference_source_text(content)
+    return _strip_guide_detail_noise(_normalize_reference_source_text(content))
+
+
+def _strip_guide_detail_noise(content: str) -> str:
+    lines = []
+    for line in (content or "").splitlines():
+        if GUIDE_DETAIL_NOISE_LINE_RE.match(line.strip()):
+            continue
+        lines.append(line.rstrip())
+    return "\n".join(lines).strip()
 
 
 def _looks_like_markdown_structure(text: str) -> bool:
@@ -843,6 +853,15 @@ async def get_guide_detail(guide_id: int):
     title = _first_guide_text_field(data, GUIDE_DETAIL_TITLE_KEYS) or f"指南-{guide_id}"
     title = title.strip()
     content = _normalize_guide_detail_content(content)
+    if not content.strip():
+        raise HTTPException(
+            502,
+            {
+                "message": "指南详情内容为空",
+                "dataKeys": list(data.keys()),
+                "stringFields": _guide_string_field_summary(data),
+            },
+        )
     return {"id": guide_id, "title": title, "content": content}
 
 

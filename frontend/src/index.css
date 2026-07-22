@@ -3251,6 +3251,83 @@ a.clinic-master-guide-title:hover {
   overflow-wrap: anywhere;
 }
 
+.admin-citation-stat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-citation-stat-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(360px, 1.6fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: 8px;
+  background: var(--m3-surface-container-low);
+}
+
+.admin-citation-stat-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-citation-stat-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.admin-citation-stat-label {
+  min-width: 0;
+  color: var(--m3-on-surface);
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-citation-stat-count {
+  margin-left: auto;
+  color: var(--m3-on-surface-variant);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.admin-citation-stat-ratios {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-citation-stat-ratios span {
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: var(--dui-surface);
+  color: var(--m3-on-surface-variant);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.admin-citation-stat-empty {
+  padding: 14px;
+  border: 1px dashed var(--m3-outline-variant);
+  border-radius: 8px;
+  color: var(--m3-on-surface-variant);
+  font-size: 13px;
+  text-align: center;
+}
+
 .admin-table-shell {
   overflow: auto;
   border: 1px solid var(--m3-outline-variant);
@@ -3333,6 +3410,14 @@ a.clinic-master-guide-title:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .admin-citation-stat-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-citation-stat-ratios {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .admin-settings-footer {
     padding: 14px 20px 18px;
   }
@@ -3351,6 +3436,10 @@ a.clinic-master-guide-title:hover {
   .admin-settings-config-grid,
   .admin-metric-grid-three,
   .admin-metric-grid-four {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-citation-stat-ratios {
     grid-template-columns: 1fr;
   }
 
@@ -3528,6 +3617,67 @@ a.clinic-master-guide-title:hover {
   background: var(--dui-primary-container);
   border-radius: 4px;
 }
+.citation-link-mismatch,
+.citation-link-weak,
+.citation-link-unverifiable,
+.citation-link-unverified,
+.citation-link-confirmed {
+  border-radius: 4px;
+  font-weight: 700;
+  text-decoration: none;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.citation-link-mismatch {
+  color: #B42318;
+  background: #FEE4E2;
+  box-shadow: inset 0 -2px 0 #D92D20;
+}
+.citation-link-mismatch:hover,
+.citation-link-mismatch.active {
+  color: #912018;
+  background: #FECDCA;
+}
+.citation-link-weak {
+  color: #B54708;
+  background: #FEF0C7;
+  box-shadow: inset 0 -2px 0 #F79009;
+}
+.citation-link-weak:hover,
+.citation-link-weak.active {
+  color: #93370D;
+  background: #FEDF89;
+}
+.citation-link-unverifiable {
+  color: #854D0E;
+  background: #FEF9C3;
+  box-shadow: inset 0 -2px 0 #D97706;
+}
+.citation-link-unverifiable:hover,
+.citation-link-unverifiable.active {
+  color: #713F12;
+  background: #FEF08A;
+}
+.citation-link-unverified {
+  color: #344054;
+  background: #EAECF0;
+  box-shadow: inset 0 -2px 0 #667085;
+}
+.citation-link-unverified:hover,
+.citation-link-unverified.active {
+  color: #1D2939;
+  background: #D0D5DD;
+}
+.citation-link-confirmed {
+  color: #027A48;
+  background: #D1FADF;
+  box-shadow: inset 0 -2px 0 #12B76A;
+}
+.citation-link-confirmed:hover,
+.citation-link-confirmed.active {
+  color: #05603A;
+  background: #A6F4C5;
+}
 .citation-panel {
   position: sticky;
   top: calc(var(--header-height) + 16px);
@@ -3626,6 +3776,16 @@ a.clinic-master-guide-title:hover {
   font-size: 12px;
   line-height: 1.6;
 }
+.citation-verification-item-status {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+  font-weight: 700;
+}
 .citation-verification-sentence {
   color: var(--m3-on-surface);
   overflow-wrap: anywhere;
@@ -3634,6 +3794,51 @@ a.clinic-master-guide-title:hover {
   margin-top: 3px;
   color: inherit;
   overflow-wrap: anywhere;
+}
+.citation-verification-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+}
+.citation-verification-copy {
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.citation-occurrence-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 14px 14px;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--dui-divider);
+}
+.citation-occurrence-actions .btn-m3-outline {
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.citation-occurrence-confirmed {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+  color: #027A48;
+  font-size: 12px;
+  font-weight: 700;
+}
+.citation-occurrence-confirmed .material-symbols-outlined {
+  font-size: 15px;
+}
+.citation-occurrence-delete {
+  color: var(--dui-danger);
+}
+.citation-occurrence-confirm {
+  color: #027A48;
 }
 
 .ai-history-section-header {
@@ -4005,6 +4210,32 @@ a.clinic-master-guide-title:hover {
   background: linear-gradient(180deg, var(--m3-surface-container-low), var(--dui-surface-soft));
   border-bottom: 0.5px solid var(--dui-divider);
 }
+.chunk-confirm-source-group.collapsed .chunk-confirm-source-title {
+  border-bottom: none;
+}
+.chunk-confirm-source-collapse {
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: min(320px, 100%);
+  flex: 1;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.chunk-confirm-source-collapse:hover .chunk-confirm-source-index {
+  color: var(--m3-primary);
+}
+.chunk-confirm-source-arrow {
+  margin-top: -1px;
+  font-size: 20px;
+  color: var(--m3-primary);
+  flex-shrink: 0;
+}
 .chunk-confirm-source-main {
   display: grid;
   gap: 3px;
@@ -4039,6 +4270,19 @@ a.clinic-master-guide-title:hover {
   background: var(--dui-primary-container);
   border-radius: 999px;
   padding: 2px 8px;
+}
+.chunk-confirm-source-bulk-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chunk-confirm-source-bulk-actions .btn {
+  padding: 2px 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: nowrap;
 }
 .chunk-confirm-source-chunks {
   display: grid;

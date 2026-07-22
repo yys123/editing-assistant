@@ -1,0 +1,36 @@
+{
+  "id": "f3eee09db093449f8ac8b72a7e8d18fd",
+  "created_at": "2026-07-15T07:53:12.911462+00:00",
+  "user_id": "b2ae8825adf54de3b54bb06fb29bd450",
+  "context": "reference_eval",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 5362,
+    "estimated_prompt_tokens": 3355,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.003355,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位循证医学文献评估专家，擅长评估医学参考文献的质量、权威性和适用性。请严格按照提供的评估标准进行客观评价。"
+        },
+        {
+          "role": "user",
+          "content": "请评估以下参考文献集合对于编写【慢性活动性EB病毒感染（儿童）】临床词条的适用性。\n\n## 评估标准\n# 参考信息源评估标准\n\n## 1. 机构与发布者的权威性 (Authority)\n\n入选的资料必须由该疾病领域公认的顶级学术组织、政府卫生机构或权威专家组发布。\n\n- 国际顶级权威组织：针对特定疾病的全球倡议组织（如针对COPD的GOLD、针对哮喘的GINA）、国际公认的专科学会（如心血管领域的AHA/ACC、ESC；肿瘤领域的NCCN、ESMO；糖尿病领域的ADA、EASD等）。\n- 国内核心卫生与学术机构：国家卫生健康委员会（卫健委）发布的诊疗规范、中华医学会及其各专科分会、中国医师协会、中国抗癌协会（CSCO）等出具的指南与共识。\n\n评级：\n- 高：由上述国际顶级组织或国内核心机构发布\n- 中：由省级学会、知名专科医院专家组、二级学会发布\n- 低：来源不明、无明确发布机构、或非医学专业机构\n\n## 2. 文献类型与证据等级 (Evidence Level)\n\n按照循证医学证据等级优先级排序：\n- 第一顺位：临床实践指南（Clinical Practice Guidelines, CPGs），特别是基于GRADE系统评估的指南\n- 第二顺位：权威专家共识（Expert Consensus），用于补充指南未覆盖的边缘问题、新兴疗法\n- 第三顺位：顶级期刊的权威综述（State-of-the-Art Reviews），发表在《The Lancet》《NEJM》《JAMA》等顶级医学期刊\n\n## 3. 时效性与版本追踪 (Timeliness)\n\n- 最新版本原则：核心指南必须纳入该机构发布的最新版本\n- 年度更新追踪：每年更新的全球策略需纳入近3-5年的更新要点\n- 国内最新版兜底原则：若国内权威指南更新较慢，依然必须纳入作为国内临床实践基准，但需用最新国际指南补充前沿知识\n\n评级：\n- 最新：近2年内发布/更新\n- 较新：2-5年内发布\n- 陈旧：超过5年未更新\n\n## 4. 内容系统性与覆盖面 (Comprehensiveness)\n\n纳入的资料组合必须能够无死角地支撑词条模块结构：\n- 全流程覆盖：必须包含从\"预防/筛查\"到\"诊断/评估\"，再到\"综合管理/随访\"的全局性文件\n- 分级诊疗覆盖：既要有面向三甲医院专科医生的综合指南，也要有面向基层的管理指南\n\n## 5. 临床适用性与本地化 (Localization & Applicability)\n\n- 本土化校准：国际指南虽然前沿，但在流行病学特征、药物可及性、医疗体制上可能存在差异，必须将国内最新权威指南作为诊断标准和用药推荐的本土化校准基准\n- 可操作性：优先纳入包含明确诊断流程图（Algorithms）、药物剂量表、疗效评估量表的文献\n\n## 总体推荐等级\n\n- 强烈推荐：权威性高 + 证据等级高（指南/共识） + 时效性最新\n- 推荐：满足大部分标准，有一项稍弱\n- 可用：权威性或时效性一般，但内容有补充价值\n- 建议替换：权威性低、内容陈旧、或有更优替代文献\n\n\n## 待评估的参考文献（共 3 篇）\n### 文献 1: 74851-慢性活动性EB病毒病诊治专家共识（2025版）\n字数: 11307\n内容摘要:\n• 标准与规范 •\n慢性活动性EB病毒病诊治专家共识（2025版）\n中华医学会血液学分会淋巴细胞学组 , 中华医学会儿科学分会血液学组 , 中华医学会感染病学分会中华医学杂志, 2025,105(17): 1322-1330.\nEB病毒（Epstein-Barr virus，EBV）是Ⅳ型人类疱疹病毒（human herpes virus 4，HHV-4），属于人类疱疹病毒科γ亚科，是线状双链DNA病毒 [1]。我国人群普遍易感EBV，90%以上成人的血清EBV抗体阳性。初次感染EBV后，病毒在记忆B淋巴细胞中长期存在、建立潜伏感染，终生携带。慢性活动性EBV病（chronic active EBV disease，CAEBVD）是EBV感染T细胞和（或）自然杀伤（natural killer，NK）细胞引起的淋巴增殖性疾病 [2]，是一种同时具有炎症性和克隆增殖性双重特性的系统性、进行性疾病。临床表现多样，可累及多系统，本专家共识旨在提高我国CAEBVD的诊断水平，指导规范化治疗。\n[H2] 一、共识制订的方法学\n1.共识制订原则及应用范围：本共识由中华医学会血液学分会淋巴细胞学组、中华医学会儿科学分会血液学组、中华医学会感染病学分会于2024年9月共同发起，严格遵循美国医学研究所最新指南定义和《世界卫生组织指南制订手册》的临床实践指南制订方法学，参考《中国制订/修订临床诊疗指南的指导原则（2022版）》和《循证临床实践指南的制订与实施》的制订流程，符合指南研究与评价工具Ⅱ的报告要求 [3-6]。按照指南科学性、透明性和适用性评级工具（scientificity，transparency，applicability rankings，STAR）清单和卫生保健实践指南报告规范（reporting items for practice guidelines in healthcare，RIGHT）制作共识实施方案和共识全文 [7,8]。\n2.临床问题收集及确定：通过文献回顾、专家咨询和调研的方式收集临床问题，并对问题进行去重、合并及重要性排序，交由指导委员会遴选，构建初始临床问题列表。将临床问题确定表通过电子邮件发送给推荐意见共识组专家，并收集其对临床问题及其结局重要性进行的评分。7~9分表示对决策和推荐至关重要，4~6分表示重要，1~3分表示不太重要。指导委员会根据\n\n---\n\n### 文献 2: 54588-儿童EB病毒感染相关疾病的诊断和治疗原则专家共识\n字数: 8838\n内容摘要:\n• 标准·方案·指南 •\n儿童EB病毒感染相关疾病的诊断和治疗原则专家共识\n中华医学会儿科学分会感染学组 , 全国儿童EB病毒感染协作组 中华儿科杂志, 2021,59(11): 905-911.\nEB病毒（Epstein-Barr virus，EBV）为疱疹病毒科，γ亚科，是一种嗜人类淋巴细胞的疱疹病毒，主要通过唾液传播，也可经输血传染。EBV在正常人群中感染非常普遍，90%以上的成人血清EBV抗体阳性。原发性EBV感染为患者第一次感染EBV，其典型临床表现为传染性单核细胞增多症（infectious mononucleosis，IM），在婴幼儿，也可为无症状感染或其他不典型临床表现。原发性EBV感染后，病毒在记忆性B淋巴细胞中建立潜伏感染，受感染者成为终身病毒携带者，其咽部可不定时排泌病毒，成为重要的传染源。EBV再激活是指机体免疫功能受到抑制和某些因素触发下，潜伏感染的EBV被激活而产生病毒复制，引起病毒血症，外周血中能检测到高拷贝的病毒核酸。EBV再激活可以引起相应的临床表现，也可为原有疾病的伴随现象。随着生活习惯的变化和卫生条件的改善，我国儿童原发性EBV感染的年龄逐渐增大，但10岁时仍有近90%的儿童血清EBV抗体阳性 [1]，研究显示我国IM的发病高峰年龄在4~6岁 [2]。但西方发达国家的资料显示，6岁以下儿童原发性EBV感染大多表现为无症状感染或仅表现为上呼吸道症状等非特异性表现，但在青少年约50%表现为IM [3]。因此，我国与西方发达国家IM的发病高峰年龄不同。\nEBV是一种重要的肿瘤相关病毒，与部分鼻咽癌、胃癌和淋巴瘤等肿瘤性疾病的发生有关。EBV感染也可引起许多非肿瘤性疾病，如原发感染所致的IM，慢性活动性EBV感染（chronic active Epstein-Barr virus infection，CAEBV）以及EBV相关噬血细胞性淋巴组织细胞增生症（Epstein-Barr virus-related hemophagocytic lymphohistiocytosis，EBV-HLH）等，上述3种EBV感染相关疾病在儿童多见，严重危害儿童生命健康，但其诊治存在不规范，如诊断标准的可操作性欠佳、存在过度抗病毒治疗等。全国儿童EB病毒感染协作组联合中华医学会儿科学分会感染学组和血液学组专家，在2016年制定了“儿童主要非肿瘤性EB病\n\n---\n\n### 文献 3: Updated guidelines for chronic activ .pdf\n字数: 44887\n内容摘要:\nVol.:(0123456789)1 3\nInternational Journal of Hematology \nhttps://doi.org/10.1007/s12185-023-03660-5\nREVIEW ARTICLE\nUpdated guidelines for chronic active Epstein–Barr virus disease\nJun‑ichi Kawada1  · Yoshinori Ito2 · Koichi Ohshima3 · Masaki Yamada4 · Shinsuke Kataoka1 · Hideki Muramatsu1 · \nAkihisa Sawada5 · Taizo Wada6 · Ken‑Ichi Imadome4 · Ayako Arai7 · Keiji Iwatsuki8 · Shouichi Ohga9 · \nHiroshi Kimura10 · The Committee for Guidelines for the Management of Chronic Active EBV Disease, Related \nDisorders (the MHLW Research Team in Japan)\nReceived: 28 April 2023 / Revised: 31 August 2023 / Accepted: 6 September 2023 \n© The Author(s) 2023\nAbstract\nChronic active Epstein–Barr virus disease (CAEBV), formerly named chronic active Epstein–Barr virus infection, is charac-\nterized by systemic inflammation and clonal proliferation of Epstein–Barr virus (EBV)-infected T or NK cells. As CAEBV is \na potentially life-threatening illness, appropriate diagnosis and therapeutic interventions are ne\n\n## 输出要求\n请以JSON格式输出评估结果：\n{\n  \"item_evaluations\": [\n    {\n      \"filename\": \"文件名\",\n      \"authority_rating\": \"高/中/低\",\n      \"authority_note\": \"发布机构及权威性说明\",\n      \"evidence_level\": \"临床实践指南/专家共识/权威综述/教材/其他\",\n      \"evidence_note\": \"证据等级说明\",\n      \"timeliness_rating\": \"最新/较新/陈旧\",\n      \"timeliness_note\": \"时效性说明（含推测的发布年份）\",\n      \"overall_recommendation\": \"强烈推荐/推荐/可用/建议替换\",\n      \"summary\": \"一句话总评\"\n    }\n  ],\n  \"comprehensiveness\": \"这组文献对慢性活动性EB病毒感染（儿童）词条各模块（基础知识→诊断→治疗→预后→预防）的覆盖情况评估\",\n  \"localization\": \"国际指南与国内指南的搭配是否合理，本土化校准是否充分\",\n  \"overall_assessment\": \"总体评估（2-3句话）\",\n  \"coverage_gaps\": [\"建议补充的文献类型1\", \"建议补充的文献类型2\"],\n  \"suggestions\": [\"具体改进建议1\", \"具体改进建议2\"]\n}\n\n评估要点：\n- 根据文件名和内容判断发布机构、文献类型、大致发布时间\n- 评估这组文献作为整体是否能支撑完整的词条编写\n- 指出覆盖面上的明显缺口（如缺少国内指南、缺少基层诊疗指南等）\n- 如果某篇文献质量明显不足，给出\"建议替换\"并说明理由\n- 对每篇文献的评估应简洁客观"
+        }
+      ],
+      "thinking": {
+        "type": "enabled"
+      },
+      "reasoning_effort": "high",
+      "max_tokens": 32768
+    }
+  }
+}

@@ -15,6 +15,8 @@ export interface GuideDetail {
   content: string
 }
 
+const GUIDE_DETAIL_EMPTY_MESSAGE = '指南详情内容为空，请到指南数据库pdf解析全文后再检索~'
+
 export interface EntrySearchItem {
   id: number
   name: string
@@ -152,6 +154,16 @@ function logClinicMasterApiError(url: string, status: number, data: any) {
   console.error('[ClinicMaster API error]', { url, status, data })
 }
 
+function isGuideDetailEmptyError(data: any) {
+  const detail = data?.detail
+  const message = typeof detail === 'string'
+    ? detail
+    : typeof detail?.message === 'string'
+      ? detail.message
+      : ''
+  return message.trim().startsWith('指南详情内容为空')
+}
+
 export async function searchGuides(keyword: string): Promise<GuideSearchResponse> {
   const normalized = keyword.trim()
   if (!normalized) throw new Error('请输入指南名称')
@@ -164,7 +176,9 @@ export async function searchGuides(keyword: string): Promise<GuideSearchResponse
 export async function fetchGuideDetail(id: number): Promise<GuideDetail> {
   const res = await apiFetch(`/api/article/guides/${encodeURIComponent(String(id))}`)
   const data = await safeJson(res)
-  if (!res.ok) throw new Error(errorMessage(data, '指南详情获取失败'))
+  if (!res.ok) {
+    throw new Error(isGuideDetailEmptyError(data) ? GUIDE_DETAIL_EMPTY_MESSAGE : errorMessage(data, '指南详情获取失败'))
+  }
   return data
 }
 

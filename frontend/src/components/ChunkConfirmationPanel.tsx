@@ -50,6 +50,25 @@ function toConfirmed(chunk: ReferenceChunkCandidate): ConfirmedReferenceChunk {
   }
 }
 
+export function selectAllChunksForSource(
+  value: ConfirmedReferenceChunk[],
+  chunks: ReferenceChunkCandidate[],
+): ConfirmedReferenceChunk[] {
+  const selectedIds = new Set(value.map(chunk => chunk.chunk_id))
+  const additions = chunks
+    .filter(chunk => !selectedIds.has(chunk.chunk_id))
+    .map(toConfirmed)
+  return [...value, ...additions]
+}
+
+export function clearChunksForSource(
+  value: ConfirmedReferenceChunk[],
+  chunks: ReferenceChunkCandidate[],
+): ConfirmedReferenceChunk[] {
+  const sourceChunkIds = new Set(chunks.map(chunk => chunk.chunk_id))
+  return value.filter(chunk => !sourceChunkIds.has(chunk.chunk_id))
+}
+
 function chunkKey(chunk: ReferenceChunkCandidate): string {
   return `${chunk.source_id}:${chunk.chunk_id}:${chunk.paragraph_index}`
 }
@@ -125,6 +144,7 @@ export default function ChunkConfirmationPanel({
   const [activeChunkKey, setActiveChunkKey] = useState('')
   const [recommendedIds, setRecommendedIds] = useState<Set<string>>(new Set())
   const [fullscreen, setFullscreen] = useState(false)
+  const [collapsedSourceIds, setCollapsedSourceIds] = useState<Set<number>>(new Set())
 
   const selectedNameSet = useMemo(() => new Set(selectedReferenceNames), [selectedReferenceNames])
   const priorityNameSet = useMemo(() => new Set(priorityReferenceNames), [priorityReferenceNames])
@@ -177,6 +197,7 @@ export default function ChunkConfirmationPanel({
       const mergedChunks = mergeChunkCandidates(allData.chunks, recommendedData.chunks)
       setRecommendedIds(recommendedIdSet)
       setCandidates(mergedChunks)
+      setCollapsedSourceIds(new Set())
       setActiveChunkKey(mergedChunks[0] ? chunkKey(mergedChunks[0]) : '')
       setFullscreen(true)
       onChange(recommendedData.chunks.slice(0, recommendedChunkAutoConfirmLimit(taskType, compact)).map(toConfirmed))
@@ -202,26 +223,67 @@ export default function ChunkConfirmationPanel({
     }
   }
 
+  const toggleSourceCollapsed = (sourceId: number) => {
+    setCollapsedSourceIds(prev => {
+      const next = new Set(prev)
+      if (next.has(sourceId)) {
+        next.delete(sourceId)
+      } else {
+        next.add(sourceId)
+      }
+      return next
+    })
+  }
+
   const renderChunkList = () => (
     candidates.length > 0 ? (
       <div className="chunk-confirm-list">
         {groupChunksBySource(candidates).map(group => {
           const groupSelectedCount = group.chunks.filter(chunk => selectedChunkIds.has(chunk.chunk_id)).length
           const groupRecommendedCount = group.chunks.filter(chunk => recommendedIds.has(chunk.chunk_id)).length
+          const sourceCollapsed = collapsedSourceIds.has(group.sourceId)
           return (
-            <div key={group.sourceId} className="chunk-confirm-source-group">
+            <div key={group.sourceId} className={`chunk-confirm-source-group ${sourceCollapsed ? 'collapsed' : ''}`}>
               <div className="chunk-confirm-source-title">
-                <div className="chunk-confirm-source-main">
-                  <span className="chunk-confirm-source-index">参考数据源 {group.sourceId}</span>
-                  <span className="chunk-confirm-source-file">{group.sourceFilename}</span>
-                </div>
+                <button
+                  type="button"
+                  className="chunk-confirm-source-collapse"
+                  onClick={() => toggleSourceCollapsed(group.sourceId)}
+                  aria-expanded={!sourceCollapsed}
+                  aria-controls={`chunk-confirm-source-${group.sourceId}-chunks`}
+                  title={sourceCollapsed ? '展开参考数据源切片' : '折叠参考数据源切片'}
+                >
+                  <span className="material-symbols-outlined chunk-confirm-source-arrow">
+                    {sourceCollapsed ? 'keyboard_arrow_right' : 'keyboard_arrow_down'}
+                  </span>
+                  <span className="chunk-confirm-source-main">
+                    <span className="chunk-confirm-source-index">参考数据源 {group.sourceId}</span>
+                    <span className="chunk-confirm-source-file">{group.sourceFilename}</span>
+                  </span>
+                </button>
                 <div className="chunk-confirm-source-stats">
                   <span>{groupSelectedCount} 已选</span>
                   <span>{groupRecommendedCount} 推荐</span>
                   <span>{group.chunks.length} 全部</span>
                 </div>
+                <div className="chunk-confirm-source-bulk-actions">
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => onChange(selectAllChunksForSource(value, group.chunks))}
+                  >
+                    全选
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => onChange(clearChunksForSource(value, group.chunks))}
+                  >
+                    全部取消
+                  </button>
+                </div>
               </div>
-              <div className="chunk-confirm-source-chunks">
+              {!sourceCollapsed && <div id={`chunk-confirm-source-${group.sourceId}-chunks`} className="chunk-confirm-source-chunks">
                 {group.chunks.map(chunk => {
                   const checked = selectedChunkIds.has(chunk.chunk_id)
                   const recommended = recommendedIds.has(chunk.chunk_id)
@@ -251,7 +313,7 @@ export default function ChunkConfirmationPanel({
                   </div>
                 )
                 })}
-              </div>
+              </div>}
             </div>
           )
         })}

@@ -244,6 +244,39 @@ class ReferenceChunkSearchTests(unittest.TestCase):
 
         self.assertEqual([chunk.title_path for chunk in chunks], ["总则", "总则 / 筛查", "总则 / 随访"])
 
+    def test_numbered_topic_lines_create_subsection_chunks(self):
+        chunks = list_reference_chunks([
+            ReferenceInput(
+                id=3,
+                filename="儿童EB病毒感染相关疾病的诊断和治疗原则专家共识",
+                text="\n".join([
+                    "[H1] 儿童EB病毒感染相关疾病的诊断和治疗原则专家共识",
+                    "[H2] 一、IM",
+                    "1. 概念：IM是原发性EBV感染所致的一种主要临床综合征。",
+                    "2. 临床特点：我国儿童IM发病的高峰年龄在4~6岁。",
+                    "3. 诊断标准：IM的诊断依据包括临床表现、原发性EBV感染的实验室证据和非特异性实验室检查。",
+                ]),
+            )
+        ])
+
+        self.assertEqual(
+            [(chunk.title_path, chunk.text) for chunk in chunks],
+            [
+                (
+                    "儿童EB病毒感染相关疾病的诊断和治疗原则专家共识 / 一、IM / 1. 概念",
+                    "1. 概念：IM是原发性EBV感染所致的一种主要临床综合征。",
+                ),
+                (
+                    "儿童EB病毒感染相关疾病的诊断和治疗原则专家共识 / 一、IM / 2. 临床特点",
+                    "2. 临床特点：我国儿童IM发病的高峰年龄在4~6岁。",
+                ),
+                (
+                    "儿童EB病毒感染相关疾病的诊断和治疗原则专家共识 / 一、IM / 3. 诊断标准",
+                    "3. 诊断标准：IM的诊断依据包括临床表现、原发性EBV感染的实验室证据和非特异性实验室检查。",
+                ),
+            ],
+        )
+
     def test_clinical_question_group_heading_uses_complete_question_as_local_title(self):
         chunks = list_reference_chunks([
             ReferenceInput(
@@ -261,6 +294,112 @@ class ReferenceChunkSearchTests(unittest.TestCase):
         self.assertEqual(
             chunks[0].title_path,
             "神经源性膀胱临床实践指南 / 临床问题6：在神经源性膀胱的治疗中，电刺激疗法的安全性与疗效如何？",
+        )
+
+    def test_clinical_question_group_splits_each_question_without_cross_leakage(self):
+        chunks = list_reference_chunks([
+            ReferenceInput(
+                id=2,
+                filename="慢性活动性EB病毒病诊治专家共识（2025版）",
+                text="\n".join([
+                    "[H1] 慢性活动性EB病毒病诊治专家共识（2025版）",
+                    "[H2] 二、CAEBVD的临床问题和推荐意见",
+                    "临床问题1：哪些患者应高度怀疑CAEBVD？",
+                    "推荐意见1：持续或反复出现传染性单核细胞增多症样症状3个月以上的患者，应高度怀疑CAEBVD。（1A）",
+                    "推荐说明：若患者反复出现发热、肝功能异常、皮疹等IM样症状，需考虑CAEBVD可能。",
+                    "临床问题2：CAEBVD包括哪些临床分型和临床表现？",
+                    "推荐意见2：可分为皮肤型和系统型。（1A）",
+                    "推荐说明：系统型可累及血液、消化、呼吸、皮肤黏膜、心血管和中枢神经系统。",
+                    "临床问题3：CAEBVD患者的诊断及鉴别诊断过程中需要进行哪些EBV相关检查？",
+                    "推荐意见3：推荐完善外周血EBV-DNA检查，或受累组织EBER检测。（1A）",
+                ]),
+            )
+        ])
+
+        self.assertEqual(
+            [chunk.title_path for chunk in chunks],
+            [
+                "慢性活动性EB病毒病诊治专家共识（2025版） / 临床问题1：哪些患者应高度怀疑CAEBVD？",
+                "慢性活动性EB病毒病诊治专家共识（2025版） / 临床问题2：CAEBVD包括哪些临床分型和临床表现？",
+                "慢性活动性EB病毒病诊治专家共识（2025版） / 临床问题3：CAEBVD患者的诊断及鉴别诊断过程中需要进行哪些EBV相关检查？",
+            ],
+        )
+        self.assertNotIn("临床问题2", chunks[0].text)
+        self.assertNotIn("临床问题3", chunks[1].text)
+        self.assertIn("推荐意见3", chunks[2].text)
+
+    def test_clinical_question_group_splits_trailing_previous_body_before_next_question(self):
+        chunks = list_reference_chunks([
+            ReferenceInput(
+                id=2,
+                filename="临床决策切片-慢性活动性EB病毒病诊治专家共识（2025版）",
+                text="\n".join([
+                    "[H1] 慢性活动性EB病毒病诊治专家共识（2025版）",
+                    "[H2] 二、CAEBVD的临床问题和推荐意见",
+                    "sCAEBVD主要表现为持续或反复发作的IM样症状，可累及多系统。",
+                    "CAEBVD患者临床表现差异较大，故需关注EBV相关检查，避免漏诊。",
+                    "**临床问题3：** CAEBVD患者的诊断及鉴别诊断过程中需要进行哪些EBV相关检查？",
+                    "**推荐意见3：** 推荐存在疑似临床表现的患者完善外周血EBV-DNA检查。",
+                ]),
+            )
+        ])
+
+        self.assertEqual(
+            [chunk.title_path for chunk in chunks],
+            [
+                "慢性活动性EB病毒病诊治专家共识（2025版） / 二、CAEBVD的临床问题和推荐意见",
+                "慢性活动性EB病毒病诊治专家共识（2025版） / 临床问题3：CAEBVD患者的诊断及鉴别诊断过程中需要进行哪些EBV相关检查？",
+            ],
+        )
+        self.assertNotIn("临床问题3", chunks[0].text)
+        self.assertTrue(chunks[1].text.startswith("**临床问题3"))
+
+    def test_clinical_question_group_keeps_metadata_prefix_with_question(self):
+        chunks = list_reference_chunks([
+            ReferenceInput(
+                id=4,
+                filename="临床决策切片-慢性活动性EB病毒病诊治专家共识（2025版）",
+                text="\n".join([
+                    "[H1] 慢性活动性EB病毒病诊治专家共识（2025版）",
+                    "[H2] 二、CAEBVD的临床问题和推荐意见",
+                    "[临床决策切片ID] 2-74851-2-0",
+                    "",
+                    "### 二、CAEBVD的临床问题和推荐意见",
+                    "**临床问题1：** 哪些患者应高度怀疑CAEBVD？",
+                    "**推荐意见1：** 持续或反复出现传染性单核细胞增多症样症状3个月以上的患者，应高度怀疑CAEBVD。",
+                ]),
+            )
+        ])
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(
+            chunks[0].title_path,
+            "慢性活动性EB病毒病诊治专家共识（2025版） / 临床问题1：哪些患者应高度怀疑CAEBVD？",
+        )
+        self.assertIn("[临床决策切片ID] 2-74851-2-0", chunks[0].text)
+        self.assertIn("**临床问题1：** 哪些患者应高度怀疑CAEBVD？", chunks[0].text)
+
+    def test_clinical_question_group_prefers_question_boundary_over_small_target_overflow(self):
+        long_explanation = "推荐说明：" + ("发热。" * 390)
+        chunks = list_reference_chunks([
+            ReferenceInput(
+                id=2,
+                filename="慢性活动性EB病毒病诊治专家共识（2025版）",
+                text="\n".join([
+                    "[H1] 慢性活动性EB病毒病诊治专家共识（2025版）",
+                    "[H2] 二、CAEBVD的临床问题和推荐意见",
+                    "临床问题1：哪些患者应高度怀疑CAEBVD？",
+                    "推荐意见1：持续或反复出现传染性单核细胞增多症样症状的患者，应高度怀疑CAEBVD。",
+                    long_explanation,
+                ]),
+            )
+        ])
+
+        self.assertEqual(len(chunks), 1)
+        self.assertGreater(len(chunks[0].text), 1200)
+        self.assertEqual(
+            chunks[0].title_path,
+            "慢性活动性EB病毒病诊治专家共识（2025版） / 临床问题1：哪些患者应高度怀疑CAEBVD？",
         )
 
     def test_plain_text_without_headings_uses_paragraph_chunks(self):

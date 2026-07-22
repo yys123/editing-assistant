@@ -1,0 +1,39 @@
+{
+  "id": "09c2cb3eb72b437aa15c91de6e1acfab",
+  "created_at": "2026-06-24T01:36:23.866339+00:00",
+  "user_id": "6de61a06ea60457e9c150b49e2f46179",
+  "context": "section_needs_gap",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 1278,
+    "estimated_prompt_tokens": 876,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.000876,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "请分析【急性中毒的血液净化模式选择】词条「(1) 血液净化治疗的常见风险包括导管置入及抗凝治疗引起的局部损伤、出血等。」章节对以下用户需求的覆盖情况。\n\n## 章节内容\n\n\n## 需要评估的用户需求（共1类）\n- 需求主题：CRRT相关并发症（枸橼酸中毒、酸碱失衡）的处理（约75次提问）\n  代表性问题：CRRT枸橼酸抗凝导致的酸碱中毒各是什么情况、床旁透析时枸橼酸抗凝发生碱中毒的处理\n\n\n## ⚠️ 跨章节需求提示（重要）\n以下需求类型同时映射到了多个章节，请在给出修订建议时，仅聚焦「(1) 血液净化治疗的常见风险包括导管置入及抗凝治疗引起的局部损伤、出血等。」章节负责的具体内容，不要提出属于其他章节职责范围的建议（其他章节会单独处理各自部分）：\n- 「CRRT相关并发症（枸橼酸中毒、酸碱失衡）的处理」同时映射到其他章节：(1) 存在溶血风险，最大血流量限制在 350 mL/min[¹⁵⁴]；、(3) 灌流器还会吸附血小板、白细胞、钙、葡萄糖[¹⁵⁵]；、(4) 容易经血传播病毒致感染；、(四) 连续性肾脏替代治疗（CRRT）、4、 缺点、4、 注意事项\n\n请针对本章节（(1) 血液净化治疗的常见风险包括导管置入及抗凝治疗引起的局部损伤、出血等。）给出章节专属的、差异化的修订建议，说明本章节在满足该用户需求方面应重点补充或完善什么。\n请对每类用户需求，评估该章节内容的满足程度，以JSON格式输出：\n{\n  \"coverage_assessment\": \"对本章节整体覆盖情况的简评（1-2句话）\",\n  \"need_coverages\": [\n    {\n      \"topic\": \"需求主题（与上方完全一致）\",\n      \"coverage_level\": \"full\",\n      \"qa_frequency\": 50,\n      \"representative_questions\": [\"代表性问题1\", \"代表性问题2\"],\n      \"revision_suggestion\": \"\"\n    }\n  ]\n}\n\ncoverage_level取值规则：\n- \"full\"：章节已有完整内容，能清晰回答该类需求，用户无需查找其他内容\n- \"partial\"：有相关内容但不够完整，部分问题仍无法得到充分回答\n- \"missing\"：章节基本未涉及该类需求，用户无法从中获得有效信息\n\nrevision_suggestion填写规则：\n- coverage_level为\"full\"时，留空 \"\"\n- coverage_level为\"partial\"时：指出现有内容哪里不足，具体说明需要补充或完善什么\n- coverage_level为\"missing\"时：说明需要新增哪些内容来覆盖该需求\n\nrepresentative_questions：从该需求中选取1-2个最典型的实际问题\n"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      },
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "max_tokens": 32768
+    }
+  }
+}

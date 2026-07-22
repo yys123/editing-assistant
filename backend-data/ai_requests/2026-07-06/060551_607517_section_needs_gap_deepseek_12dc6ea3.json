@@ -1,0 +1,39 @@
+{
+  "id": "12dc6ea3c4ed48628e106319ad510cab",
+  "created_at": "2026-07-06T06:05:51.607517+00:00",
+  "user_id": "3271b62a1c20474d9bf8ac4b82e52361",
+  "context": "section_needs_gap",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 4364,
+    "estimated_prompt_tokens": 2965,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.002965,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "请分析【围绝经期管理】词条「三、辅助检查」章节对以下用户需求的覆盖情况。\n\n## 章节内容\n## (一) 实验室检查\n1、生殖内分泌激素测定\n(1) 卵泡刺激素（follicle-stimulating hormone，FSH）、雌二醇（estradiol，E2）、抗米勒管激素（anti-müllerian hormone，AMH）水平测定，了解卵巢储备功能。\n(2) 连续 2 个月经周期基础 FSH＞10 U/L，或 AMH＜1.1µg/L 提示卵巢储备功能下降；闭经、FSH＞40 U/L 且 E2＜73.4pmol/L（20pg/mL），提示卵巢功能衰竭。\n2、常规检查\n对于长期药物干预的更年期综合征患者，建议定期检测血液常规、生化常规（包括肝肾功能）和凝血常规。\n\n## (二) 超声\n1、围绝经期女性妇科超声检查提示子宫或双侧卵巢可有缩小。\n2、伴随异常子宫出血或合并子宫肌瘤、子宫内膜异位症等患者，推荐常规子宫及附件超声检查。\n3、合并乳腺相关疾病及乳腺癌家族史者，推荐常规乳腺超声检查。\n\n## (三) 筛查量表\n围绝经期相关疾病及症状的风险筛查见表 1。\n1、血管收缩症状的评估\nVMS 的评估方法包括问卷量表、日记记录以及使用胸骨皮肤导联测量皮肤潮热发生的频次等。\n(1) 问卷量表和日记记录属于主观评估方法，不仅能够有效评估围绝经期女性 VMS 的频率、强度，也能够评估 VMS 对女性生活质量的影响程度，是目前临床用来评估 VMS 的主要方法。\n(2) 胸骨皮肤导联测量虽为客观评价指标，但其结果的准确性目前尚存在争议，并不推荐。\n(3) 目前常用的围绝经期症状量表中大多都包含了对 VMS 的评估，如 Greene 更年期量表、绝经期生存质量量表（menopause\u0002specific quality of life questionnaire，MENQOL）、更年期生活质量评分量表（menopause rating scale，MRS）、改良 Kupperman 评分法等。\n2、神经心理症状\n需要对围绝经期女性进行全面的神经心理状况评估，包括睡眠、抑郁、焦虑等，有助于评估和干预计划的制定。\n(1) 抑郁评估：采用 9 个项目的患者健康问卷（patient health questionnaire 9-item，PHQ-9）筛查量表、Zung 抑郁自评量表、汉密尔顿抑郁量表。\n(2) 焦虑评估：采用 7 个项目的广泛性焦虑障碍量表（generalized anxiety disorder7-item scale，GAD-7）计分，或 Zung 焦虑自评量表（SAS）评估焦虑风险。\n(3) 睡眠障碍：建议采用匹兹堡睡眠质量指数（Pittsburgh sleep quality index，PSQI）。\n3、肌少症\n根据中国肌少症诊疗专家共识，建议绝经后女性使用小腿围或肌少症筛查量表（strength，assistance walking，rise from a chair，climb stairs，and falls combined with calf circumference，SARC-CalF）用于肌少症的自我筛查；女性小腿围<33 cm 或 SARC-CalF 评分≥11 分为肌少症筛查阳性[¹⁹¹]。\n4、综合症状与生命质量评估\n(1) 更年期症状评分（Kupperman 评分量表）；\n(2) 绝经期生存质量量表（MENQOL 量表）；\n(3) 更年期生活质量评分量表（MRS）：评估更年期症状，包括心理、躯体和泌尿生殖系统症状，以评估其对女性生活质量的影响[⁴⁹²]。\n[图注] 表 1 围绝经期相关疾病及症状的风险筛查[152]\n不良风险 | 筛查方式 |\nVMS | Greene 更年期量表、MENQOL、MRS 评分、改良 Kupperman 评分法、日记记录 |\n神经心理症状 | PSQI、PHQ-9、GAD-7 |\n代谢紊乱性疾病 | 人体测量，包括身高、体重、腹围和血压，检测空腹血脂（包括总胆固醇、HDL-C、LDL-C、三酰甘油）、空腹尿酸、空腹血糖、随机血糖和糖化血红蛋白，必要时行 75 g 口服葡萄糖耐量试验 |\n心血管疾病 | 中国人心血管病一级预防风险评估流程（简化版） |\n骨质疏松 | 骨质疏松症风险 1 min 测试题、DXA 骨密度检测、FRAX 风险评估 |\n肌少症 | 小腿围或 SARC-CalF |\n妇科相关疾病 | 改良 Kupperman 评分法、盆底脏器脱垂 POP-Q 评分法 |\n[图注] 注：VMS，血管舒缩症状；MENQOL，绝经期生存质量量表；MRS，绝经期生活质量评分量表；PSQI，匹兹堡睡眠质量指数；PHQ-9，9 项患者健康问卷；GAD-7，7 项广泛性焦虑障碍量表；HDL-C，高密度脂蛋白胆固醇；LDL-C，低密度脂蛋白胆固醇；DXA，双能 X 线吸收检测法；FRAX，骨折风险评估；SARC-CalF，简易 5 项问卷联合小腿围；POP-Q，盆腔脏器脱垂分期法。\n\n## (四) 骨评估\n伴随骨质疏松相关症状者，推荐双能 X 线吸收法骨密度检测（dual energy X-ray absorptiometry，DXA）、骨折风险预测工具（fracture risk assessment，FRAX）预测骨质疏松性骨折风险，以及常用骨转换标志物检测，如血清 Ⅰ 型前胶原 N-端前肽（procollagen type 1 N-terminal propeptide，P1NP）、血清 Ⅰ 型胶原交联 C-末端肽（serum cross-linked C-telopeptide of type 1 collagen，S-CTX）。\n1、早绝经及绝经包括早发性卵巢功能不全（premature ovarian insufficiency，POI）女性应在确诊时即接受骨密度（bone mineral density，BMD）评估，首选 DXA 检测腰椎及髋部 BMD；在无 DXA 条件时，可采用定量计算机断层扫描（quantitative computed tomography，QCT）作为评估手段；建议每半年到一年检测 1 次。（推荐等级：强）\n2、进行 BMD 结果的判读与诊断时，应根据年龄及卵巢功能状态选择不同评价指标：\n(1) 绝经后女性及 20 岁以上的早发性卵巢功能不全（premature ovarian insufficiency，POI）患者使用 T 值；\n(2) 绝经前女性及 20 岁以下的 POI 患者使用 Z 值。（推荐等级：强）\n3、早绝经、青春期 POI 或青春期诱导延迟的青少年患者，应尽早评估性激素水平并监测 BMD。（推荐等级：强）\n4、女童癌症幸存者若伴有性腺功能减退，应被视为骨健康高危人群并纳入长期随访。（推荐等级：强）\n5、推荐血清 P1NP 和血清 Ⅰ 型胶原 C 末端交联肽作为首选的骨形成和骨吸收参考标志物，建议在基线水平及用药后每隔 3～6 个月检测 1 次。（推荐等级：强）\n\n## 需要评估的用户需求（共4类）\n- 需求主题：绝经后出血与子宫内膜病变的评估与处理（约300次提问）\n  代表性问题：绝经后出血的鉴别诊断有哪些、绝经后无症状内膜增厚6mm需要处理吗\n- 需求主题：绝经后骨质疏松的诊断、预防与药物治疗（约280次提问）\n  代表性问题：绝经后骨质疏松的诊断标准是什么？、绝经后骨质疏松的初始药物治疗方案有哪些？\n- 需求主题：围绝经期异常子宫出血（AUB）的评估与管理（约180次提问）\n  代表性问题：围绝经期无排卵性异常子宫出血用炔诺酮止血怎么用，详细方案、围绝经期功能性子宫出血连续几个月不规则出血可以自愈吗\n- 需求主题：卵巢早衰（POI）的诊断、治疗与长期管理（约110次提问）\n  代表性问题：卵巢早衰目前最佳的治疗方案、卵巢早衰的诊断需要排除哪些其他内分泌疾病？\n\n\n## ⚠️ 跨章节需求提示（重要）\n以下需求类型同时映射到了多个章节，请在给出修订建议时，仅聚焦「三、辅助检查」章节负责的具体内容，不要提出属于其他章节职责范围的建议（其他章节会单独处理各自部分）：\n- 「绝经后出血与子宫内膜病变的评估与处理」同时映射到其他章节：四、诊断\n- 「绝经后骨质疏松的诊断、预防与药物治疗」同时映射到其他章节：一、随访及复诊、一、预防管理、二、高风险人群筛查\n- 「围绝经期异常子宫出血（AUB）的评估与管理」同时映射到其他章节：一、临床表现、四、诊断\n- 「卵巢早衰（POI）的诊断、治疗与长期管理」同时映射到其他章节：四、诊断、八、早发型卵巢功能不全、三、卵巢组织冻存与移植\n\n请针对本章节（三、辅助检查）给出章节专属的、差异化的修订建议，说明本章节在满足该用户需求方面应重点补充或完善什么。\n请对每类用户需求，评估该章节内容的满足程度，以JSON格式输出：\n{\n  \"coverage_assessment\": \"对本章节整体覆盖情况的简评（1-2句话）\",\n  \"need_coverages\": [\n    {\n      \"topic\": \"需求主题（与上方完全一致）\",\n      \"coverage_level\": \"full\",\n      \"qa_frequency\": 50,\n      \"representative_questions\": [\"代表性问题1\", \"代表性问题2\"],\n      \"revision_suggestion\": \"\"\n    }\n  ]\n}\n\ncoverage_level取值规则：\n- \"full\"：章节已有完整内容，能清晰回答该类需求，用户无需查找其他内容\n- \"partial\"：有相关内容但不够完整，部分问题仍无法得到充分回答\n- \"missing\"：章节基本未涉及该类需求，用户无法从中获得有效信息\n\nrevision_suggestion填写规则：\n- coverage_level为\"full\"时，留空 \"\"\n- coverage_level为\"partial\"时：指出现有内容哪里不足，具体说明需要补充或完善什么\n- coverage_level为\"missing\"时：说明需要新增哪些内容来覆盖该需求\n\nrepresentative_questions：从该需求中选取1-2个最典型的实际问题\n"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      },
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "max_tokens": 32768
+    }
+  }
+}

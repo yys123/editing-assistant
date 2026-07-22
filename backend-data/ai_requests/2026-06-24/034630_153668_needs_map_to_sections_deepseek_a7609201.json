@@ -1,0 +1,39 @@
+{
+  "id": "a76092011c25422b9d47ba9dc4f4c085",
+  "created_at": "2026-06-24T03:46:30.153668+00:00",
+  "user_id": "6de61a06ea60457e9c150b49e2f46179",
+  "context": "needs_map_to_sections",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 1099,
+    "estimated_prompt_tokens": 706,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.000706,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "以下是【急性中毒的血液净化模式选择】知识库词条的章节结构和用户需求聚类。\n\n## 章节结构\n- section_id:4436f381 | 一、 定义\n- section_id:26cab989 | 二、 流行病学\n- section_id:2ac36fa9 | 一、 急性中毒风险及病情评估\n- section_id:c9796e91 | 一、 血液净化治疗前内科治疗\n- section_id:178b443f | 二、 血液净化治疗的时机与治疗前评估\n- section_id:815fe1a9 | 三、 常见血液净化治疗模式\n- section_id:e7a2d842 | 四、 血液净化治疗模式的选择\n- section_id:d5ba5f25 | 五、 常见药物急性中毒的血液净化治疗方案\n\n## 用户需求聚类\n- 特定药物/毒物中毒的血液净化模式选择（约305次，未覆盖）\n- 血液净化启动与停止指征（约160次，未覆盖）\n- 血液净化治疗的具体方案（模式、剂量、频率、参数）（约100次，未覆盖）\n- 透析/CRRT相关并发症（酸中毒、电解质紊乱、低血压等）处理（约100次，未覆盖）\n- 血液净化抗凝策略与参数设置（约38次，未覆盖）\n- 特殊人群（儿童、透析患者、心衰、妊娠）中毒的血液净化管理（约57次，未覆盖）\n- 中毒血液净化疗效评估与预后（约40次，未覆盖）\n- 血液净化在代谢性酸中毒/碱中毒中的应用（约50次，未覆盖）\n- 罕见或新型毒物中毒的血液净化（约20次，未覆盖）\n- 中毒血液净化与其他治疗联合应用（约15次，未覆盖）\n- 中毒血液净化的药物清除效率与药代动力学（约18次，未覆盖）\n\n请判断每个章节与哪些需求类型最相关，以JSON格式输出：\n{\n  \"mappings\": [\n    {\n      \"section_id\": \"章节ID（原样复制）\",\n      \"section_heading\": \"章节标题\",\n      \"cluster_topics\": [\"需求主题1\", \"需求主题2\"],\n      \"relevance\": \"high\"\n    }\n  ]\n}\n\nrelevance取值：\n- high：该章节是满足这些需求的核心章节\n- medium：有一定相关性\n- low：相关性较弱，或该章节无对应需求\n\n每个章节必须出现在mappings中（即使cluster_topics为空也要包含）。"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      },
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "max_tokens": 32768
+    }
+  }
+}

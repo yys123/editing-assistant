@@ -381,6 +381,10 @@ function AppContent() {
     setAiIntegrationHistory(prev => [...prev, record])
   }
 
+  const updateAiIntegrationRecord = (record: AiIntegrationRecord) => {
+    setAiIntegrationHistory(prev => prev.map(item => item.id === record.id ? record : item))
+  }
+
   const deleteAiIntegrationRecord = (id: string) => {
     setAiIntegrationHistory(prev => prev.filter(record => record.id !== id))
   }
@@ -1045,6 +1049,7 @@ function AppContent() {
               setReferenceDocs={handleSetReferenceDocs}
               history={aiIntegrationHistory}
               onAddRecord={addAiIntegrationRecord}
+              onUpdateRecord={updateAiIntegrationRecord}
               onDeleteRecord={deleteAiIntegrationRecord}
             />
           )}

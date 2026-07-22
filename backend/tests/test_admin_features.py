@@ -370,5 +370,185 @@ class AdminHistoryPermissionTests(unittest.TestCase):
                 self.assertEqual(db.get_session_owner(cloned["id"]), "admin-id")
 
 
+class AdminAiIntegrationCitationStatsTests(unittest.TestCase):
+    def test_admin_citation_stats_groups_ai_integration_citations_by_color_and_review_state(self):
+        sessions = [
+            {
+                "id": "session-1",
+                "aiIntegrationHistory": [
+                    {
+                        "id": "ai-1",
+                        "revisionText": "A[1-3]。\nB[2]。\nC[3]。\nD[4]。",
+                        "citationVerification": {
+                            "status": "needs_review",
+                            "items": [
+                                {
+                                    "citation_key": "1-3",
+                                    "anchor_key": "1-3",
+                                    "sentence": "A[1-3]。",
+                                    "status": "mismatch",
+                                    "source_label": "",
+                                    "quote": "",
+                                    "reason": "不匹配",
+                                },
+                                {
+                                    "citation_key": "2",
+                                    "anchor_key": "2",
+                                    "sentence": "B[2]。",
+                                    "status": "weak",
+                                    "source_label": "",
+                                    "quote": "",
+                                    "reason": "支撑较弱",
+                                },
+                                {
+                                    "citation_key": "3",
+                                    "anchor_key": "3",
+                                    "sentence": "C[3]。",
+                                    "status": "supported",
+                                    "source_label": "",
+                                    "quote": "",
+                                    "reason": "支持",
+                                },
+                                {
+                                    "citation_key": "4",
+                                    "anchor_key": "4",
+                                    "sentence": "D[4]。",
+                                    "status": "unverified",
+                                    "source_label": "",
+                                    "quote": "",
+                                    "reason": "未核对",
+                                },
+                            ],
+                        },
+                        "citationReviewActions": [
+                            {
+                                "id": "a1",
+                                "review_status": "rejected",
+                                "citation_key": "1-3",
+                                "anchor_key": "1-3",
+                                "sentence": "A[1-3]。",
+                                "verification_status": "mismatch",
+                            },
+                            {
+                                "id": "a2",
+                                "review_status": "confirmed",
+                                "citation_key": "2",
+                                "anchor_key": "2",
+                                "sentence": "B[2]。",
+                                "verification_status": "weak",
+                            },
+                        ],
+                    }
+                ],
+            },
+            {
+                "id": "session-without-ai-integration-citations",
+                "aiIntegrationHistory": [],
+            },
+        ]
+
+        with patch.object(admin.db, "list_sessions", return_value=sessions):
+            result = admin.get_ai_integration_citation_stats(user={"is_admin": True})
+
+        self.assertEqual(result["total_sessions"], 1)
+        self.assertEqual(result["total_records"], 1)
+        self.assertEqual(result["total_citations"], 4)
+        by_status = {bucket["status"]: bucket for bucket in result["buckets"]}
+        self.assertEqual(by_status["mismatch"]["count"], 1)
+        self.assertEqual(by_status["mismatch"]["confirmed_issue_count"], 1)
+        self.assertEqual(by_status["mismatch"]["confirmed_issue_ratio"], 1.0)
+        self.assertEqual(by_status["weak"]["confirmed_ok_count"], 1)
+        self.assertEqual(by_status["weak"]["confirmed_ok_ratio"], 1.0)
+        self.assertEqual(by_status["supported"]["unconfirmed_count"], 1)
+        self.assertEqual(by_status["unverified"]["unconfirmed_ratio"], 1.0)
+
+    def test_admin_citation_stats_counts_visible_occurrences_not_unique_verification_items(self):
+        sessions = [
+            {
+                "id": "session-1",
+                "aiIntegrationHistory": [
+                    {
+                        "id": "ai-1",
+                        "revisionText": "同一句里第一个结论[4]，第二个结论[4]。",
+                        "citationVerification": {
+                            "status": "needs_review",
+                            "items": [
+                                {
+                                    "citation_key": "4",
+                                    "anchor_key": "4",
+                                    "sentence": "同一句里第一个结论[4]，第二个结论[4]。",
+                                    "status": "weak",
+                                    "source_label": "",
+                                    "quote": "",
+                                    "reason": "支撑较弱",
+                                },
+                            ],
+                        },
+                    }
+                ],
+            }
+        ]
+
+        with patch.object(admin.db, "list_sessions", return_value=sessions):
+            result = admin.get_ai_integration_citation_stats(user={"is_admin": True})
+
+        weak = {bucket["status"]: bucket for bucket in result["buckets"]}["weak"]
+        self.assertEqual(result["total_citations"], 2)
+        self.assertEqual(weak["count"], 2)
+        self.assertEqual(weak["unconfirmed_count"], 2)
+
+    def test_admin_citation_stats_counts_deleted_rejected_actions(self):
+        sessions = [
+            {
+                "id": "session-1",
+                "aiIntegrationHistory": [
+                    {
+                        "id": "ai-1",
+                        "revisionText": "A。",
+                        "citationVerification": {
+                            "status": "needs_review",
+                            "items": [
+                                {
+                                    "citation_key": "1-3",
+                                    "anchor_key": "1-3",
+                                    "sentence": "A[1-3]。",
+                                    "status": "mismatch",
+                                    "source_label": "",
+                                    "quote": "",
+                                    "reason": "不匹配",
+                                },
+                            ],
+                        },
+                        "citationReviewActions": [
+                            {
+                                "id": "a1",
+                                "review_status": "rejected",
+                                "citation_key": "1-3",
+                                "anchor_key": "1-3",
+                                "sentence": "A[1-3]。",
+                                "verification_status": "mismatch",
+                                "reviewed_at": "2026-07-21T10:00:00Z",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+
+        with patch.object(admin.db, "list_sessions", return_value=sessions):
+            result = admin.get_ai_integration_citation_stats(user={"is_admin": True})
+
+        mismatch = {bucket["status"]: bucket for bucket in result["buckets"]}["mismatch"]
+        self.assertEqual(result["total_citations"], 1)
+        self.assertEqual(mismatch["count"], 1)
+        self.assertEqual(mismatch["confirmed_issue_count"], 1)
+
+    def test_admin_citation_stats_rejects_non_admin(self):
+        with self.assertRaises(HTTPException) as ctx:
+            admin.get_ai_integration_citation_stats(user={"is_admin": False})
+
+        self.assertEqual(ctx.exception.status_code, 403)
+
+
 if __name__ == "__main__":
     unittest.main()

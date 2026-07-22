@@ -9,6 +9,7 @@ from auth import get_current_user
 from services.admin_runtime import get_admin_runtime_payload, save_runtime_config
 from services import admin_activity
 from services.ai_audit import REQUEST_LOG_DIR
+from services.ai_integration_citation_stats import summarize_ai_integration_citation_stats
 import db
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -131,6 +132,12 @@ def get_ai_call_logs(limit: int = 100, user: dict = Depends(get_current_user)):
 def get_activity(user: dict = Depends(get_current_user)):
     _require_admin(user)
     return admin_activity.snapshot()
+
+
+@router.get("/ai-integration-citation-stats")
+def get_ai_integration_citation_stats(user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    return summarize_ai_integration_citation_stats(db.list_sessions())
 
 
 @router.get("/ai-call-logs/{log_id}/request-payload")

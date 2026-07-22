@@ -1,0 +1,36 @@
+{
+  "id": "1811f77960ae40778976b493a8c82bfe",
+  "created_at": "2026-07-07T07:09:54.041051+00:00",
+  "user_id": "6de61a06ea60457e9c150b49e2f46179",
+  "context": "needs_map_to_sections",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 1037,
+    "estimated_prompt_tokens": 659,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.000659,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "以下是【急性中毒的血液净化模式选择】知识库词条的章节结构和用户需求聚类。\n\n## 章节结构\n- section_id:4436f381 | 一、 定义\n- section_id:26cab989 | 二、 流行病学\n- section_id:2ac36fa9 | 一、 急性中毒风险及病情评估\n- section_id:c9796e91 | 一、 血液净化治疗前内科治疗\n- section_id:178b443f | 二、 血液净化治疗的时机与治疗前评估\n- section_id:815fe1a9 | 三、 常见血液净化治疗模式\n- section_id:e7a2d842 | 四、 血液净化治疗模式的选择\n- section_id:d5ba5f25 | 五、 常见药物急性中毒的血液净化治疗方案\n\n## 用户需求聚类\n- 特定毒物/药物的血液净化模式选择（约210次，未覆盖）\n- 中毒血液净化的指征、时机与停止标准（约132次，未覆盖）\n- 特殊人群（肾衰竭/透析患者、儿童、孕妇等）的中毒与血液净化（约75次，未覆盖）\n- 血液净化操作参数与抗凝策略（约55次，未覆盖）\n- 代谢性酸中毒（包括乳酸酸中毒、酮症酸中毒）的血液净化指征（约43次，未覆盖）\n- 血液净化并发症处理（碱中毒、低钾、出血、低血糖等）及CRRT相关并发症（约42次，未覆盖）\n- 血液净化疗效评估、清除效率与禁忌症（约30次，未覆盖）\n- 中毒综合治疗策略与后续管理（包括抗毒剂使用、恢复用药等）（约20次，未覆盖）\n\n请判断每个章节与哪些需求类型最相关，以JSON格式输出：\n{\n  \"mappings\": [\n    {\n      \"section_id\": \"章节ID（原样复制）\",\n      \"section_heading\": \"章节标题\",\n      \"cluster_topics\": [\"需求主题1\", \"需求主题2\"],\n      \"relevance\": \"high\"\n    }\n  ]\n}\n\nrelevance取值：\n- high：该章节是满足这些需求的核心章节\n- medium：有一定相关性\n- low：相关性较弱，或该章节无对应需求\n\n每个章节必须出现在mappings中（即使cluster_topics为空也要包含）。"
+        }
+      ],
+      "thinking": {
+        "type": "enabled"
+      },
+      "reasoning_effort": "high",
+      "max_tokens": 32768
+    }
+  }
+}

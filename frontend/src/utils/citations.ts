@@ -8,6 +8,20 @@ export type CitationLink = {
 
 export type CitationResolver = (token: string, context?: string) => CitationLink | null
 
+export type CitationOccurrence = {
+  occurrence_key: string
+  citation_key: string
+  token: string
+  label: string
+  sentence: string
+}
+
+export type LinkifyCitationOptions = {
+  includeOccurrenceKeys?: boolean
+}
+
+type ResolvedCitationItem = { token: string; link: CitationLink | null }
+
 type ReferenceSentence = {
   text: string
   paragraphIndex: number
@@ -84,7 +98,7 @@ function sentenceAround(text: string, index: number): string {
   return text.slice(start, end).replace(/\s+/g, ' ').trim()
 }
 
-function resolveCitationToken(token: string, context: string, resolveCitation: CitationResolver) {
+function resolveCitationToken(token: string, context: string, resolveCitation: CitationResolver): ResolvedCitationItem[] {
   const direct = resolveCitation(token, context)
   if (direct) return [{ token, link: direct }]
   const rangeStart = token.match(/^(\d+)\s*-\s*\d+$/)?.[1]
@@ -101,30 +115,113 @@ function resolveCitationToken(token: string, context: string, resolveCitation: C
   return expandedResolved.some(item => item.link) ? expandedResolved : [{ token, link: null }]
 }
 
-function formatResolvedCitationItems(items: { token: string; link: CitationLink | null }[]): string {
+function createCitationOccurrenceKey(index: number) {
+  return `citation-occurrence-${index}`
+}
+
+function formatCitationHref(link: CitationLink, occurrenceKey?: string) {
+  return occurrenceKey ? `#citation-${link.key}__occ__${occurrenceKey}` : `#citation-${link.key}`
+}
+
+function formatResolvedCitationItems(
+  items: ResolvedCitationItem[],
+  getLinkedHref?: (item: { token: string; link: CitationLink }) => string,
+): string {
   if (!items.some(item => item.link)) return ''
   if (items.length === 1) {
     const item = items[0]
-    return item.link ? `[[${item.link.label}]](#citation-${item.link.key})` : `[${item.token}]`
+    return item.link ? `[[${item.link.label}]](${getLinkedHref?.({ token: item.token, link: item.link }) ?? formatCitationHref(item.link)})` : `[${item.token}]`
   }
   const inner = items.map(({ token, link }) => (
-    link ? `[${link.label}](#citation-${link.key})` : token
+    link ? `[${link.label}](${getLinkedHref?.({ token, link }) ?? formatCitationHref(link)})` : token
   )).join('、')
   return `[${inner}]`
 }
 
-export function linkifyCitationMarkers(content: string, resolveCitation: CitationResolver): string {
+export function collectCitationOccurrences(content: string, resolveCitation: CitationResolver): CitationOccurrence[] {
+  const occurrences: CitationOccurrence[] = []
   const citationClusterRe = new RegExp(String.raw`${CITATION_MARKER_PATTERN}(?:\s*[、,，]?\s*${CITATION_MARKER_PATTERN})*`, 'gi')
   const citationGroupRe = new RegExp(CITATION_GROUP_PATTERN, 'gi')
+  let occurrenceIndex = 0
+  content.replace(citationClusterRe, (full: string, offset: number) => {
+    const context = sentenceAround(content, offset)
+    citationGroupRe.lastIndex = 0
+    for (let match = citationGroupRe.exec(full); match; match = citationGroupRe.exec(full)) {
+      const tokens = splitCitationTokens(match[1])
+      const resolved = tokens.flatMap(token => resolveCitationToken(token, context, resolveCitation))
+      for (const item of resolved) {
+        if (!item.link) continue
+        occurrences.push({
+          occurrence_key: createCitationOccurrenceKey(occurrenceIndex),
+          citation_key: item.link.key,
+          token: item.token,
+          label: item.link.label,
+          sentence: context,
+        })
+        occurrenceIndex += 1
+      }
+    }
+    return full
+  })
+  return occurrences
+}
+
+export function removeCitationOccurrence(
+  content: string,
+  occurrenceKey: string,
+  resolveCitation: CitationResolver,
+): string {
+  if (!occurrenceKey) return content
+  const citationClusterRe = new RegExp(String.raw`${CITATION_MARKER_PATTERN}(?:\s*[、,，]?\s*${CITATION_MARKER_PATTERN})*`, 'gi')
+  const citationGroupRe = new RegExp(CITATION_GROUP_PATTERN, 'gi')
+  let occurrenceIndex = 0
   return content.replace(citationClusterRe, (full: string, offset: number) => {
     const context = sentenceAround(content, offset)
-    const resolved = []
+    const resolved: ResolvedCitationItem[] = []
     citationGroupRe.lastIndex = 0
     for (let match = citationGroupRe.exec(full); match; match = citationGroupRe.exec(full)) {
       const tokens = splitCitationTokens(match[1])
       resolved.push(...tokens.flatMap(token => resolveCitationToken(token, context, resolveCitation)))
     }
-    return formatResolvedCitationItems(resolved) || full
+    const keptTokens: string[] = []
+    let changed = false
+    for (const item of resolved) {
+      if (item.link) {
+        const currentOccurrenceKey = createCitationOccurrenceKey(occurrenceIndex)
+        occurrenceIndex += 1
+        if (currentOccurrenceKey === occurrenceKey) {
+          changed = true
+          continue
+        }
+      }
+      keptTokens.push(item.token)
+    }
+    if (!changed) return full
+    return keptTokens.length > 0 ? `[${keptTokens.join('、')}]` : ''
+  })
+}
+
+export function linkifyCitationMarkers(
+  content: string,
+  resolveCitation: CitationResolver,
+  options: LinkifyCitationOptions = {},
+): string {
+  const citationClusterRe = new RegExp(String.raw`${CITATION_MARKER_PATTERN}(?:\s*[、,，]?\s*${CITATION_MARKER_PATTERN})*`, 'gi')
+  const citationGroupRe = new RegExp(CITATION_GROUP_PATTERN, 'gi')
+  let occurrenceIndex = 0
+  return content.replace(citationClusterRe, (full: string, offset: number) => {
+    const context = sentenceAround(content, offset)
+    const resolved: ResolvedCitationItem[] = []
+    citationGroupRe.lastIndex = 0
+    for (let match = citationGroupRe.exec(full); match; match = citationGroupRe.exec(full)) {
+      const tokens = splitCitationTokens(match[1])
+      resolved.push(...tokens.flatMap(token => resolveCitationToken(token, context, resolveCitation)))
+    }
+    return formatResolvedCitationItems(resolved, ({ token, link }) => {
+      const occurrenceKey = createCitationOccurrenceKey(occurrenceIndex)
+      occurrenceIndex += 1
+      return options.includeOccurrenceKeys ? formatCitationHref(link, occurrenceKey) : formatCitationHref(link)
+    }) || full
   })
 }
 

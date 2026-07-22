@@ -1,0 +1,39 @@
+{
+  "id": "10ec61e5989947b6a38ee89eab792f21",
+  "created_at": "2026-07-06T05:55:42.950272+00:00",
+  "user_id": "3271b62a1c20474d9bf8ac4b82e52361",
+  "context": "needs_map_to_sections",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 1662,
+    "estimated_prompt_tokens": 988,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.000988,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "以下是【围绝经期管理】知识库词条的章节结构和用户需求聚类。\n\n## 章节结构\n- section_id:4436f381 | 一、定义\n- section_id:aa13ea67 | 二、生殖衰老分期\n- section_id:1d0a8d11 | 三、流行病学\n- section_id:22287d04 | 四、围绝经期的生理特点\n- section_id:ad9c0137 | 一、临床表现\n- section_id:376fe89d | 二、体征\n- section_id:b81fe88f | 三、辅助检查\n- section_id:9aab0297 | 四、诊断\n- section_id:89064a3f | 一、治疗概述\n- section_id:543a5815 | 二、健康自我管理\n- section_id:deef3b60 | 三、绝经激素治疗策略\n- section_id:0e8930da | 四、绝经激素治疗诊疗流程\n- section_id:45961364 | 五、绝经激素治疗的常用药物\n- section_id:43821883 | 六、绝经激素治疗方案的选择\n- section_id:0b497f23 | 七、绝经相关症状的治疗\n- section_id:9e561e30 | 八、早发型卵巢功能不全\n- section_id:8f361370 | 九、绝经激素治疗的长期获益与风险\n- section_id:3cfd0cc3 | 十、围绝经期避孕\n- section_id:ddd7d1f5 | 一、随访及复诊\n- section_id:f551de18 | 一、预防管理\n- section_id:446d7c33 | 二、高风险人群筛查\n- section_id:1d392604 | 三、卵巢组织冻存与移植\n\n## 用户需求聚类\n- 围绝经期症状管理（潮热、失眠、情绪、泌尿生殖道症状等）（约300次，已覆盖）\n- 绝经激素治疗（MHT/HRT）的方案选择、剂量调整与安全性评估（约280次，已覆盖）\n- 绝经后骨质疏松与钙/维生素D补充的诊疗与药物选择（约200次，已覆盖）\n- 绝经后异常出血与子宫内膜病变（出血、内膜增厚、宫腔积液、诊刮后处理）（约180次，已覆盖）\n- 围绝经期异常子宫出血（AUB）的鉴别诊断、止血策略及子宫内膜管理（约150次，已覆盖）\n- 围绝经期/绝经后乳腺癌相关（内分泌治疗、绝经状态判断、药物选择）（约120次，未覆盖）\n- 卵巢早衰/早发性卵巢功能不全（POI/POF）的诊断、治疗与生育管理（约100次，已覆盖）\n- 围绝经期/绝经后妇科肿瘤与手术决策（子宫肌瘤、卵巢囊肿、CIN等）（约90次，已覆盖）\n- 围绝经期心血管与代谢风险管理（血压、血脂、冠心病、动脉硬化）（约80次，未覆盖）\n- 绝经后泌尿生殖系统问题（感染、萎缩、脱垂、盆底健康）（约70次，已覆盖）\n- 围绝经期非激素治疗与生活方式管理（中成药、营养补充、认知行为疗法）（约60次，未覆盖）\n\n请判断每个章节与哪些需求类型最相关，以JSON格式输出：\n{\n  \"mappings\": [\n    {\n      \"section_id\": \"章节ID（原样复制）\",\n      \"section_heading\": \"章节标题\",\n      \"cluster_topics\": [\"需求主题1\", \"需求主题2\"],\n      \"relevance\": \"high\"\n    }\n  ]\n}\n\nrelevance取值：\n- high：该章节是满足这些需求的核心章节\n- medium：有一定相关性\n- low：相关性较弱，或该章节无对应需求\n\n每个章节必须出现在mappings中（即使cluster_topics为空也要包含）。"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      },
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "max_tokens": 32768
+    }
+  }
+}

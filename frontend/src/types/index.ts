@@ -170,6 +170,19 @@ export interface CitationVerificationResult {
   warnings?: string[]
 }
 
+export type CitationOccurrenceReviewStatus = 'confirmed' | 'rejected'
+
+export interface CitationReviewAction {
+  id: string
+  review_status: CitationOccurrenceReviewStatus
+  occurrence_key: string
+  citation_key: string
+  anchor_key?: string
+  sentence: string
+  verification_status?: CitationVerificationItemStatus | null
+  reviewed_at: string
+}
+
 export interface AiIntegrationRecord {
   id: string
   request: string
@@ -187,6 +200,8 @@ export interface AiIntegrationRecord {
   referenceMode?: 'full' | 'confirmed_chunks'
   priorityGuidelineUsage?: PriorityGuidelineUsage
   citationVerification?: CitationVerificationResult
+  citationOccurrenceReviews?: Record<string, CitationOccurrenceReviewStatus>
+  citationReviewActions?: CitationReviewAction[]
   originalScope: 'all' | 'sections' | 'none'
   selectedSectionIds: string[]
   originalContentSnapshot?: string

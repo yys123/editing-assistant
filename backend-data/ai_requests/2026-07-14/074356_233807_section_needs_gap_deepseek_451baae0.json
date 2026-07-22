@@ -1,0 +1,36 @@
+{
+  "id": "451baae0cc3443b09d810a55ecd01f1e",
+  "created_at": "2026-07-14T07:43:56.233807+00:00",
+  "user_id": "2f267864b31b4c96ab7bff7d2e5d5ddf",
+  "context": "section_needs_gap",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 3340,
+    "estimated_prompt_tokens": 2148,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.002148,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "请分析【支气管肺发育不良】词条「六、生物标志物筛查」章节对以下用户需求的覆盖情况。\n\n## 章节内容\n1、已经研究了与 BPD 相关的各种生物标志物，但尚未验证其可作为重要长期结局的预测因子（BPD 生物标志物的部分列表见表 6）。\n （1）BPD 的理想生物标志物将靶向与 BPD 发病机制有关的因果通路[¹⁷⁹⁻¹⁸⁰]，例如内皮损伤和功能障碍的生物标志物[¹⁸³⁻¹⁸⁴]，改变血管生成的生长因子和生物标志物[⁶⁵,¹⁸⁵⁻¹⁹⁰]，上皮损伤和纤维化的生物标志物[¹⁹¹⁻¹⁹⁴]，一氧化氮缺乏或不足的生物标志物[¹⁷⁹,¹⁹⁵⁻¹⁹⁹]，氧化应激、氧化剂和抗氧化能力以及氧化还原状态的生物标志物[²⁰⁰⁻²⁰²]，氧自由基生物标志物[²⁰⁰⁻²⁰³]，炎症和宿主免疫应答的生物标志物[¹⁸⁸,²⁰⁴⁻²⁰⁵]，基因组、表观基因组、代谢组[²⁰⁶]、微生物组[²⁰⁷]、甲基组和转录组生物标志物[¹⁷⁸,²⁰⁸]，肺功能测量[¹⁷⁸,²⁰⁹]，用于测量肺部灌注、血流、通气、气体交换、力学和肺泡结构早期变化的肺部核磁共振成像（Magnetic Resonance Imaging，MRI）[¹⁷⁸]，以及血管损伤和肺动脉高血压的生化[²¹⁰]和生理生物标志物[¹³⁹,¹⁴¹,¹⁸²,¹⁹⁹,²¹¹]。\n  （2）2013 年的一项系统评价确定了涎液化糖链抗原 6（kerbs von lungren 6 antigen，KL6）、分泌球蛋白家族 1A 成员 1（secretoglobin family 1A member 1，CC16）和中性粒细胞明胶酶相关脂质运载蛋白和呼气末一氧化碳（end-tidal carbon monoxide，etCO）在预测早产儿 BPD 方面表现良好[²¹²]。识别内皮或血管损伤的早期标志物可导致机制性干预，以支持正常血管和肺泡的生长并预防 BPD。\n [图注] 表 6 与 BPD 发病机制相关的选定生物标志物\n类别或因果通路 | 生物标志物 ^(a) |\n内皮损伤和功能障碍[¹⁸³] | 循环内皮祖细胞 |\n生长和血管生成因子[¹⁸⁴⁻¹⁸⁷,¹⁸⁹⁻¹⁹⁰] | VECF 和 VEGFR、内皮联蛋白（CD 105）、血管生成素 1、内皮抑素、PIGF 和 EMAP II |\n上皮损伤和纤维化[¹⁴¹,¹⁹¹⁻¹⁹⁴] | KL6、MMP9、TIMP1、TGFβ1 和 NGAL |\n一氧化氮缺乏和不足[¹⁷⁹,¹⁹⁵⁻¹⁹⁹] | NO_(×)和瓜氨酸 |\n氧化应激，氧化还原状态[²⁰³,³⁴³⁻³⁴⁵] | 弹性蛋白酶、髓过氧化物酶、黄嘌呤氧化酶、过氧化氢酶、总巯基、羰基、3-氯酪氨酸、丙二醛和 3-硝基酪氨酸 |\n炎症和宿主免疫应答[¹⁸⁸,²⁰⁴⁻²⁰⁵] | 炎性生物标志物组合和透明质酸 |\n组学[⁹³,¹⁷⁸,²⁰⁶⁻²⁰⁸,³⁰²] | 基因组学、表观基因组学、代谢组学、微生物组学、甲基组学和转录组学 |\n血管损伤和肺动脉高压[¹⁴²,¹⁸²,¹⁹⁹,²¹⁰] | BNP 和 NT-proBNP 及超声心动图测量 |\n肺功能[¹⁴¹,¹⁷⁸] | 动态顺应性、气道阻力、功能残气量、etCO 和呼出气 NO |\n肺结构[¹⁷⁸] | 超极化气体 MRI 成像和氦-3 MRI 成像 |\n[图注] BNP=B-type natriuretic peptide，B 型利钠肽；BPD=bronchopulmonary dysplasia，支气管肺发育不良；EMAP II = endothelial monocyte-activating polypeptide Ⅱ，内皮单核细胞活化多肽Ⅱ；etCO=end tidal carbon monoxide，呼气末一氧化碳；KL6=Kerbs von Lungren 6 antigen，涎液化糖链抗原 6；MMP9=matrix metalloproteinase 9，基质金属蛋白酶 9；NGAL=neutrophil gelatinase-associated lipocalin，中性粒细胞明胶酶相关脂质运载蛋白；NO=nitric oxide，一氧化氮；NO×=nitric oxide metabolites，一氧化氮代谢物；NT-proBNP=N-terminal pro-B-type natriuretic peptide，氨基末端 B 型利钠肽前体；PlGF=placental growth factor，胎盘生长因子；TGFβ1=transforming growth factor β1，转化生长因子β1；TIMP1=tissue inhibitor of metalloproteinase Ⅰ，金属蛋白酶组织抑制因子Ⅰ；VEGF=vascular endothelial growth factor，血管内皮生长因子；VEGFR=VEGF receptor，VEGF 受体。a 已在有和无 BPD 的人类婴儿中进行过研究的选定生物标志物。\n\n### 2、具有 BPD 样表型的罕见单基因疾病可能发生在早产婴儿中。在没有对这种单基因肺部疾病高度怀疑的情况下，基因组分析不太可能用作筛查性生物标志物。迄今为止，仅发表了少量关于 BPD 的不够有力的全基因组关联分析研究（genome-wide association studies，GWAS）[²⁰⁸,²¹³]。具有国际或多中心参与的非常大型的基因组研究纳入了多个种族、产前风险因素和对表型的仔细定义，可能提供关于发病途径和 BPD 分子内型的重要线索。\n\n## 需要评估的用户需求（共1类）\n- 需求主题：诊断标准与分级（约20次提问）\n  代表性问题：支气管肺发育不良诊断标准、2018年NICHD支气管肺发育不良诊断标准出自哪个文献\n\n\n## ⚠️ 跨章节需求提示（重要）\n以下需求类型同时映射到了多个章节，请在给出修订建议时，仅聚焦「六、生物标志物筛查」章节负责的具体内容，不要提出属于其他章节职责范围的建议（其他章节会单独处理各自部分）：\n- 「诊断标准与分级」同时映射到其他章节：一、定义、一、临床表现、二、辅助检查、三、诊断、四、临床分级\n\n请针对本章节（六、生物标志物筛查）给出章节专属的、差异化的修订建议，说明本章节在满足该用户需求方面应重点补充或完善什么。\n请对每类用户需求，评估该章节内容的满足程度，以JSON格式输出：\n{\n  \"coverage_assessment\": \"对本章节整体覆盖情况的简评（1-2句话）\",\n  \"need_coverages\": [\n    {\n      \"topic\": \"需求主题（与上方完全一致）\",\n      \"coverage_level\": \"full\",\n      \"qa_frequency\": 50,\n      \"representative_questions\": [\"代表性问题1\", \"代表性问题2\"],\n      \"revision_suggestion\": \"\"\n    }\n  ]\n}\n\ncoverage_level取值规则：\n- \"full\"：章节已有完整内容，能清晰回答该类需求，用户无需查找其他内容\n- \"partial\"：有相关内容但不够完整，部分问题仍无法得到充分回答\n- \"missing\"：章节基本未涉及该类需求，用户无法从中获得有效信息\n\nrevision_suggestion填写规则：\n- coverage_level为\"full\"时，留空 \"\"\n- coverage_level为\"partial\"时：指出现有内容哪里不足，具体说明需要补充或完善什么\n- coverage_level为\"missing\"时：说明需要新增哪些内容来覆盖该需求\n\nrepresentative_questions：从该需求中选取1-2个最典型的实际问题\n"
+        }
+      ],
+      "thinking": {
+        "type": "enabled"
+      },
+      "reasoning_effort": "high",
+      "max_tokens": 32768
+    }
+  }
+}

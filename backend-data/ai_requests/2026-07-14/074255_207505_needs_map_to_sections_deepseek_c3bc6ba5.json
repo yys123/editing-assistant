@@ -1,0 +1,36 @@
+{
+  "id": "c3bc6ba5e3764bbbbf2f87edf8f6d7f3",
+  "created_at": "2026-07-14T07:42:55.207505+00:00",
+  "user_id": "2f267864b31b4c96ab7bff7d2e5d5ddf",
+  "context": "needs_map_to_sections",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 1385,
+    "estimated_prompt_tokens": 733,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.000733,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "以下是【支气管肺发育不良】知识库词条的章节结构和用户需求聚类。\n\n## 章节结构\n- section_id:4436f381 | 一、定义\n- section_id:b201522e | 二、危险因素\n- section_id:1d0a8d11 | 三、流行病学\n- section_id:332c535b | 四、病理生理\n- section_id:ad9c0137 | 一、临床表现\n- section_id:08509173 | 二、辅助检查\n- section_id:6dbabb4a | 三、诊断\n- section_id:1365e82d | 四、临床分级\n- section_id:f8a34d5d | 五、并发症\n- section_id:d374691c | 一、治疗原则\n- section_id:16cd09cf | 二、呼吸支持\n- section_id:36880d60 | 三、营养支持\n- section_id:9631f8a1 | 四、药物治疗\n- section_id:10dd3476 | 五、并发症治疗\n- section_id:fb6feb1c | 六、新兴治疗\n- section_id:97e3508f | 一、预后\n- section_id:5a28cf4a | 二、随访\n- section_id:84ed848d | 一、出生后尽早建立并维持功能残气量\n- section_id:fd1ffc70 | 二、合理用氧\n- section_id:7a983b4b | 三、呼吸窘迫综合征阶段的呼吸管理\n- section_id:da376bd1 | 四、BPD发展阶段的呼吸管理\n- section_id:06ad6b65 | 五、早期感染的防治\n- section_id:486f5a2a | 六、生物标志物筛查\n\n## 用户需求聚类\n- 抗感染治疗与耐药菌管理（约35次，未覆盖）\n- 糖皮质激素应用（约28次，未覆盖）\n- 诊断标准与分级（约20次，未覆盖）\n- 并发症（肺动脉高压、气道软化等）管理（约18次，未覆盖）\n- 长期管理与支持（氧疗、脱氧、随访、康复）（约16次，未覆盖）\n- 病因与危险因素（约12次，未覆盖）\n- 其他药物治疗（利尿剂、支气管扩张剂、阿奇霉素等）（约15次，未覆盖）\n- 特殊病例与综合管理（约10次，未覆盖）\n\n请判断每个章节与哪些需求类型最相关，以JSON格式输出：\n{\n  \"mappings\": [\n    {\n      \"section_id\": \"章节ID（原样复制）\",\n      \"section_heading\": \"章节标题\",\n      \"cluster_topics\": [\"需求主题1\", \"需求主题2\"],\n      \"relevance\": \"high\"\n    }\n  ]\n}\n\nrelevance取值：\n- high：该章节是满足这些需求的核心章节\n- medium：有一定相关性\n- low：相关性较弱，或该章节无对应需求\n\n每个章节必须出现在mappings中（即使cluster_topics为空也要包含）。"
+        }
+      ],
+      "thinking": {
+        "type": "enabled"
+      },
+      "reasoning_effort": "high",
+      "max_tokens": 32768
+    }
+  }
+}

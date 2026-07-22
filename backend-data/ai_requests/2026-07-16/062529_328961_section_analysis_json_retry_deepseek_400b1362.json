@@ -1,0 +1,36 @@
+{
+  "id": "400b13624ca9479083e8dc4b17056d0f",
+  "created_at": "2026-07-16T06:25:29.328961+00:00",
+  "user_id": "2ef330cb693c4cfd9cf12626a0bb62b9",
+  "context": "section_analysis_json_retry",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 4227,
+    "estimated_prompt_tokens": 2416,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.002416,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "你上一次输出的内容不是合法JSON，解析失败：\nAI 返回的 JSON 语法错误：Expecting ',' delimiter，line 45 column 37 (char 1957)。\n错误位置附近内容：\n   42:         },\n   43:         {\n   44:           \"source\": \"内容要求规范\",\n>> 45:           \"quote\": \"治疗字段（一级目录）……不得将\"治疗\"作为子级标题；应以具体治疗类型（\"药物治疗\"\"手术治疗\"等）为子级标题……多参考资料治疗标题不一致时，选择结构更清晰、更符合临床实际的参考资料作为框架\",\n                                          ^\n   46:           \"relevance\": \"规范要求治疗内容归入治疗字段，鉴别诊断字段应聚焦于鉴别要点，不宜包含大量治疗方案、药物剂量表等。\"\n   47:         }\n   48:       ],\n\n请把下面内容修复为可以被 json.loads 直接解析的合法JSON对象。\n\n严格要求：\n- 只输出JSON对象，不要Markdown代码块，不要解释文字。\n- 保留原有字段、层级和数组结构。\n- 字符串中的英文双引号、反斜杠、换行必须正确转义。\n- 对象字段之间、数组元素之间必须使用英文逗号。\n- 如果某个字段无法修复，使用空字符串、空数组或合理的默认值，不要输出非法JSON。\n\n上一次非法输出：\n{\n  \"issues\": [\n    {\n      \"issue_type\": \"structure\",\n      \"description\": \"鉴别诊断章节中包含了大量多形性室速的治疗内容（急诊处理原则、药物表格、特殊类型治疗、AHA指南推荐等），这些内容明显属于治疗范畴，放在鉴别诊断章节导致章节职责不清、内容与标题不匹配。根据内容要求规范，治疗内容应归入治疗字段，鉴别诊断字段应聚焦于鉴别要点。\",\n      \"severity\": \"high\",\n      \"examples\": [\n        \"章节中从「6、急诊处理原则」开始直至「9、根据《2025 AHA 指南》推荐」的大量内容，均为多形性室速的治疗方案、药物剂量表、特殊类型处理等，与鉴别诊断无关。\",\n        \"例如：表7、表8的室性心律失常急诊处理静脉药物一览表，包含药物分类、作用特点、适应证、用药方法及剂量、注意事项等，是典型的治疗内容。\"\n      ],\n      \"anchors\": [\n        {\n          \"quote\": \"6、急诊处理原则：①血流动力学不稳定的多形性室速应按室颤处理，应立即电复律或电除颤。② 血流动力学稳定或短阵发作者，根据 QT 间期变化，分为 QT 间期延长的多形性室速、QT 间期正常的多形性室速和短 QT 间期多形性室速。诊治流程图见下图。\",\n          \"heading_hint\": \"（二）多形性室速\"\n        },\n        {\n          \"quote\": \"7、 QT间期正常的多形性室速：①应积极纠正病因和诱因。②偶尔出现的非持续多形性室速，如不伴有严重血流动力学障碍，可观察或口服 β 受体阻滞剂治疗，一般不需静脉抗心律失常药物。③对于持续发作或反复发作者，可静脉应用β受体阻滞剂、胺碘酮、尼非卡兰或利多卡因。 药物应用详见下表。\",\n          \"heading_hint\": \"（二）多形性室速\"\n        },\n        {\n          \"quote\": \"8、 某些特殊类型的多形性室速：①伴短联律间期的多形性室速，血流动力学稳定者首选静脉应用维拉帕米终止发作。维拉帕米无效者，可选用静脉胺碘酮。……④CPVT：血流动力学稳定者，首选β受体阻滞剂[²⁸²]。\",\n          \"heading_hint\": \"（二）多形性室速\"\n        },\n        {\n          \"quote\": \"9、 根据《2025 AHA 指南》推荐，成人多形性室性心动过速的治疗建议如下：\\n(1) 对于持续性多形性室性心动过速的成年患者，建议立即进行非同步电击治疗。\\n(2) 对于伴有长 QT 间期（ 尖端扭转型室性心动过速） 的复发性多形性室性心动过速的成年患者，可以考虑使用镁进行治疗。\\n(3) 对于没有 QT 间期延长的成人多形性室性心动过速复发，可考虑使用静脉注射利多卡因 、胺碘酮和治疗心肌缺血的措施进行治疗。\\n(4) 对于 QT 间期正常的成人，不建议常规使用镁来治疗多形性室性心动过速。\",\n          \"heading_hint\": \"（二）多形性室速\"\n        },\n        {\n          \"quote\": \"[图注] 表 7 室性心律失常急诊处理静脉药物一览表\",\n          \"heading_hint\": \"（二）多形性室速\"\n        },\n        {\n          \"quote\": \"[图注] 表 8 室性心律失常急诊处理静脉药物一览表\",\n          \"heading_hint\": \"（二）多形性室速\"\n        }\n      ],\n      \"guideline_evidence\": [\n        {\n          \"source\": \"参考数据源 3：室性心律失常中国专家共识基层版\",\n          \"quote\": \"H2] 五、室性心律失常急诊处理……(二)室性心律失常急诊药物治疗……4．PMVT……(3)QT间期正常的PMVT……\",\n          \"relevance\": \"该指南将PMVT的急诊处理归入「室性心律失常急诊处理」章节，而非鉴别诊断章节，说明治疗内容应放在治疗或处理部分，不适宜放在鉴别诊断章节。\"\n        },\n        {\n          \"source\": \"内容要求规范\",\n          \"quote\": \"治疗字段（一级目录）……不得将\"治疗\"作为子级标题；应以具体治疗类型（\"药物治疗\"\"手术治疗\"等）为子级标题……多参考资料治疗标题不一致时，选择结构更清晰、更符合临床实际的参考资料作为框架\",\n          \"relevance\": \"规范要求治疗内容归入治疗字段，鉴别诊断字段应聚焦于鉴别要点，不宜包含大量治疗方案、药物剂量表等。\"\n        }\n      ],\n      \"deduction_score\": 3.0,\n      \"is_key_content\": false\n    },\n    {\n      \"issue_type\": \"accuracy\",\n      \"description\": \"多形性室速部分中存在英文缩写格式错误：①「尖端扭转型室速（torsade de pointes，TdP0）」中TdP后多了一个数字“0”；②「多形性室速（poly-morphic ventricular tachycardia，PMVT）」中“poly-morphic”应写为“polymorphic”。这些错误虽不影响核心医学含义，但属于文本性错误。\",\n      \"severity\": \"low\",\n      \"examples\": [\n        \"「尖端扭转型室速（torsade de pointes，TdP0）」应为（torsade de pointes，TdP）\",\n        \"「多形性室速（poly-morphic ventricular tachycardia，PMVT）」应为（polymorphic ventricular tachycardia，PMVT）\"\n      ],\n      \"anchors\": [\n        {\n          \"quote\": \"尖端扭转型室速（torsade de pointes，TdP0）常与LQTS、药物和电解质紊乱所致的延迟复极密切相关。\",\n          \"heading_hint\": \"（二）多形性室速\"\n        },\n        {\n          \"quote\": \"多形性室速（poly-morphic ventricular tachycardia，PMVT）易蜕变为室扑或室颤。\",\n          \"heading_hint\": \"（二）多形性室速\"\n        }\n      ],\n      \"guideline_evidence\": [\n        {\n          \"source\": \"参考数据源 3：室性心律失常中国专家共识基层版\",\n          \"quote\": \"TdP常与LQTS、药物和电解质紊乱所致的延迟复极密切相关。\",\n          \"relevance\": \"共识中统一使用TdP，无数字后缀0，证明原文TdP0为笔误。\"\n        },\n        {\n          \"source\": \"参考数据源 3：室性心律失常中国专家共识基层版\",\n          \"quote\": \"PMVT指QRS波形态可清楚识别但连续发生变化、频率>100次/min，持续时间≥30 s，或虽然<30 s但患者血流动力学不稳定需立即终止的室性心律失常。\",\n          \"relevance\": \"共识中使用「polymorphic」而非「poly-morphic」，证明原文拼写有误。\"\n        }\n      ],\n      \"deduction_score\": 1.0,\n      \"is_key_content\": false\n    }\n  ]\n}"
+        }
+      ],
+      "thinking": {
+        "type": "enabled"
+      },
+      "reasoning_effort": "high",
+      "max_tokens": 32768
+    }
+  }
+}

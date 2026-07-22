@@ -1,0 +1,39 @@
+{
+  "id": "9bd4e7bfcfd2444994e640989970d0a3",
+  "created_at": "2026-06-24T01:36:40.821297+00:00",
+  "user_id": "6de61a06ea60457e9c150b49e2f46179",
+  "context": "section_needs_gap",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 1584,
+    "estimated_prompt_tokens": 1086,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.001086,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "请分析【急性中毒的血液净化模式选择】词条「4、 缺点」章节对以下用户需求的覆盖情况。\n\n## 章节内容\n## (1) 存在溶血风险，最大血流量限制在 350 mL/min[¹⁵⁴]；\n\n## (2) 不能纠正电解质和酸碱平衡紊乱，不能清除液体，对醇类无吸附效果；\n\n## (3) 灌流器还会吸附血小板、白细胞、钙、葡萄糖[¹⁵⁵]；\n\n## (4) 灌流器具有饱和效应，需多次更换；\n\n## (5) 灌流器价格较高。\n\n## 需要评估的用户需求（共1类）\n- 需求主题：血液净化操作细节（参数、抗凝、灌流器选择）（约60次提问）\n  代表性问题：药物中毒血液灌流参数设置及抗凝药物选择几用量及后期如何调节、血液灌流治疗有机磷中毒时灌流器的吸附容量如何选择？\n\n\n## ⚠️ 跨章节需求提示（重要）\n以下需求类型同时映射到了多个章节，请在给出修订建议时，仅聚焦「4、 缺点」章节负责的具体内容，不要提出属于其他章节职责范围的建议（其他章节会单独处理各自部分）：\n- 「血液净化操作细节（参数、抗凝、灌流器选择）」同时映射到其他章节：三、 常见血液净化治疗模式、(一) 血液透析（HD）、2、 影响因素、(二) 血液灌流（HP）、(1) 存在溶血风险，最大血流量限制在 350 mL/min[¹⁵⁴]；、(3) 灌流器还会吸附血小板、白细胞、钙、葡萄糖[¹⁵⁵]；、(4) 灌流器具有饱和效应，需多次更换；、(三)  血浆置换（PE）、3、 缺点、(1) 血浆或者白蛋白需求量大；、(2) 血浆来源受限；、(四) 连续性肾脏替代治疗（CRRT）、(六) 多种血液净化方式串联治疗、(1) 以 HP 为基础的串联血液净化策略能发挥出单用 HP 之外的互补优势，提高毒物清除效果的同时对脏器支持更加全面。、(3) 常用串联方式包括：HP+CRRT、HP+HD、HP+PE 等 [¹⁸¹,²¹⁶⁻²¹⁷]。、3、 常用 HP 串联血液净化特点与应用见表 8。\n\n请针对本章节（4、 缺点）给出章节专属的、差异化的修订建议，说明本章节在满足该用户需求方面应重点补充或完善什么。\n请对每类用户需求，评估该章节内容的满足程度，以JSON格式输出：\n{\n  \"coverage_assessment\": \"对本章节整体覆盖情况的简评（1-2句话）\",\n  \"need_coverages\": [\n    {\n      \"topic\": \"需求主题（与上方完全一致）\",\n      \"coverage_level\": \"full\",\n      \"qa_frequency\": 50,\n      \"representative_questions\": [\"代表性问题1\", \"代表性问题2\"],\n      \"revision_suggestion\": \"\"\n    }\n  ]\n}\n\ncoverage_level取值规则：\n- \"full\"：章节已有完整内容，能清晰回答该类需求，用户无需查找其他内容\n- \"partial\"：有相关内容但不够完整，部分问题仍无法得到充分回答\n- \"missing\"：章节基本未涉及该类需求，用户无法从中获得有效信息\n\nrevision_suggestion填写规则：\n- coverage_level为\"full\"时，留空 \"\"\n- coverage_level为\"partial\"时：指出现有内容哪里不足，具体说明需要补充或完善什么\n- coverage_level为\"missing\"时：说明需要新增哪些内容来覆盖该需求\n\nrepresentative_questions：从该需求中选取1-2个最典型的实际问题\n"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      },
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "max_tokens": 32768
+    }
+  }
+}

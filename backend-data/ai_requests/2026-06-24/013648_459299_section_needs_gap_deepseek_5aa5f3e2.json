@@ -1,0 +1,39 @@
+{
+  "id": "5aa5f3e20ca14c60bbc30c3565048a35",
+  "created_at": "2026-06-24T01:36:48.459299+00:00",
+  "user_id": "6de61a06ea60457e9c150b49e2f46179",
+  "context": "section_needs_gap",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 1281,
+    "estimated_prompt_tokens": 876,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.000876,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "请分析【急性中毒的血液净化模式选择】词条「(5) 不能纠正水、电解质、酸碱平衡紊乱。」章节对以下用户需求的覆盖情况。\n\n## 章节内容\n\n\n## 需要评估的用户需求（共1类）\n- 需求主题：代谢性酸中毒/乳酸酸中毒的血液净化治疗（约98次提问）\n  代表性问题：血液净化治疗乳酸酸中毒的适应症是什么、糖尿病酮症酸中毒上CRRT的指针？\n\n\n## ⚠️ 跨章节需求提示（重要）\n以下需求类型同时映射到了多个章节，请在给出修订建议时，仅聚焦「(5) 不能纠正水、电解质、酸碱平衡紊乱。」章节负责的具体内容，不要提出属于其他章节职责范围的建议（其他章节会单独处理各自部分）：\n- 「代谢性酸中毒/乳酸酸中毒的血液净化治疗」同时映射到其他章节：(3) 实验室检查结果、2、 碱化尿液、(1) 作用机制、(2) 适应证、(3) 注意事项、(4) 中毒后合并内环境紊乱或急性肾功能障碍或多个器官功能不全或衰竭；、(1) 能同时纠正水、电解质、酸碱平衡紊乱。、(2) 不能纠正电解质和酸碱平衡紊乱，不能清除液体，对醇类无吸附效果；、3、 二甲双胍、(2) 血液净化方式选择、1) 首选 HD，CRRT 是第二选择[¹⁰⁴]。\n\n请针对本章节（(5) 不能纠正水、电解质、酸碱平衡紊乱。）给出章节专属的、差异化的修订建议，说明本章节在满足该用户需求方面应重点补充或完善什么。\n请对每类用户需求，评估该章节内容的满足程度，以JSON格式输出：\n{\n  \"coverage_assessment\": \"对本章节整体覆盖情况的简评（1-2句话）\",\n  \"need_coverages\": [\n    {\n      \"topic\": \"需求主题（与上方完全一致）\",\n      \"coverage_level\": \"full\",\n      \"qa_frequency\": 50,\n      \"representative_questions\": [\"代表性问题1\", \"代表性问题2\"],\n      \"revision_suggestion\": \"\"\n    }\n  ]\n}\n\ncoverage_level取值规则：\n- \"full\"：章节已有完整内容，能清晰回答该类需求，用户无需查找其他内容\n- \"partial\"：有相关内容但不够完整，部分问题仍无法得到充分回答\n- \"missing\"：章节基本未涉及该类需求，用户无法从中获得有效信息\n\nrevision_suggestion填写规则：\n- coverage_level为\"full\"时，留空 \"\"\n- coverage_level为\"partial\"时：指出现有内容哪里不足，具体说明需要补充或完善什么\n- coverage_level为\"missing\"时：说明需要新增哪些内容来覆盖该需求\n\nrepresentative_questions：从该需求中选取1-2个最典型的实际问题\n"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      },
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "max_tokens": 32768
+    }
+  }
+}

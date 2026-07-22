@@ -80,7 +80,17 @@ _REFERENCE_SECTION_TITLES = {
     "conflict of interest statement",
 }
 
-_CLINICAL_QUESTION_TITLE_RE = re.compile(r"(临床问题\s*\d+\s*[：:]\s*[\s\S]{1,240}?[？?])")
+_CLINICAL_QUESTION_TITLE_RE = re.compile(
+    r"(临床问题\s*\d+\s*[：:])\s*(?:\*\*)?\s*([^\n]{1,240}?[？?])"
+)
+_CLINICAL_QUESTION_LINE_RE = re.compile(
+    r"^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*"
+    r"(临床问题\s*\d+\s*[：:])\s*(?:\*\*)?\s*"
+    r"([^\n]{1,240}?[？?])\s*(?:\*\*)?\s*$"
+)
+_NUMBERED_TOPIC_LINE_RE = re.compile(
+    r"^\s*(\d{1,2})[.．]\s*([^\n：:]{1,32}?)\s*[：:]"
+)
 
 
 @dataclass
@@ -167,6 +177,10 @@ def _normalize_section_title(title: str) -> str:
     return re.sub(r"[^a-z]+", " ", clean.lower()).strip()
 
 
+def _same_section_title(left: str, right: str) -> bool:
+    return bool(left and right and _normalize_section_title(left) == _normalize_section_title(right))
+
+
 def _is_reference_section_title(title: str) -> bool:
     return _normalize_section_title(title) in _REFERENCE_SECTION_TITLES
 
@@ -225,6 +239,13 @@ def _with_local_title(title_path: str, local_title: str) -> str:
     return f"{parent}{separator}{local_title}" if separator else local_title
 
 
+def _append_title_path(title_path: str, local_title: str) -> str:
+    local_title = (local_title or "").strip()
+    if not local_title:
+        return title_path
+    return f"{title_path} / {local_title}" if title_path else local_title
+
+
 def _normalize_clinical_question_title(title: str) -> str:
     clean = re.sub(r"\s+", " ", title or "").strip()
     clean = re.sub(r"\s*([：:])\s*", r"\1", clean, count=1)
@@ -232,14 +253,152 @@ def _normalize_clinical_question_title(title: str) -> str:
     return clean
 
 
+def _clinical_question_line_title(line: str) -> Optional[str]:
+    match = _CLINICAL_QUESTION_LINE_RE.match(line or "")
+    if not match:
+        return None
+    return _normalize_clinical_question_title(f"{match.group(1)}{match.group(2)}")
+
+
+def _metadata_prefix_only(lines: list[str]) -> bool:
+    nonempty = [line.strip() for line in lines if line.strip()]
+    if not nonempty:
+        return True
+    return all(
+        re.match(r"^\[临床决策切片ID\]\s+\S+", line)
+        or re.match(r"^#{1,6}\s+\S+", line)
+        for line in nonempty
+    )
+
+
 def _clinical_question_title_path(title_path: str, text: str) -> str:
     if "临床问题" not in _local_title_from_joined_path(title_path):
         return title_path
+    for line in (text or "").splitlines():
+        question_title = _clinical_question_line_title(line)
+        if question_title:
+            return _with_local_title(title_path, question_title)
     match = _CLINICAL_QUESTION_TITLE_RE.search(text or "")
     if not match:
         return title_path
-    question_title = _normalize_clinical_question_title(match.group(1))
+    question_title = _normalize_clinical_question_title(f"{match.group(1)}{match.group(2)}")
     return _with_local_title(title_path, question_title) if question_title else title_path
+
+
+def _numbered_topic_line_title(line: str) -> Optional[tuple[int, str]]:
+    match = _NUMBERED_TOPIC_LINE_RE.match(line or "")
+    if not match:
+        return None
+    title = re.sub(r"\s+", " ", match.group(2)).strip()
+    compact_title = re.sub(r"\s+", "", title)
+    if not compact_title or len(compact_title) > 24:
+        return None
+    if not re.search(r"[\u4e00-\u9fff]", compact_title):
+        return None
+    if re.search(r"[。？！?!；;，,、]$", compact_title):
+        return None
+    return int(match.group(1)), f"{int(match.group(1))}. {title}"
+
+
+def _plausible_numbered_topic_sequence(numbers: list[int]) -> bool:
+    if len(numbers) < 2:
+        return False
+    for previous, current in zip(numbers, numbers[1:]):
+        if current <= previous or current - previous > 2:
+            return False
+    return True
+
+
+def _split_clinical_question_sections(text: str) -> list[tuple[Optional[str], str]]:
+    sections: list[tuple[Optional[str], str]] = []
+    leading_lines: list[str] = []
+    current_title: Optional[str] = None
+    current_lines: list[str] = []
+
+    def flush_current() -> None:
+        nonlocal current_lines, current_title
+        body = "\n".join(current_lines).strip()
+        if body:
+            sections.append((current_title, body))
+        current_lines = []
+
+    for line in (text or "").splitlines():
+        question_title = _clinical_question_line_title(line)
+        if question_title:
+            if current_title is not None:
+                flush_current()
+            elif leading_lines:
+                if _metadata_prefix_only(leading_lines):
+                    current_lines = [*leading_lines, line]
+                    leading_lines = []
+                    current_title = question_title
+                    continue
+                else:
+                    leading = "\n".join(leading_lines).strip()
+                if leading:
+                    sections.append((None, leading))
+                leading_lines = []
+            current_title = question_title
+            current_lines = [line]
+            continue
+
+        if current_title is None:
+            leading_lines.append(line)
+        else:
+            current_lines.append(line)
+
+    if current_title is not None:
+        flush_current()
+
+    question_count = sum(1 for title, _ in sections if title)
+    return sections if question_count >= 1 else []
+
+
+def _split_numbered_topic_sections(text: str) -> list[tuple[Optional[str], str]]:
+    sections: list[tuple[Optional[str], str]] = []
+    heading_numbers: list[int] = []
+    leading_lines: list[str] = []
+    current_title: Optional[str] = None
+    current_lines: list[str] = []
+
+    def flush_current() -> None:
+        nonlocal current_lines
+        body = "\n".join(current_lines).strip()
+        if body:
+            sections.append((current_title, body))
+        current_lines = []
+
+    for line in (text or "").splitlines():
+        numbered_topic = _numbered_topic_line_title(line)
+        if numbered_topic:
+            number, topic_title = numbered_topic
+            if current_title is not None:
+                flush_current()
+            elif leading_lines:
+                if _metadata_prefix_only(leading_lines):
+                    current_lines = [*leading_lines, line]
+                    leading_lines = []
+                    current_title = topic_title
+                    heading_numbers.append(number)
+                    continue
+                leading = "\n".join(leading_lines).strip()
+                if leading:
+                    sections.append((None, leading))
+                leading_lines = []
+            current_title = topic_title
+            current_lines = [line]
+            heading_numbers.append(number)
+            continue
+
+        if current_title is None:
+            leading_lines.append(line)
+        else:
+            current_lines.append(line)
+
+    if current_title is not None:
+        flush_current()
+
+    return sections if _plausible_numbered_topic_sequence(heading_numbers) else []
 
 
 def _make_candidate(
@@ -276,15 +435,44 @@ def _build_heading_chunks(ref: ReferenceInput, target_chars: int) -> list[Refere
         if not body:
             buffer = []
             return
-        for part in _split_long_text(body, target_chars):
-            chunks.append(_make_candidate(ref, len(chunks) + 1, current_title_path, part, buffer_start))
+        clinical_sections = _split_clinical_question_sections(body)
+        numbered_sections = [] if clinical_sections else _split_numbered_topic_sections(body)
+        body_sections = clinical_sections or numbered_sections
+        if body_sections:
+            replace_local_title = bool(clinical_sections)
+            section_index = 0
+            for section_title, section_text in body_sections:
+                if section_title and replace_local_title:
+                    section_title_path = _with_local_title(current_title_path, section_title)
+                elif section_title:
+                    section_title_path = _append_title_path(current_title_path, section_title)
+                else:
+                    section_title_path = current_title_path
+                section_target_chars = int(target_chars * 1.5) if section_title else target_chars
+                for part_index, part in enumerate(_split_long_text(section_text, section_target_chars)):
+                    chunks.append(_make_candidate(
+                        ref,
+                        len(chunks) + 1,
+                        section_title_path,
+                        part,
+                        buffer_start + section_index + part_index,
+                    ))
+                section_index += 1
+        else:
+            for part in _split_long_text(body, target_chars):
+                chunks.append(_make_candidate(ref, len(chunks) + 1, current_title_path, part, buffer_start))
         buffer = []
 
     for line in (ref.text or "").splitlines():
         heading = _parse_heading(line)
         if heading:
-            flush()
             level, title = heading
+            if line.strip().startswith("#") and _same_section_title(
+                title,
+                _local_title_from_joined_path(current_title_path),
+            ):
+                continue
+            flush()
             if skip_reference_level is not None:
                 if level > skip_reference_level:
                     continue

@@ -420,6 +420,25 @@ class GuideDataSourceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx.exception.detail["dataKeys"], ["content"])
         self.assertEqual(ctx.exception.detail["stringFields"][0]["path"], "data.content")
 
+    async def test_get_guide_detail_rejects_noise_only_structured_content(self):
+        FakeAsyncClient.responses = [
+            FakeGuideResponse({
+                "code": "success",
+                "message": "成功",
+                "data": {
+                    "title": "2026 AHA / ACC科学声明",
+                    "htmlContent": "<article><h2>eLetters</h2></article>",
+                },
+            })
+        ]
+
+        with patch.object(article.httpx, "AsyncClient", FakeAsyncClient):
+            with self.assertRaises(HTTPException) as ctx:
+                await article.get_guide_detail(85527)
+
+        self.assertEqual(ctx.exception.status_code, 502)
+        self.assertEqual(ctx.exception.detail["message"], "指南详情内容为空")
+
     async def test_debug_config_route_precedes_detail_route(self):
         guide_paths = [
             route.path

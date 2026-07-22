@@ -1,0 +1,39 @@
+{
+  "id": "eac5d9a13c914eb5b62f2937e3efe566",
+  "created_at": "2026-07-06T05:55:58.460774+00:00",
+  "user_id": "3271b62a1c20474d9bf8ac4b82e52361",
+  "context": "section_needs_gap",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 1610,
+    "estimated_prompt_tokens": 1132,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.001132,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "请分析【围绝经期管理】词条「八、早发型卵巢功能不全」章节对以下用户需求的覆盖情况。\n\n## 章节内容\n激素替代疗法（HRT）是为患有早发性卵巢功能不全（POI）的年轻女性或已经绝经的早发性绝经女性提供的激素替代疗法，其目的是控制症状，并且将雌激素水平恢复到绝经前妇女所经历的水平，以改善与雌激素缺乏相关的并发症。POI 患者只要无禁忌证应尽早开始 HRT，其获益明显大于风险。\n1、POI 的 HRT 治疗需要相对于 MHT 标准剂量较高的雌激素用药。推荐戊酸雌二醇 2~4 mg/d、结合雌激素 0.625~1.25 mg/d 或经皮雌二醇 75~100 μg/d，有完整子宫者雌激素治疗时应添加足量足疗程孕激素以保护子宫内膜，也可使用雌孕激素复合制剂如 17β‑雌二醇片/17β‑雌二醇地屈孕酮片（2/10 剂型）。\n2、HRT 用至平均自然绝经年龄，之后按照 MHT 原则进行（推荐等级：1 类）。\n3、与复方口服避孕药（combined oral contraceptive，COC）相比，HRT 对骨骼及代谢更有利[⁶²]。年轻 POI 女性或近期有生育计划者，应谨慎使用双膦酸盐等可能具有生殖毒性的药物。\n4、POI 在治疗过程中应注意患者长期健康问题的评估，原发病的评估和治疗，必要时联合专科诊疗。\n\n## 需要评估的用户需求（共1类）\n- 需求主题：卵巢早衰/早发性卵巢功能不全（POI/POF）的诊断、治疗与生育管理（约100次提问）\n  代表性问题：卵巢早衰怎么治疗、卵巢早衰的诊断需要排除哪些其他内分泌疾病？\n\n\n## ⚠️ 跨章节需求提示（重要）\n以下需求类型同时映射到了多个章节，请在给出修订建议时，仅聚焦「八、早发型卵巢功能不全」章节负责的具体内容，不要提出属于其他章节职责范围的建议（其他章节会单独处理各自部分）：\n- 「卵巢早衰/早发性卵巢功能不全（POI/POF）的诊断、治疗与生育管理」同时映射到其他章节：三、辅助检查、四、诊断、三、卵巢组织冻存与移植\n\n请针对本章节（八、早发型卵巢功能不全）给出章节专属的、差异化的修订建议，说明本章节在满足该用户需求方面应重点补充或完善什么。\n请对每类用户需求，评估该章节内容的满足程度，以JSON格式输出：\n{\n  \"coverage_assessment\": \"对本章节整体覆盖情况的简评（1-2句话）\",\n  \"need_coverages\": [\n    {\n      \"topic\": \"需求主题（与上方完全一致）\",\n      \"coverage_level\": \"full\",\n      \"qa_frequency\": 50,\n      \"representative_questions\": [\"代表性问题1\", \"代表性问题2\"],\n      \"revision_suggestion\": \"\"\n    }\n  ]\n}\n\ncoverage_level取值规则：\n- \"full\"：章节已有完整内容，能清晰回答该类需求，用户无需查找其他内容\n- \"partial\"：有相关内容但不够完整，部分问题仍无法得到充分回答\n- \"missing\"：章节基本未涉及该类需求，用户无法从中获得有效信息\n\nrevision_suggestion填写规则：\n- coverage_level为\"full\"时，留空 \"\"\n- coverage_level为\"partial\"时：指出现有内容哪里不足，具体说明需要补充或完善什么\n- coverage_level为\"missing\"时：说明需要新增哪些内容来覆盖该需求\n\nrepresentative_questions：从该需求中选取1-2个最典型的实际问题\n"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      },
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "max_tokens": 32768
+    }
+  }
+}

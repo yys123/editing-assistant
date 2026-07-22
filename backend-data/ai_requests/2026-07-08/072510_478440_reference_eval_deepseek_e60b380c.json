@@ -1,0 +1,36 @@
+{
+  "id": "e60b380cdfe54da6a9d4d5ceef6f1506",
+  "created_at": "2026-07-08T07:25:10.478440+00:00",
+  "user_id": "2f267864b31b4c96ab7bff7d2e5d5ddf",
+  "context": "reference_eval",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 5340,
+    "estimated_prompt_tokens": 2918,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.002918,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位循证医学文献评估专家，擅长评估医学参考文献的质量、权威性和适用性。请严格按照提供的评估标准进行客观评价。"
+        },
+        {
+          "role": "user",
+          "content": "请评估以下参考文献集合对于编写【肌萎缩侧索硬化】临床词条的适用性。\n\n## 评估标准\n# 参考信息源评估标准\n\n## 1. 机构与发布者的权威性 (Authority)\n\n入选的资料必须由该疾病领域公认的顶级学术组织、政府卫生机构或权威专家组发布。\n\n- 国际顶级权威组织：针对特定疾病的全球倡议组织（如针对COPD的GOLD、针对哮喘的GINA）、国际公认的专科学会（如心血管领域的AHA/ACC、ESC；肿瘤领域的NCCN、ESMO；糖尿病领域的ADA、EASD等）。\n- 国内核心卫生与学术机构：国家卫生健康委员会（卫健委）发布的诊疗规范、中华医学会及其各专科分会、中国医师协会、中国抗癌协会（CSCO）等出具的指南与共识。\n\n评级：\n- 高：由上述国际顶级组织或国内核心机构发布\n- 中：由省级学会、知名专科医院专家组、二级学会发布\n- 低：来源不明、无明确发布机构、或非医学专业机构\n\n## 2. 文献类型与证据等级 (Evidence Level)\n\n按照循证医学证据等级优先级排序：\n- 第一顺位：临床实践指南（Clinical Practice Guidelines, CPGs），特别是基于GRADE系统评估的指南\n- 第二顺位：权威专家共识（Expert Consensus），用于补充指南未覆盖的边缘问题、新兴疗法\n- 第三顺位：顶级期刊的权威综述（State-of-the-Art Reviews），发表在《The Lancet》《NEJM》《JAMA》等顶级医学期刊\n\n## 3. 时效性与版本追踪 (Timeliness)\n\n- 最新版本原则：核心指南必须纳入该机构发布的最新版本\n- 年度更新追踪：每年更新的全球策略需纳入近3-5年的更新要点\n- 国内最新版兜底原则：若国内权威指南更新较慢，依然必须纳入作为国内临床实践基准，但需用最新国际指南补充前沿知识\n\n评级：\n- 最新：近2年内发布/更新\n- 较新：2-5年内发布\n- 陈旧：超过5年未更新\n\n## 4. 内容系统性与覆盖面 (Comprehensiveness)\n\n纳入的资料组合必须能够无死角地支撑词条模块结构：\n- 全流程覆盖：必须包含从\"预防/筛查\"到\"诊断/评估\"，再到\"综合管理/随访\"的全局性文件\n- 分级诊疗覆盖：既要有面向三甲医院专科医生的综合指南，也要有面向基层的管理指南\n\n## 5. 临床适用性与本地化 (Localization & Applicability)\n\n- 本土化校准：国际指南虽然前沿，但在流行病学特征、药物可及性、医疗体制上可能存在差异，必须将国内最新权威指南作为诊断标准和用药推荐的本土化校准基准\n- 可操作性：优先纳入包含明确诊断流程图（Algorithms）、药物剂量表、疗效评估量表的文献\n\n## 总体推荐等级\n\n- 强烈推荐：权威性高 + 证据等级高（指南/共识） + 时效性最新\n- 推荐：满足大部分标准，有一项稍弱\n- 可用：权威性或时效性一般，但内容有补充价值\n- 建议替换：权威性低、内容陈旧、或有更优替代文献\n\n\n## 待评估的参考文献（共 3 篇）\n### 文献 1: 85551-肌萎缩侧索硬化诊断和治疗中国专家共识2026\n字数: 16213\n内容摘要:\n• 共识 •\n肌萎缩侧索硬化诊断和治疗中国专家共识2026\n中华医学会神经病学分会肌萎缩侧索硬化协作组中华神经科杂志, 2026,59(06): 567-577.\n肌萎缩侧索硬化（amyotrophic lateral sclerosis，ALS）是一种进行性加重、主要累及大脑皮质、脑干和脊髓运动神经元的神经系统变性疾病。ALS一般在中老年期发病，我国患者的发病年龄高峰在50岁左右，并且发病年龄有年轻化的趋势 [1]。典型的ALS患者以进行性发展的骨骼肌无力、萎缩、肌束颤动和锥体束征为主要临床表现，部分ALS患者可伴有不同程度的认知和（或）行为障碍 [2]。约5%~10%的ALS为家族性患者。\nALS早期的临床表现多样，缺乏特异性的生物学确诊指标。确定上、下运动神经元受累范围是诊断该疾病的关键。根据患者症状、体征的解剖定位，通常将受累范围分为脑干、颈段、胸段、腰骶段4个节段。详细的病史询问、细致的体格检查和规范的神经电生理检查对于ALS的早期诊断至关重要，影像学等其他辅助检查在鉴别诊断中也具有重要价值 [3]。\n近年来，人们在ALS诊断和治疗领域的认识不断更新，为了进一步规范和指导我国ALS的诊断和治疗，中华医学会神经病学分会肌萎缩侧索硬化协作组组织相关专家，对PubMed、Medline、Cochrane、Embase等外文数据库以及中国知网、维普等中文数据库的相关文献进行检索，截止时间为2025年12月，获取相关研究进展信息，在《肌萎缩侧索硬化诊断和治疗中国专家共识2022》 [4]的基础上，结合专家的建议，对诊疗中的关键问题提出了相关的推荐意见。\n[H2] 一、临床要点\n通过详细的病史询问和体格检查，在脑干、颈段、胸段、腰骶段4个节段中寻找上、下运动神经元受累的证据，是诊断ALS的基础。\n[H3] （一）病史采集\n准确、详细的病史是证实疾病进行性发展的主要依据。在ALS早期，患者临床表现通常不对称，多从某一部位开始，逐步在该节段内扩展，进而逐渐扩展到其他节段。在进行病史采集时，应从患者首发无力的部位开始，追问症状由一个节段扩展至另一个节段的时间过程，以及有无肌肉跳动、萎缩和痉挛。应特别注意患者的吞咽情况、构音障碍、强哭强笑、呼吸困难表现以及有无认知和（或）行为障碍、肢体感觉障碍、大小便障碍等。询问有无ALS、精神异常或痴呆的家族史。\n[H3] （二）临床表现\n\n---\n\n### 文献 2: 80190-2023 日本临床实践指南：肌萎缩侧索硬化的管理（增补）\n字数: 27720\n内容摘要:\nInvited Review\nAddendum to the 2023 clinical practice guidelines for amyotrophic lateral sclerosis in Japan: approval and integration of novel disease-modifying therapies\nAbstract: Amyotrophic lateral sclerosis (ALS) is an intractable motor neuron disease characterized by progressive degeneration of motor neurons with varying degrees of frontotemporal lobe dysfunction. This English summary of the addendum to the Japanese clinical practice guidelines for ALS outlines major recent advances in pharmacological therapy in Japan. Following the development of the 2023 guidelines, three additional medications—oral edaravone, high-dose intramuscular mecobalamin, and tofersen—have been introduced. Oral edaravone, with its ease of administration, demonstrates pharmacokinetics comparable to the intravenous formulation. High-dose mecobalamin reduces functional decline when initiated early in the disease course. Tofersen, an antisense oligonucleotide, is the first gene-targeted therapy approved in J\n\n---\n\n### 文献 3: 78117-2025 PACTALS指南：肌萎缩侧索硬化的治疗\n字数: 110784\n内容摘要:\n[H1] Pan-Asian consortium for treatment and research in ALS (PACTALS) guidelines for management of amyotrophic lateral sclerosis\n[H2] Summary\nThe Pan-Asian Consortium for Treatment and Research in ALS (PACTALS) guidelines were developed for the management of amyotrophic lateral sclerosis (ALS) patients living in the Asia-Pacific countries, taking into consideration the ethnic, racial and economic diversity of the region. The majority of patients reside in low-income (limited-resource setting) and middle-income countries. Grading of Recommendations Assessment, Development, and Evaluation (GRADE) methodology was utilised for development of the PACTALS management guidelines. Nine broad research questions, divided into sections, were addressed. Evidence was derived from existing Cochrane reviews, systematic reviews, meta-analysis, and randomized controlled trials (RCT) along with consensus when evidence was limited. Recommendations were provided for diagnostic pathways, use of disease modi\n\n## 输出要求\n请以JSON格式输出评估结果：\n{\n  \"item_evaluations\": [\n    {\n      \"filename\": \"文件名\",\n      \"authority_rating\": \"高/中/低\",\n      \"authority_note\": \"发布机构及权威性说明\",\n      \"evidence_level\": \"临床实践指南/专家共识/权威综述/教材/其他\",\n      \"evidence_note\": \"证据等级说明\",\n      \"timeliness_rating\": \"最新/较新/陈旧\",\n      \"timeliness_note\": \"时效性说明（含推测的发布年份）\",\n      \"overall_recommendation\": \"强烈推荐/推荐/可用/建议替换\",\n      \"summary\": \"一句话总评\"\n    }\n  ],\n  \"comprehensiveness\": \"这组文献对肌萎缩侧索硬化词条各模块（基础知识→诊断→治疗→预后→预防）的覆盖情况评估\",\n  \"localization\": \"国际指南与国内指南的搭配是否合理，本土化校准是否充分\",\n  \"overall_assessment\": \"总体评估（2-3句话）\",\n  \"coverage_gaps\": [\"建议补充的文献类型1\", \"建议补充的文献类型2\"],\n  \"suggestions\": [\"具体改进建议1\", \"具体改进建议2\"]\n}\n\n评估要点：\n- 根据文件名和内容判断发布机构、文献类型、大致发布时间\n- 评估这组文献作为整体是否能支撑完整的词条编写\n- 指出覆盖面上的明显缺口（如缺少国内指南、缺少基层诊疗指南等）\n- 如果某篇文献质量明显不足，给出\"建议替换\"并说明理由\n- 对每篇文献的评估应简洁客观"
+        }
+      ],
+      "thinking": {
+        "type": "enabled"
+      },
+      "reasoning_effort": "high",
+      "max_tokens": 32768
+    }
+  }
+}

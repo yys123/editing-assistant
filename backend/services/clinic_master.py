@@ -94,13 +94,48 @@ def _timeout() -> int:
     return int(getattr(settings, "clinic_master_timeout_seconds", 30) or 30)
 
 
+def _remote_error_message(response_text: str) -> str:
+    text = response_text.strip()
+    if not text:
+        return ""
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        payload = None
+    if isinstance(payload, dict):
+        message = payload.get("message") or payload.get("error") or payload.get("detail")
+        return str(message).strip() if message else ""
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        data = line[5:].strip()
+        if not data or data == "[DONE]":
+            continue
+        try:
+            event = json.loads(data)
+        except json.JSONDecodeError:
+            return data
+        if isinstance(event, dict):
+            message = event.get("message") or event.get("error") or event.get("detail")
+            if message:
+                return str(message).strip()
+    return ""
+
+
+def _failure_message(base_message: str, response_text: str) -> str:
+    remote_message = _remote_error_message(response_text)
+    return f"{base_message}: {remote_message}" if remote_message else base_message
+
+
 def _extract_payload(response: httpx.Response, label: str, url: str, params: dict) -> dict:
     response_text = response.text[:1000]
     if response.status_code >= 400:
+        base_message = f"Clinic Master {label} 请求失败 ({response.status_code})"
         raise HTTPException(
             502,
             {
-                "message": f"Clinic Master {label} 请求失败 ({response.status_code})",
+                "message": _failure_message(base_message, response_text),
                 "request": {"url": url, "params": _safe_params(params)},
                 "response": response_text,
             },
@@ -178,10 +213,11 @@ def _answer_from_sse_events(events: list[dict]) -> str:
 def _extract_stream_payload(response: httpx.Response, url: str, params: dict) -> dict:
     response_text = response.text[:1000]
     if response.status_code >= 400:
+        base_message = f"Clinic Master 创建对话请求失败 ({response.status_code})"
         raise HTTPException(
             502,
             {
-                "message": f"Clinic Master 创建对话请求失败 ({response.status_code})",
+                "message": _failure_message(base_message, response_text),
                 "request": {"url": url, "params": _safe_params(params)},
                 "response": response_text,
             },

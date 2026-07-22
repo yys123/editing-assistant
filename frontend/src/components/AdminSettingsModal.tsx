@@ -94,6 +94,27 @@ interface ActivitySnapshot {
   running_count: number
 }
 
+interface AiIntegrationCitationStatsBucket {
+  status: string
+  label: string
+  tone: 'success' | 'warning' | 'danger' | 'neutral'
+  color: string
+  count: number
+  confirmed_issue_count: number
+  confirmed_issue_ratio: number
+  confirmed_ok_count: number
+  confirmed_ok_ratio: number
+  unconfirmed_count: number
+  unconfirmed_ratio: number
+}
+
+interface AiIntegrationCitationStats {
+  total_sessions: number
+  total_records: number
+  total_citations: number
+  buckets: AiIntegrationCitationStatsBucket[]
+}
+
 interface Props {
   onClose: () => void
 }
@@ -134,6 +155,10 @@ function formatDateTime(value: string) {
   return date.toLocaleString()
 }
 
+function formatPercent(ratio: number | null | undefined) {
+  return `${Math.round((ratio ?? 0) * 100)}%`
+}
+
 export default function AdminSettingsModal({ onClose }: Props) {
   const [config, setConfig] = useState<RuntimeConfig>(EMPTY_CONFIG)
   const [loading, setLoading] = useState(true)
@@ -150,6 +175,9 @@ export default function AdminSettingsModal({ onClose }: Props) {
   const [activity, setActivity] = useState<ActivitySnapshot | null>(null)
   const [activityLoading, setActivityLoading] = useState(true)
   const [activityError, setActivityError] = useState('')
+  const [citationStats, setCitationStats] = useState<AiIntegrationCitationStats | null>(null)
+  const [citationStatsLoading, setCitationStatsLoading] = useState(false)
+  const [citationStatsError, setCitationStatsError] = useState('')
 
   const loadAiLogs = async () => {
     const r = await apiFetch('/api/admin/ai-call-logs?limit=20')
@@ -174,6 +202,21 @@ export default function AdminSettingsModal({ onClose }: Props) {
     }
   }
 
+  const loadCitationStats = async () => {
+    setCitationStatsLoading(true)
+    setCitationStatsError('')
+    try {
+      const r = await apiFetch('/api/admin/ai-integration-citation-stats')
+      const data = await safeJson(r)
+      if (!r.ok) throw new Error(data.detail || '读取 AI整合引用统计失败')
+      setCitationStats(data)
+    } catch (e: any) {
+      setCitationStatsError(e.message || '读取 AI整合引用统计失败')
+    } finally {
+      setCitationStatsLoading(false)
+    }
+  }
+
   useEffect(() => {
     apiFetch('/api/admin/runtime-config')
       .then(async r => {
@@ -184,7 +227,7 @@ export default function AdminSettingsModal({ onClose }: Props) {
       .then(data => {
         setConfig({ ...EMPTY_CONFIG, ...data.defaults, ...data.config })
         setHasApiKey(!!data.has_deepseek_api_key)
-        return Promise.all([loadAiLogs(), loadActivity()])
+        return Promise.all([loadAiLogs(), loadActivity(), loadCitationStats()])
       })
       .catch((e: Error) => setError(e.message || '读取管理员配置失败'))
       .finally(() => setLoading(false))
@@ -454,6 +497,64 @@ export default function AdminSettingsModal({ onClose }: Props) {
                     })}
                   </tbody>
                 </table>
+              </div>
+            </div>
+
+            <div className="admin-settings-section">
+              <div className="admin-settings-section-heading">
+                <h4>AI整合引用统计</h4>
+                <div style={{ fontSize: 12, color: 'var(--m3-on-surface-variant)' }}>
+                  {citationStats ? `${citationStats.total_records} 条 AI整合记录` : ''}
+                </div>
+                <button type="button" className="btn-m3-outline" style={{ marginLeft: 'auto', fontSize: 12, padding: '4px 10px' }} onClick={loadCitationStats} disabled={citationStatsLoading}>
+                  {citationStatsLoading && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
+                  刷新
+                </button>
+              </div>
+              {citationStatsError && (
+                <div style={{ padding: '10px 14px', background: 'var(--m3-error-container)', color: 'var(--m3-error)', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
+                  {citationStatsError}
+                </div>
+              )}
+              <div className="admin-metric-grid admin-metric-grid-three">
+                <div className="admin-metric-card">
+                  <div className="admin-metric-label">引用序号</div>
+                  <div className="admin-metric-value">{citationStats?.total_citations ?? 0}</div>
+                </div>
+                <div className="admin-metric-card">
+                  <div className="admin-metric-label">AI整合记录</div>
+                  <div className="admin-metric-value">{citationStats?.total_records ?? 0}</div>
+                </div>
+                <div className="admin-metric-card">
+                  <div className="admin-metric-label">覆盖任务</div>
+                  <div className="admin-metric-value">{citationStats?.total_sessions ?? 0}</div>
+                </div>
+              </div>
+              <div className="admin-citation-stat-list">
+                {citationStats && citationStats.total_citations > 0 && (
+                  citationStats.buckets.map(bucket => (
+                    <div key={bucket.status} className={`admin-citation-stat-row ${bucket.tone}`}>
+                      <div className="admin-citation-stat-main">
+                        <span className="admin-citation-stat-swatch" style={{ background: bucket.color }} />
+                        <span className="admin-citation-stat-label">{bucket.label}</span>
+                        <span className="admin-citation-stat-count">{bucket.count.toLocaleString()} 个</span>
+                      </div>
+                      <div className="admin-citation-stat-ratios">
+                        <span>有问题：{bucket.confirmed_issue_count.toLocaleString()}（{formatPercent(bucket.confirmed_issue_ratio)}）</span>
+                        <span>没问题：{bucket.confirmed_ok_count.toLocaleString()}（{formatPercent(bucket.confirmed_ok_ratio)}）</span>
+                        <span>未确认：{bucket.unconfirmed_count.toLocaleString()}（{formatPercent(bucket.unconfirmed_ratio)}）</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+                {citationStatsLoading && !citationStats && (
+                  <div className="admin-citation-stat-empty">
+                    <div className="spinner" style={{ margin: '0 auto' }} />
+                  </div>
+                )}
+                {!citationStatsLoading && citationStats && citationStats.total_citations === 0 && (
+                  <div className="admin-citation-stat-empty">暂无 AI整合引用序号统计</div>
+                )}
               </div>
             </div>
 

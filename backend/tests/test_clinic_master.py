@@ -185,6 +185,56 @@ class ClinicMasterClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx.exception.status_code, 502)
         self.assertIn("405 Method Not Allowed", str(ctx.exception.detail))
 
+    async def test_stream_400_includes_remote_error_message(self):
+        FakeAsyncClient.responses = [
+            FakeResponse(
+                status_code=400,
+                text="data: Invalid appId: 1930909935\n\n",
+                headers={"content-type": "text/event-stream;charset=UTF-8"},
+            )
+        ]
+
+        with (
+            patch.object(clinic_master, "settings", self.settings),
+            patch.object(clinic_master.httpx, "AsyncClient", FakeAsyncClient),
+            patch.object(clinic_master.uuid, "uuid4", side_effect=[
+                "assistant-message-1",
+                "user-message-1",
+                "9f3f0d15-35a0-4b31-bf44-5c9d4c4d2e2a",
+            ]),
+        ):
+            with self.assertRaises(HTTPException) as ctx:
+                await clinic_master.create_chat("糖尿病怎么诊断？", request_id="query-1")
+
+        self.assertEqual(ctx.exception.status_code, 502)
+        self.assertEqual(
+            ctx.exception.detail["message"],
+            "Clinic Master 创建对话请求失败 (400): Invalid appId: 1930909935",
+        )
+
+    async def test_json_400_includes_remote_error_message(self):
+        FakeAsyncClient.responses = [
+            FakeResponse(
+                {"success": False, "errorCode": 400, "message": "Invalid appId: 1930909935"},
+                status_code=400,
+                text='{"success":false,"errorCode":400,"message":"Invalid appId: 1930909935","results":null}',
+                headers={"content-type": "application/json;charset=UTF-8"},
+            )
+        ]
+
+        with (
+            patch.object(clinic_master, "settings", self.settings),
+            patch.object(clinic_master.httpx, "AsyncClient", FakeAsyncClient),
+        ):
+            with self.assertRaises(HTTPException) as ctx:
+                await clinic_master.get_chat_references("assistant-message-1")
+
+        self.assertEqual(ctx.exception.status_code, 502)
+        self.assertEqual(
+            ctx.exception.detail["message"],
+            "Clinic Master 获取参考文档 请求失败 (400): Invalid appId: 1930909935",
+        )
+
     async def test_get_reference_detail_uses_form_urlencoded_post(self):
         FakeAsyncClient.responses = [FakeResponse({"success": True, "results": {"items": [{"title": "参考文献"}]}})]
 

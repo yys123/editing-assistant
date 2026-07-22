@@ -1,0 +1,39 @@
+{
+  "id": "86b6de9d213446bab07c648071d28270",
+  "created_at": "2026-06-18T08:23:17.291077+00:00",
+  "user_id": "2ef330cb693c4cfd9cf12626a0bb62b9",
+  "context": "reference_eval",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 6438,
+    "estimated_prompt_tokens": 4163,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.004163,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位循证医学文献评估专家，擅长评估医学参考文献的质量、权威性和适用性。请严格按照提供的评估标准进行客观评价。"
+        },
+        {
+          "role": "user",
+          "content": "请评估以下参考文献集合对于编写【心律失常相关心肌病】临床词条的适用性。\n\n## 评估标准\n# 参考信息源评估标准\n\n## 1. 机构与发布者的权威性 (Authority)\n\n入选的资料必须由该疾病领域公认的顶级学术组织、政府卫生机构或权威专家组发布。\n\n- 国际顶级权威组织：针对特定疾病的全球倡议组织（如针对COPD的GOLD、针对哮喘的GINA）、国际公认的专科学会（如心血管领域的AHA/ACC、ESC；肿瘤领域的NCCN、ESMO；糖尿病领域的ADA、EASD等）。\n- 国内核心卫生与学术机构：国家卫生健康委员会（卫健委）发布的诊疗规范、中华医学会及其各专科分会、中国医师协会、中国抗癌协会（CSCO）等出具的指南与共识。\n\n评级：\n- 高：由上述国际顶级组织或国内核心机构发布\n- 中：由省级学会、知名专科医院专家组、二级学会发布\n- 低：来源不明、无明确发布机构、或非医学专业机构\n\n## 2. 文献类型与证据等级 (Evidence Level)\n\n按照循证医学证据等级优先级排序：\n- 第一顺位：临床实践指南（Clinical Practice Guidelines, CPGs），特别是基于GRADE系统评估的指南\n- 第二顺位：权威专家共识（Expert Consensus），用于补充指南未覆盖的边缘问题、新兴疗法\n- 第三顺位：顶级期刊的权威综述（State-of-the-Art Reviews），发表在《The Lancet》《NEJM》《JAMA》等顶级医学期刊\n\n## 3. 时效性与版本追踪 (Timeliness)\n\n- 最新版本原则：核心指南必须纳入该机构发布的最新版本\n- 年度更新追踪：每年更新的全球策略需纳入近3-5年的更新要点\n- 国内最新版兜底原则：若国内权威指南更新较慢，依然必须纳入作为国内临床实践基准，但需用最新国际指南补充前沿知识\n\n评级：\n- 最新：近2年内发布/更新\n- 较新：2-5年内发布\n- 陈旧：超过5年未更新\n\n## 4. 内容系统性与覆盖面 (Comprehensiveness)\n\n纳入的资料组合必须能够无死角地支撑词条模块结构：\n- 全流程覆盖：必须包含从\"预防/筛查\"到\"诊断/评估\"，再到\"综合管理/随访\"的全局性文件\n- 分级诊疗覆盖：既要有面向三甲医院专科医生的综合指南，也要有面向基层的管理指南\n\n## 5. 临床适用性与本地化 (Localization & Applicability)\n\n- 本土化校准：国际指南虽然前沿，但在流行病学特征、药物可及性、医疗体制上可能存在差异，必须将国内最新权威指南作为诊断标准和用药推荐的本土化校准基准\n- 可操作性：优先纳入包含明确诊断流程图（Algorithms）、药物剂量表、疗效评估量表的文献\n\n## 总体推荐等级\n\n- 强烈推荐：权威性高 + 证据等级高（指南/共识） + 时效性最新\n- 推荐：满足大部分标准，有一项稍弱\n- 可用：权威性或时效性一般，但内容有补充价值\n- 建议替换：权威性低、内容陈旧、或有更优替代文献\n\n\n## 待评估的参考文献（共 4 篇）\n### 文献 1: 【刘盛屹-红底】中国心肌病综合管理指南2025.pdf\n字数: 136555\n内容摘要:\n420\n中国循环杂志 2025 年 5 月 第 40 卷 第 5 期 （总第 323 期） Chinese Circulation Journal， May， 2025， Vol. 40 No.5（Serial No.323）\n摘要\n心肌病的患病率高，病因复杂，表现多样，预后不良，且与遗传密切相关。近年来，心肌病的定义、分类、精\n准诊断与个体化治疗等方面不断取得更新和突破。本指南整合最新的循证医学证据，系统阐述了各类心肌病的定义、\n分类、病因及发病机制，并对诊断、治疗及管理提出了推荐意见，旨在提高我国心肌病临床实践水平。\n关键词  心肌病； 分类； 基因检测； 诊疗； 管理\n2025 Chinese Guideline for the Management of Cardiomyopathies\nThe Cardiomyopathy Specialty Alliance of National Center for Cardiovascular Diseases, Cardiovascular Precision Medicine \nBranch of China International Exchange and Promotive Association for Medical and Health Care \nCo-corresponding Authors: SONG Lei, Email: songlqd@126.com; HUI Rutai, Email: fuwaihui@163.com\n指南与共识\n基金项目： 四大慢病重大专项 （2023ZD0504500） ；  中国医学科学院创新工程 （2023-I2M-1-001，2023-I2M-C&T-B-006）\n通信作者： 宋雷   Email: songlqd@126.com; 惠汝太   Email: fuwaihui@163.com\n中图分类号： R54   文献标识码： C   文章编号： 1000-3614（2025）05-0420-43   DOI: 10.3969/j.issn.1000-3614.2025.05.002\n中国心肌病综合管理指南 2025\n国家心血管病中心心肌病专科联盟 中国医疗保健国际交流促进会心血管病精准医学分会\nAbstract\nCardiomyopathy is\n\n---\n\n### 文献 2: 【刘盛屹-红字】致心律失常性心肌病诊断标准(2010年)在不同阜外分型患者中的诊断效能.pdf\n字数: 13986\n内容摘要:\n234\n中国循环杂志 2022 年 3 月 第 37 卷 第 3 期 （总第 285 期） Chinese Circulation Journal， March， 2022， Vol. 37 No.3（Serial No.285）\n摘要\n目的： 探究致心律失常性心肌病 （ACM） 诊断标准 （2010 年 ）  在不同阜外分型患者中的诊断效能。\n方法： 纳入 60 例在中国医学科学院阜外医院进行心脏移植的 ACM 患者，运用一致性聚类算法对上述 60 例移植\n心脏的病理特征进行无监督聚类分析，将患者归类为阜外Ⅰ、Ⅱ、Ⅲ、Ⅳ型 4 种亚型。比较不同阜外分型 ACM 患者\n中的 ACM 诊断标准整体得分以及各诊断项目 （心脏结构及功能、复极化、去极化、心律失常、家族史 ） 得分情况，评\n估各诊断项目的诊断效能。\n结果： ACM 诊断标准（2010 年 ）对于不同阜外分型 ACM 患者的诊断效能具有明显异质性，与阜外Ⅰ、Ⅱ型比，\n阜外Ⅲ、Ⅳ型 ACM 患者的诊断效能均较低 （P 均 <0.01） 。不同阜外分型 ACM 患者在复极化、去极化以及心律失常这\n三个诊断项目中没有明显权重分布 （P 均 >0.05） 。阜外Ⅰ、Ⅱ型 ACM 患者在心脏结构及功能 , 以及家族史诊断项目中\n得分频率明显高于阜外Ⅲ、Ⅳ型患者（P 均 <0.05） 。是否携带桥粒基因突变可有效将阜外Ⅰ型和其他分型 ACM 患者\n进行区分，特异度 91.9%，灵敏度 69.6%，阳性预测率 84.2%，阴性预测率 82.9%（P<0.0001） 。\n结论： ACM 诊断标准（2010 年 ）对于阜外Ⅲ、Ⅳ型 ACM 患者的诊断效能较低。桥粒基因突变筛查有助于区分鉴\n别诊断不同阜外亚型 ACM 患者。\n关键词  致心律失常性心肌病； 阜外分型； 诊断效能； 鉴别诊断\nThe Diagnostic Efficiency of 2010 Task Force Criteria in Arrhythmogenic Cardiomyopathy With \nDifferent Fuwai Classifications \nREN Jie, CHEN Liang, HU Shengshou.\nDepartment of Cardiac Surgery, National Center for Cardiovascu\n\n---\n\n### 文献 3: 【刘盛屹-黄底】翻译-JACC-2024综述  心律失常性心肌病.docx\n字数: 47805\n内容摘要:\n心律失常性心肌病\n摘要\n心律失常通常伴有心力衰竭和左心室功能障碍。心动过速、心房颤动和室性早搏均可诱发可逆性的扩张型心肌病（cardiomyopathy，CM），称为心律失常性心肌病（arrhythmia-induced CM，AiCM）。目前尚不清楚在相同的心律失常负荷下，为何有些患者更易发生AiCM。当前面临的困难主要在于确定心律失常对左心室收缩功能障碍的影响程度。对于平均心率＞100次/分、心房颤动或室性早搏负荷＞10%的患者，需要考虑发生AiCM的可能。当相应的心律失常终止后，CM能够逆转，则可确诊为AiCM。治疗方案的选择取决于心律失常的类型、患者合并症以及偏好。当左心室功能恢复后，如果心肌代谢底物持续异常，还必须进行密切的随访。准确诊断AiCM并进行针对性治疗可以提高患者生活质量、改善临床预后、降低住院率以及降低整体医疗费用。（J Am Coll Cardiol 2024；83:2214-2232）由Elsevier出版公司代表美国心脏病学会基金会进行出版。\n关键点\n心动过速、心房颤动以及室性早搏可导致心肌病或AiCM。\n动态心电图监测和CMR是确诊AiCM的关键。\n针对AiCM制定合适的治疗方案，可以逆转心室收缩功能障碍，并且能够降低并发症发生率及死亡率。\n为了制定有效的预防策略，需要更加深入地了解AiCM的病理生理机制及预测因素。\n心律失常通常与心力衰竭（heart failure，HF）和心肌病（cardiomyopathy ，CM）同时存在。然而，HF和CM可以诱发心律失常，同时心律失常也会导致或加重可逆性非缺血性CM和HF。最近的研究指出，心率得到有效控制的心房颤动（atrial fibrillation，AF）以及室性早搏（premature ventricular contractions，PVC）也会诱发非缺血性CM[1-3]。因此，术语心律失常性CM（AiCM）涵盖了多种形式的非缺血性CM，包括心动过速诱发性CM（tachycardia induced CM，T-CM）、心房颤动诱发性CM（AF-CM）以及室性早搏诱发性CM（PVC-CM）（中间插图）。但是，该术语并不包括最近认识到的由左心室（left ventricular，LV）传导系统异常或LV收缩功能异常（不同步）引起的CM，例如长期右心室（right ventricular，\n\n---\n\n### 文献 4: 【刘盛屹-蓝底】翻译-欧洲工作组共识报告：致心律失常性心肌病的建议诊断标准.docx\n字数: 43364\n内容摘要:\n欧洲工作组共识报告：致心律失常性心肌病的建议诊断标准\n摘要\n致心律失常性心肌病（arrhythmogenic cardiomyopathy，ACM）是一种以“非缺血性”心肌瘢痕为突出特征的累及心肌的疾病，易导致心室电不稳定。该病的原始表型是致心律失常性右室心肌病（Arrhythmogenic Right Ventricular Cardiomyopathy，ARVC），其诊断标准由国际工作组（Task Force，TF）于1994年首次提出，并于2010年进行了修订。一份2019年的国际专家报告对既往的诊断标准进行了评价，发现其对ARVC的诊断具有较好的准确性，但在疾病的表型谱扩展之后，其识别疾病的灵敏度较差，如疾病表型谱中包含的左室变异表型，即双室变异型致心律失常性右室心肌病（Arrhythmogenic Biventricular Ventricular Cardiomyopathy，ABVC）和致心律失常性左室心肌病（Arrhythmogenic Left Ventricular Cardiomyopathy，ALVC）。现今，对于ARVC表型连同这些左室变异表型，更适宜的命名是ACM。由于缺乏左心室（Left Ventricular，LV）表型的诊断标准，导致在该疾病被发现后的40多年里临床上对ACM患者的识别不足。2020年，针对右心室和左心室ACM表型提出了“Padua标准”。当前提出的标准在2020年Padua标准的基础上进行了细化，该标准由欧洲TF的专家制定，旨在通过更新国际认可的标准来提高ACM的诊断水平。随着心脏磁共振成像（Cardiac Magnetic Resonance，CMR）在诊断中的作用日益受到重视，心肌组织的特征性表现也被纳入了诊断体系，通过心脏磁共振钆延迟增强成像（Late‑Gadolinium Enhancement，LGE）技术检测心肌瘢痕，可以更全面地描述右心室、双心室和左心室变异表型（无论是遗传性还是获得性的拟表型），并排除其他“非瘢痕性”心肌病。LGE成像所示“环状”心肌或心肌的“环状”瘢痕现已成为公认的诊断ALVC的特征性表现。此外，本文还提供了关于LV去极化与复极化的异常心电图（Electrocardiogram，ECG）特征以及LV源性的室性心律失常的补充诊断标准。这些诊断标准的修订建议旨在构建优化ACM患者管理的\n\n## 输出要求\n请以JSON格式输出评估结果：\n{\n  \"item_evaluations\": [\n    {\n      \"filename\": \"文件名\",\n      \"authority_rating\": \"高/中/低\",\n      \"authority_note\": \"发布机构及权威性说明\",\n      \"evidence_level\": \"临床实践指南/专家共识/权威综述/教材/其他\",\n      \"evidence_note\": \"证据等级说明\",\n      \"timeliness_rating\": \"最新/较新/陈旧\",\n      \"timeliness_note\": \"时效性说明（含推测的发布年份）\",\n      \"overall_recommendation\": \"强烈推荐/推荐/可用/建议替换\",\n      \"summary\": \"一句话总评\"\n    }\n  ],\n  \"comprehensiveness\": \"这组文献对心律失常相关心肌病词条各模块（基础知识→诊断→治疗→预后→预防）的覆盖情况评估\",\n  \"localization\": \"国际指南与国内指南的搭配是否合理，本土化校准是否充分\",\n  \"overall_assessment\": \"总体评估（2-3句话）\",\n  \"coverage_gaps\": [\"建议补充的文献类型1\", \"建议补充的文献类型2\"],\n  \"suggestions\": [\"具体改进建议1\", \"具体改进建议2\"]\n}\n\n评估要点：\n- 根据文件名和内容判断发布机构、文献类型、大致发布时间\n- 评估这组文献作为整体是否能支撑完整的词条编写\n- 指出覆盖面上的明显缺口（如缺少国内指南、缺少基层诊疗指南等）\n- 如果某篇文献质量明显不足，给出\"建议替换\"并说明理由\n- 对每篇文献的评估应简洁客观"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      },
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "max_tokens": 32768
+    }
+  }
+}

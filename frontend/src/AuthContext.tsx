@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { apiFetch, getToken, setToken, clearToken, getStoredUser, setStoredUser } from './api'
+import { getToken, setToken, clearToken, getStoredUser, setStoredUser } from './api'
 import type { User } from './types'
 import { parseAuthResponse } from './utils/authResponse'
 
@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = getToken()
     if (!token) { setLoading(false); return }
-    apiFetch('/api/auth/me')
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => {
         if (r.ok) return r.json()
         throw new Error()

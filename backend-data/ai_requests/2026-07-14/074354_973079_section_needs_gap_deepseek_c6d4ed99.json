@@ -1,0 +1,36 @@
+{
+  "id": "c6d4ed9959ad42058f967ce5a5cc3615",
+  "created_at": "2026-07-14T07:43:54.973079+00:00",
+  "user_id": "2f267864b31b4c96ab7bff7d2e5d5ddf",
+  "context": "section_needs_gap",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 1421,
+    "estimated_prompt_tokens": 1027,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.001027,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "请分析【支气管肺发育不良】词条「四、BPD发展阶段的呼吸管理」章节对以下用户需求的覆盖情况。\n\n## 章节内容\n1、生后1~2周，随着RDS的恢复，呼吸机参数逐渐降低，应尽早改无创呼吸支持。\n 2、若生后1周仍需气管插管机械通气，BPD的风险显著增加[⁵⁴]。\n 3、若时间上RDS病程理应进入恢复期，但患儿呼吸机条件及吸入氧浓度持续不降或降而复升，需重点考虑是否有造成肺损伤的因素持续存在，如宫外发育迟缓、合并动脉导管未闭（PDA）或肺部感染。\n 4、随着BPD的进展，肺部病理改变逐渐变为不均一，气道阻力增加，时间常数延长，因此应对肺部病理及呼吸力学进行动态评估。\n 5、该阶段呼吸支持的目的主要为维持正常气体交换，减少呼吸做功，促进肺的生长和愈合，同时避免进一步肺损伤[¹⁴]。\n\n## 需要评估的用户需求（共1类）\n- 需求主题：长期管理与支持（氧疗、脱氧、随访、康复）（约16次提问）\n  代表性问题：支气管肺发育不良家庭氧疗、支气管肺发育不良的早产儿，脱氧的目标血氧是多少\n\n\n## ⚠️ 跨章节需求提示（重要）\n以下需求类型同时映射到了多个章节，请在给出修订建议时，仅聚焦「四、BPD发展阶段的呼吸管理」章节负责的具体内容，不要提出属于其他章节职责范围的建议（其他章节会单独处理各自部分）：\n- 「长期管理与支持（氧疗、脱氧、随访、康复）」同时映射到其他章节：二、呼吸支持、三、营养支持、一、预后、二、随访、一、出生后尽早建立并维持功能残气量、二、合理用氧、三、呼吸窘迫综合征阶段的呼吸管理\n\n请针对本章节（四、BPD发展阶段的呼吸管理）给出章节专属的、差异化的修订建议，说明本章节在满足该用户需求方面应重点补充或完善什么。\n请对每类用户需求，评估该章节内容的满足程度，以JSON格式输出：\n{\n  \"coverage_assessment\": \"对本章节整体覆盖情况的简评（1-2句话）\",\n  \"need_coverages\": [\n    {\n      \"topic\": \"需求主题（与上方完全一致）\",\n      \"coverage_level\": \"full\",\n      \"qa_frequency\": 50,\n      \"representative_questions\": [\"代表性问题1\", \"代表性问题2\"],\n      \"revision_suggestion\": \"\"\n    }\n  ]\n}\n\ncoverage_level取值规则：\n- \"full\"：章节已有完整内容，能清晰回答该类需求，用户无需查找其他内容\n- \"partial\"：有相关内容但不够完整，部分问题仍无法得到充分回答\n- \"missing\"：章节基本未涉及该类需求，用户无法从中获得有效信息\n\nrevision_suggestion填写规则：\n- coverage_level为\"full\"时，留空 \"\"\n- coverage_level为\"partial\"时：指出现有内容哪里不足，具体说明需要补充或完善什么\n- coverage_level为\"missing\"时：说明需要新增哪些内容来覆盖该需求\n\nrepresentative_questions：从该需求中选取1-2个最典型的实际问题\n"
+        }
+      ],
+      "thinking": {
+        "type": "enabled"
+      },
+      "reasoning_effort": "high",
+      "max_tokens": 32768
+    }
+  }
+}

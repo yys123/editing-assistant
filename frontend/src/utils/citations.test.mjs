@@ -5,10 +5,12 @@ import {
   buildFallbackOriginalCitationAnchors,
   buildOriginalContentAnchors,
   buildOriginalContentAnchorsFromSources,
+  collectCitationOccurrences,
   createCitationResolver,
   formatCitationSourceLabel,
   linkifyCitationMarkers,
   mergeReferenceAnchors,
+  removeCitationOccurrence,
 } from './citations.ts'
 
 const anchors = buildReferenceAnchorsFromDocs([
@@ -441,6 +443,61 @@ assert.equal(
 assert.deepEqual(
   supplementedFallbackAnchors.map(anchor => anchor.citation_key),
   [],
+)
+
+const repeatedOccurrenceResolver = createCitationResolver([
+  {
+    citation_key: '1-3',
+    source_id: 1,
+    source_filename: '指南.pdf',
+    source_ref_id: '3',
+    quote: '支持第一处。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 0,
+  },
+])
+const repeatedOccurrenceText = '第一处结论[1-3]。第二处结论[1-3]。'
+const repeatedOccurrences = collectCitationOccurrences(repeatedOccurrenceText, repeatedOccurrenceResolver)
+assert.equal(repeatedOccurrences.length, 2)
+assert.equal(repeatedOccurrences[0].citation_key, '1-3')
+assert.equal(repeatedOccurrences[1].citation_key, '1-3')
+assert.equal(
+  removeCitationOccurrence(repeatedOccurrenceText, repeatedOccurrences[1].occurrence_key, repeatedOccurrenceResolver),
+  '第一处结论[1-3]。第二处结论。',
+)
+
+const groupedOccurrenceText = '治疗建议需要综合判断[1-3、2-6]。'
+const groupedOccurrenceResolver = createCitationResolver([
+  {
+    citation_key: '1-3',
+    source_id: 1,
+    source_filename: '指南A.pdf',
+    source_ref_id: '3',
+    quote: '治疗建议A[3]。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 0,
+  },
+  {
+    citation_key: '2-6',
+    source_id: 2,
+    source_filename: '指南B.pdf',
+    source_ref_id: '6',
+    quote: '治疗建议B[6]。',
+    context_before: '',
+    context_after: '',
+    paragraph_index: 0,
+  },
+])
+const groupedOccurrences = collectCitationOccurrences(groupedOccurrenceText, groupedOccurrenceResolver)
+assert.equal(
+  removeCitationOccurrence(groupedOccurrenceText, groupedOccurrences[0].occurrence_key, groupedOccurrenceResolver),
+  '治疗建议需要综合判断[2-6]。',
+)
+assert.equal(
+  linkifyCitationMarkers(groupedOccurrenceText, groupedOccurrenceResolver, { includeOccurrenceKeys: true }),
+  '治疗建议需要综合判断[[1-3](#citation-1-3__occ__citation-occurrence-0)、[2-6](#citation-2-6__occ__citation-occurrence-1)]。',
 )
 
 console.log('citation tests passed')

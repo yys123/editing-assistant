@@ -80,16 +80,29 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.priority_guideline_usage.status, "not_used")
         self.assertTrue(result.priority_guideline_usage.warnings)
 
-    async def test_ai_integration_marks_priority_guideline_not_configured_without_priority_ids(self):
+    async def test_ai_integration_skips_priority_guideline_usage_without_priority_ids(self):
+        captured = {}
+
         async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
+            captured["prompt"] = prompt
             return "普通回答。"
 
         result = await generate_ai_integration_answer(
-            AiIntegrationRequest(disease="测试病种", user_request="修订"),
+            AiIntegrationRequest(
+                disease="测试病种",
+                user_request="修订",
+                reference_inputs=[
+                    ReferenceInput(id=1, filename="普通指南.pdf", text="普通参考资料。"),
+                ],
+            ),
             text_generator=fake_generate_text,
         )
 
-        self.assertEqual(result.priority_guideline_usage.status, "not_configured")
+        self.assertIsNone(result.priority_guideline_usage)
+        self.assertNotIn("重点指南主证据区", captured["prompt"])
+        self.assertNotIn("重点指南使用情况", captured["prompt"])
+        self.assertNotIn("优先以重点指南为准", captured["prompt"])
+        self.assertIn("## 参考资料", captured["prompt"])
 
     async def test_ai_integration_extracts_revision_text_and_change_summary(self):
         async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
@@ -383,7 +396,9 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertNotIn("UNCONFIRMED_FULL_REFERENCE_TEXT", captured["prompt"])
-        self.assertIn("（未选择普通参考资料）", captured["prompt"])
+        self.assertIn("## 参考资料", captured["prompt"])
+        self.assertIn("（无参考文献）", captured["prompt"])
+        self.assertNotIn("重点指南使用情况", captured["prompt"])
 
     async def test_ai_integration_uses_source_ref_citation_keys_with_stable_chunk_anchors(self):
         calls = []
@@ -647,8 +662,9 @@ class AiIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_allows_empty_original_content_and_no_references(self):
         async def fake_generate_text(prompt, system_instruction=None, context="unknown"):
             self.assertIn("（未选择原词条内容）", prompt)
-            self.assertIn("（未设置重点指南）", prompt)
-            self.assertIn("（未选择普通参考资料）", prompt)
+            self.assertIn("## 参考资料", prompt)
+            self.assertIn("（无参考文献）", prompt)
+            self.assertNotIn("重点指南使用情况", prompt)
             return "仅基于问题回答。"
 
         req = AiIntegrationRequest(

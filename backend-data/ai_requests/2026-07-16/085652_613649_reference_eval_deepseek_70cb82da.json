@@ -1,0 +1,36 @@
+{
+  "id": "70cb82da51e64ff7b8d9b4a85cb895a7",
+  "created_at": "2026-07-16T08:56:52.613649+00:00",
+  "user_id": "3271b62a1c20474d9bf8ac4b82e52361",
+  "context": "reference_eval",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 5333,
+    "estimated_prompt_tokens": 3432,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.003432,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位循证医学文献评估专家，擅长评估医学参考文献的质量、权威性和适用性。请严格按照提供的评估标准进行客观评价。"
+        },
+        {
+          "role": "user",
+          "content": "请评估以下参考文献集合对于编写【避孕药的临床应用】临床词条的适用性。\n\n## 评估标准\n# 参考信息源评估标准\n\n## 1. 机构与发布者的权威性 (Authority)\n\n入选的资料必须由该疾病领域公认的顶级学术组织、政府卫生机构或权威专家组发布。\n\n- 国际顶级权威组织：针对特定疾病的全球倡议组织（如针对COPD的GOLD、针对哮喘的GINA）、国际公认的专科学会（如心血管领域的AHA/ACC、ESC；肿瘤领域的NCCN、ESMO；糖尿病领域的ADA、EASD等）。\n- 国内核心卫生与学术机构：国家卫生健康委员会（卫健委）发布的诊疗规范、中华医学会及其各专科分会、中国医师协会、中国抗癌协会（CSCO）等出具的指南与共识。\n\n评级：\n- 高：由上述国际顶级组织或国内核心机构发布\n- 中：由省级学会、知名专科医院专家组、二级学会发布\n- 低：来源不明、无明确发布机构、或非医学专业机构\n\n## 2. 文献类型与证据等级 (Evidence Level)\n\n按照循证医学证据等级优先级排序：\n- 第一顺位：临床实践指南（Clinical Practice Guidelines, CPGs），特别是基于GRADE系统评估的指南\n- 第二顺位：权威专家共识（Expert Consensus），用于补充指南未覆盖的边缘问题、新兴疗法\n- 第三顺位：顶级期刊的权威综述（State-of-the-Art Reviews），发表在《The Lancet》《NEJM》《JAMA》等顶级医学期刊\n\n## 3. 时效性与版本追踪 (Timeliness)\n\n- 最新版本原则：核心指南必须纳入该机构发布的最新版本\n- 年度更新追踪：每年更新的全球策略需纳入近3-5年的更新要点\n- 国内最新版兜底原则：若国内权威指南更新较慢，依然必须纳入作为国内临床实践基准，但需用最新国际指南补充前沿知识\n\n评级：\n- 最新：近2年内发布/更新\n- 较新：2-5年内发布\n- 陈旧：超过5年未更新\n\n## 4. 内容系统性与覆盖面 (Comprehensiveness)\n\n纳入的资料组合必须能够无死角地支撑词条模块结构：\n- 全流程覆盖：必须包含从\"预防/筛查\"到\"诊断/评估\"，再到\"综合管理/随访\"的全局性文件\n- 分级诊疗覆盖：既要有面向三甲医院专科医生的综合指南，也要有面向基层的管理指南\n\n## 5. 临床适用性与本地化 (Localization & Applicability)\n\n- 本土化校准：国际指南虽然前沿，但在流行病学特征、药物可及性、医疗体制上可能存在差异，必须将国内最新权威指南作为诊断标准和用药推荐的本土化校准基准\n- 可操作性：优先纳入包含明确诊断流程图（Algorithms）、药物剂量表、疗效评估量表的文献\n\n## 总体推荐等级\n\n- 强烈推荐：权威性高 + 证据等级高（指南/共识） + 时效性最新\n- 推荐：满足大部分标准，有一项稍弱\n- 可用：权威性或时效性一般，但内容有补充价值\n- 建议替换：权威性低、内容陈旧、或有更优替代文献\n\n\n## 待评估的参考文献（共 3 篇）\n### 文献 1: 80339-复方口服避孕药临床应用专家共识（2025）\n字数: 15450\n内容摘要:\n• 专家共识 •\n复方口服避孕药临床应用专家共识（2025）\n复方口服避孕药临床应用专家共识专家组中华妇产科杂志, 2026,61(01): 3-15.\n复方口服避孕药（combined oral contraceptives，COC）自20世纪60年代问世以来，已在全球广泛应用逾半个世纪，其安全性及有效性获得了大量循证医学研究的持续验证。WHO及多国指南均对COC在避孕和疾病治疗领域的规范应用形成了国家层面的指南推荐 [1-4]。\nCOC是含有低剂量雌激素及孕激素（与女性体内天然的雌激素和孕激素相似）的复合甾体激素制剂 [5,6]。炔雌醇含量≤35 μg的COC是WHO推荐使用的低剂量COC [7,8]。除避孕作用以外，COC也是许多常见妇科疾病的一线治疗选择，在治疗多囊卵巢综合征（polycystic ovary syndrome，PCOS） [9,10]、异常子宫出血（abnormal uterine bleeding，AUB） [11]、子宫内膜异位症（内异症） [12]及皮肤痤疮 [13]等疾病中均具有显著疗效。\n尽管COC在全球已被广泛应用，但在我国育龄期女性中的使用率仅为1.83%，远低于欧美国家近20%的使用率 [2,14]。主要原因包括公众对激素类药物认知不足、存在恐惧心理，部分医务人员对COC正确应用存在顾虑和认知误区 [14]。为推动COC在我国合理使用，2015年，国内专家联合发布了《复方口服避孕药临床应用中国专家共识》 [15]（以下简称“2015版共识”），为临床实践提供了重要参考依据。\n历经十年，COC共识修订专家组再次成立，经过文献检索、证据分级、临床调查研究、综合分析、撰写草案、组织多轮多学科专家研讨、专家审议修改等步骤对2015版共识进行修订。本共识在2015版共识的基础上，结合近十年的高质量临床研究证据，遵循循证医学原则，使用推荐意见分级的评估、制订和评价（grading of recommendations assessment，development and evaluation，GRADE）方法对相关文献的证据质量进行分级。通过系统性评价及更新研究证据，本共识旨在纠正临床应用中的常见误区，为COC的合理使用提供科学依据，促进其安全、有效地应用，提升女性生殖健康管理水平。\n[H2] COC的作用机制及剂型发展\nCOC通过抑制\n\n---\n\n### 文献 2: 72835-紧急避孕临床应用专家共识（2024年）\n字数: 11568\n内容摘要:\n• 规范与标准 •\n紧急避孕临床应用专家共识（2024年）\n中国妇幼健康研究会安全避孕专委会中华生殖与避孕杂志, 2024,44(11): 1107-1115.\n紧急避孕是指在无保护性生活或发现避孕失败后数天内为避免或减少非意愿妊娠而采用的补救避孕措施 [1,2]。通过减少意外妊娠，紧急避孕可以有效降低母婴患病和死亡风险 [3]。育龄人群应掌握紧急避孕知识。目前我国紧急避孕使用率尚无可靠的统计数据，根据市场销售数据，紧急避孕药（emergency contraceptive pill，ECP）的销售量占口服避孕药（oral contraceptive pill，OCP）的70% [4]。临床工作发现，尽管紧急避孕已在临床应用多年，但许多育龄人群尤其是青少年紧急避孕知识匮乏，部分医务工作者紧急避孕知识掌握也不全面。国内目前尚无紧急避孕专家共识。为此，中国妇幼健康研究会安全避孕专委会组织国内计划生育临床、流行病学和药物不良反应等方面的专家，结合临床研究成果和实践经验撰写紧急避孕临床应用的中国专家共识，以期为临床工作者提供决策依据。\n本共识目标人群为有紧急避孕需求的育龄期女性。使用者主要为临床计划生育服务提供者、妇产科医生以及可能涉及为育龄期女性提供避孕建议的相关医疗人员。检索了国内外主要的医学数据库，如PubMed、Embase、Cochrane Library、中国知网、万方数据库等。文献的纳入标准：研究对象为育龄期女性的紧急避孕相关临床研究；研究内容涉及紧急避孕的种类、机制、有效性、临床应用策略等方面；研究设计合理，方法科学，有明确的结果指标。排除标准：动物实验、综述性文献、研究质量较低的文献。推荐意见的形成过程：由专家组对检索到的文献进行系统评价和分析，提取关键信息。根据文献证据和专家经验，对紧急避孕各方面进行讨论和评估。形成初步的推荐意见，并在专家组内进行反复讨论和修改，直至达成一致。达成专家共识的方法：采用德尔菲法，通过多轮问卷调查和反馈，征求专家对推荐意见的意见和建议。在每一轮调查中，专家对推荐意见进行评分并提出修改意见，根据专家的反馈结果对推荐意见进行调整。组织开展专家讨论会，对每一条推荐意见进行审查和讨论，当专家意见趋于一致时，确定最终的推荐意见，并形成专家共识。本共识推荐级别及其代表意义见 表1 。\n[表格] 表1本共识推荐级别及其代表意义\n[H2]\n\n---\n\n### 文献 3: 78932-2025 WHO医学资格标准：避孕药具使用（第6版）\n字数: 229009\n内容摘要:\nMedical eligibility criteria for contraceptive use\nAbbreviations\nART antiretroviral therapy\nARV antiretroviral\nß-hCG beta-human chorionic gonadotropin\nBF breastfeeding\nBMD bone mineral density\nBMI body mass index\nC continuation\nCD4 cluster of differentiation 4\nCFC Contraception and Fertility Care unit (in the WHO\nDepartment of Sexual and Reproductive Health)\nCHC combined hormonal contraception\nCI coitus interruptus\nCIC combined injectable contraceptive\nCIN cervical intraepithelial neoplasia\nCIRE Continuous Identification of Research Evidence\nCOC combined oral contraceptive (pill)\nCRPD United Nations Convention on the Rights of Persons with Disabilities\nCu-IUD copper-bearing intrauterine device\nCVD cardiovascular disease\nCVR combined contraceptive vaginal ring\nCYP3A4 cytochrome P450 3A4 enzyme\nDOI declaration of interests\nDMPA depot medroxyprogesterone acetate\nDMPA-IM depot medroxyprogesterone acetate – intramuscular\nDMPA-SC depot medroxyprogesterone acetate – subcutaneous\nDVT deep vein\n\n## 输出要求\n请以JSON格式输出评估结果：\n{\n  \"item_evaluations\": [\n    {\n      \"filename\": \"文件名\",\n      \"authority_rating\": \"高/中/低\",\n      \"authority_note\": \"发布机构及权威性说明\",\n      \"evidence_level\": \"临床实践指南/专家共识/权威综述/教材/其他\",\n      \"evidence_note\": \"证据等级说明\",\n      \"timeliness_rating\": \"最新/较新/陈旧\",\n      \"timeliness_note\": \"时效性说明（含推测的发布年份）\",\n      \"overall_recommendation\": \"强烈推荐/推荐/可用/建议替换\",\n      \"summary\": \"一句话总评\"\n    }\n  ],\n  \"comprehensiveness\": \"这组文献对避孕药的临床应用词条各模块（基础知识→诊断→治疗→预后→预防）的覆盖情况评估\",\n  \"localization\": \"国际指南与国内指南的搭配是否合理，本土化校准是否充分\",\n  \"overall_assessment\": \"总体评估（2-3句话）\",\n  \"coverage_gaps\": [\"建议补充的文献类型1\", \"建议补充的文献类型2\"],\n  \"suggestions\": [\"具体改进建议1\", \"具体改进建议2\"]\n}\n\n评估要点：\n- 根据文件名和内容判断发布机构、文献类型、大致发布时间\n- 评估这组文献作为整体是否能支撑完整的词条编写\n- 指出覆盖面上的明显缺口（如缺少国内指南、缺少基层诊疗指南等）\n- 如果某篇文献质量明显不足，给出\"建议替换\"并说明理由\n- 对每篇文献的评估应简洁客观"
+        }
+      ],
+      "thinking": {
+        "type": "enabled"
+      },
+      "reasoning_effort": "high",
+      "max_tokens": 32768
+    }
+  }
+}

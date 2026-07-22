@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
-import { AiIntegrationLinkedIssue, AiIntegrationRecord, CitationVerificationItem, ConfirmedReferenceChunk, GapAnalysis, ParsedArticle, ReferenceAnchor, ReferenceDoc, SectionAnalysis } from '../types'
+import { AiIntegrationLinkedIssue, AiIntegrationRecord, CitationOccurrenceReviewStatus, CitationReviewAction, CitationVerificationItem, CitationVerificationItemStatus, ConfirmedReferenceChunk, GapAnalysis, ParsedArticle, ReferenceAnchor, ReferenceDoc, SectionAnalysis } from '../types'
 import { apiFetch, safeJson } from '../api'
 import AiIntegrationClinicMasterLookup from './AiIntegrationClinicMasterLookup'
 import ChunkConfirmationPanel from './ChunkConfirmationPanel'
@@ -11,10 +11,14 @@ import {
   buildFallbackOriginalCitationAnchors,
   buildOriginalContentAnchorsFromSources,
   CITATION_GROUP_PATTERN,
+  CITATION_MARKER_PATTERN,
+  collectCitationOccurrences,
   createCitationResolver,
+  type CitationOccurrence,
   formatCitationSourceLabel,
   linkifyCitationMarkers,
   mergeReferenceAnchors,
+  removeCitationOccurrence,
   splitCitationTokens,
 } from '../utils/citations'
 import { canCompareAiIntegrationRecord, getAiIntegrationDisplayText, getAiIntegrationRevisionText, getNextAiIntegrationActiveId } from '../utils/aiIntegrationHistory'
@@ -22,8 +26,12 @@ import { buildAiIntegrationDiff, type DiffToken } from '../utils/aiIntegrationDi
 import { getPriorityGuidelineUsageDisplay } from '../utils/priorityGuidelineUsage'
 import {
   getCitationVerificationDisplay,
+  getCitationVerificationDisplayForOccurrences,
   getCitationVerificationItemsForAnchor,
+  getCitationVerificationMarkerStatus,
   getCitationVerificationPanelDisplay,
+  getCitationVerificationStatusLabel,
+  hasReviewCitationVerificationItems,
 } from '../utils/citationVerification'
 import {
   buildAiIntegrationIssueRequest,
@@ -46,11 +54,13 @@ interface Props {
   setReferenceDocs: (docs: ReferenceDoc[]) => void
   history: AiIntegrationRecord[]
   onAddRecord: (record: AiIntegrationRecord) => void
+  onUpdateRecord: (record: AiIntegrationRecord) => void
   onDeleteRecord: (id: string) => void
 }
 
 type OriginalScope = 'all' | 'sections' | 'none'
 type ReferenceMode = 'full' | 'confirmed_chunks'
+type CitationMarkerDisplayStatus = 'supported' | 'weak' | 'mismatch' | 'unverifiable' | 'unverified' | 'confirmed'
 
 export function isClinicMasterReferenceDoc(doc: Pick<ReferenceDoc, 'filename'>) {
   return doc.filename.startsWith('ClinMaster-')
@@ -120,16 +130,116 @@ function buildSourceAnchors(
   })
 }
 
+function parseCitationHref(href: string) {
+  const value = href.slice('#citation-'.length)
+  const [citationKey, occurrenceKey] = value.split('__occ__')
+  return { citationKey, occurrenceKey: occurrenceKey || null }
+}
+
+function normalizeCitationReviewKey(value: string | undefined | null) {
+  return (value || '').replace(/\s+/g, '').replace(/[–—]/g, '-').toUpperCase()
+}
+
+function normalizeCitationReviewSentence(value: string | undefined | null) {
+  return (value || '')
+    .replace(new RegExp(CITATION_MARKER_PATTERN, 'gi'), ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function citationReviewActionTime(action: CitationReviewAction) {
+  const time = new Date(action.reviewed_at || '').getTime()
+  return Number.isFinite(time) ? time : 0
+}
+
+function citationReviewActionMatchesOccurrence(action: CitationReviewAction, occurrence: CitationOccurrence) {
+  if (action.occurrence_key === occurrence.occurrence_key) return true
+  const actionKeys = new Set([
+    normalizeCitationReviewKey(action.anchor_key),
+    normalizeCitationReviewKey(action.citation_key),
+  ].filter(Boolean))
+  if (!actionKeys.has(normalizeCitationReviewKey(occurrence.citation_key))) return false
+  return normalizeCitationReviewSentence(action.sentence) === normalizeCitationReviewSentence(occurrence.sentence)
+}
+
+function latestCitationReviewActionForOccurrence(actions: CitationReviewAction[], occurrence: CitationOccurrence) {
+  const matches = actions.filter(action => citationReviewActionMatchesOccurrence(action, occurrence))
+  if (matches.length === 0) return null
+  return [...matches].sort((a, b) => citationReviewActionTime(a) - citationReviewActionTime(b))[matches.length - 1]
+}
+
+function buildCitationOccurrenceReviewsForDisplay(record: AiIntegrationRecord | null, occurrences: CitationOccurrence[]) {
+  const reviews: Record<string, CitationOccurrenceReviewStatus> = {}
+  if (!record) return reviews
+  const actions = record.citationReviewActions ?? []
+  for (const occurrence of occurrences) {
+    const action = latestCitationReviewActionForOccurrence(actions, occurrence)
+    if (action) {
+      reviews[occurrence.occurrence_key] = action.review_status
+    } else if (actions.length === 0 && record.citationOccurrenceReviews?.[occurrence.occurrence_key]) {
+      reviews[occurrence.occurrence_key] = record.citationOccurrenceReviews[occurrence.occurrence_key]
+    }
+  }
+  return reviews
+}
+
+function getCitationMarkerDisplayLabel(status?: CitationMarkerDisplayStatus | null) {
+  if (status === 'confirmed') return '人工确认通过'
+  return getCitationVerificationStatusLabel(status)
+}
+
+function formatCitationVerificationReviewText(anchor: ReferenceAnchor, verificationItems: CitationVerificationItem[]) {
+  const lines = [
+    `引用标记：[${anchor.citation_key}]`,
+    `来源：${formatCitationSourceLabel(anchor)}`,
+    anchor.title_path ? `标题路径：${anchor.title_path}` : '',
+    anchor.quote ? `引用原文：${anchor.quote}` : '',
+  ].filter(Boolean)
+
+  verificationItems.forEach((item, index) => {
+    lines.push('')
+    lines.push(`核对项 ${index + 1}：${getCitationVerificationStatusLabel(item.status)}`)
+    if (item.sentence) lines.push(`答案句子：${item.sentence}`)
+    if (item.reason) lines.push(`核对原因：${item.reason}`)
+    if (item.source_label) lines.push(`核对来源：${item.source_label}`)
+    if (item.quote && item.quote !== anchor.quote) lines.push(`核对原文：${item.quote}`)
+  })
+
+  return lines.join('\n')
+}
+
 function AiCitationPanel({
   anchor,
+  occurrence = null,
+  occurrenceReviewStatus,
   verificationItems = [],
+  onConfirmOccurrence,
+  onDeleteOccurrence,
   onClose,
 }: {
   anchor: ReferenceAnchor
+  occurrence?: CitationOccurrence | null
+  occurrenceReviewStatus?: CitationOccurrenceReviewStatus
   verificationItems?: CitationVerificationItem[]
+  onConfirmOccurrence?: () => void
+  onDeleteOccurrence?: () => void
   onClose: () => void
 }) {
+  const [reviewCopied, setReviewCopied] = useState(false)
   const verificationDisplay = getCitationVerificationPanelDisplay(verificationItems)
+  const hasReviewItems = hasReviewCitationVerificationItems(verificationItems)
+
+  async function copyCitationVerificationReview() {
+    if (!navigator.clipboard?.writeText) return
+    try {
+      await navigator.clipboard.writeText(formatCitationVerificationReviewText(anchor, verificationItems))
+      setReviewCopied(true)
+      window.setTimeout(() => setReviewCopied(false), 1800)
+    } catch {
+      setReviewCopied(false)
+    }
+  }
+
   return (
     <aside className="citation-panel ai-integration-citation-panel" aria-label="引用定位">
       <div className="citation-panel-header">
@@ -155,10 +265,44 @@ function AiCitationPanel({
           </div>
           {verificationItems.map((item, index) => (
             <div key={`${item.anchor_key || item.citation_key}-${index}`} className="citation-verification-panel-item">
+              <div className={`citation-verification-item-status citation-verification-item-status-${item.status}`}>
+                {getCitationVerificationStatusLabel(item.status)}
+              </div>
               {item.sentence && <div className="citation-verification-sentence">{item.sentence}</div>}
               {item.reason && <div className="citation-verification-reason">{item.reason}</div>}
             </div>
           ))}
+          {hasReviewItems && (
+            <div className="citation-verification-actions">
+              <button type="button" className="btn-m3-outline citation-verification-copy" onClick={copyCitationVerificationReview}>
+                <span className="material-symbols-outlined" style={{ fontSize: 15 }}>content_copy</span>
+                {reviewCopied ? '已复制' : '复制待核对信息'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {occurrence && (
+        <div className="citation-occurrence-actions">
+          {occurrenceReviewStatus === 'confirmed' && (
+            <span className="citation-occurrence-confirmed">
+              <span className="material-symbols-outlined">check_circle</span>
+              人工确认通过
+            </span>
+          )}
+          <button type="button" className="btn-m3-outline citation-occurrence-delete" onClick={onDeleteOccurrence}>
+            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>delete</span>
+            确认有问题，删除此处引用
+          </button>
+          <button
+            type="button"
+            className="btn-m3-outline citation-occurrence-confirm"
+            onClick={onConfirmOccurrence}
+            disabled={occurrenceReviewStatus === 'confirmed'}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>check_circle</span>
+            {occurrenceReviewStatus === 'confirmed' ? '已确认没问题' : '确认没问题'}
+          </button>
         </div>
       )}
     </aside>
@@ -228,7 +372,7 @@ function AiIntegrationDiffView({
 }
 
 export default function StepAiIntegration({
-  disease, articleContent, parsedArticle, sectionAnalyses = [], gapAnalysis = null, referenceDocs = [], setReferenceDocs, history, onAddRecord, onDeleteRecord,
+  disease, articleContent, parsedArticle, sectionAnalyses = [], gapAnalysis = null, referenceDocs = [], setReferenceDocs, history, onAddRecord, onUpdateRecord, onDeleteRecord,
 }: Props) {
   const [userRequest, setUserRequest] = useState('')
   const [selectedRefs, setSelectedRefs] = useState<string[]>(() => referenceDocs.map(d => d.filename))
@@ -239,6 +383,7 @@ export default function StepAiIntegration({
   const [error, setError] = useState('')
   const [activeId, setActiveId] = useState<string | null>(history[history.length - 1]?.id ?? null)
   const [activeCitationKey, setActiveCitationKey] = useState<string | null>(null)
+  const [activeCitationOccurrenceKey, setActiveCitationOccurrenceKey] = useState<string | null>(null)
   const [compareRecordId, setCompareRecordId] = useState<string | null>(null)
   const [selectedIssueKeys, setSelectedIssueKeys] = useState<string[]>([])
   const [expandedIssueSections, setExpandedIssueSections] = useState<Record<string, boolean>>({})
@@ -397,25 +542,59 @@ export default function StepAiIntegration({
     [referenceAnchors],
   )
   const activeCitation = referenceAnchors.find(anchor => (anchor.anchor_key ?? anchor.citation_key) === activeCitationKey) ?? null
-  const activeCitationVerificationItems = useMemo(
-    () => activeCitation && activeRecord
-      ? getCitationVerificationItemsForAnchor(activeRecord.citationVerification, activeCitation)
-      : [],
-    [activeCitation, activeRecord],
-  )
   const resolveCitation = useMemo(
     () => createCitationResolver(referenceAnchors),
     [referenceAnchors],
   )
+  const activeDisplayText = getAiIntegrationDisplayText(activeRecord)
+  const citationOccurrences = useMemo(
+    () => activeRecord ? collectCitationOccurrences(activeDisplayText, resolveCitation) : [],
+    [activeDisplayText, activeRecord, resolveCitation],
+  )
+  const citationOccurrenceReviewsForDisplay = useMemo(
+    () => buildCitationOccurrenceReviewsForDisplay(activeRecord, citationOccurrences),
+    [activeRecord, citationOccurrences],
+  )
+  const citationOccurrenceByKey = useMemo(
+    () => new Map(citationOccurrences.map(occurrence => [occurrence.occurrence_key, occurrence])),
+    [citationOccurrences],
+  )
+  const activeCitationOccurrence = activeCitationOccurrenceKey
+    ? citationOccurrenceByKey.get(activeCitationOccurrenceKey) ?? null
+    : null
+  const activeCitationOccurrenceReviewStatus = activeCitationOccurrenceKey
+    ? citationOccurrenceReviewsForDisplay[activeCitationOccurrenceKey]
+    : undefined
+  const activeCitationVerificationItems = useMemo(
+    () => activeCitation && activeRecord
+      ? getCitationVerificationItemsForAnchor(activeRecord.citationVerification, activeCitation, activeCitationOccurrence?.sentence)
+      : [],
+    [activeCitation, activeCitationOccurrence?.sentence, activeRecord],
+  )
   const markdownComponents = useMemo<Components>(() => ({
     a({ href, children }) {
       if (href?.startsWith('#citation-')) {
-        const citationKey = href.slice('#citation-'.length)
+        const { citationKey, occurrenceKey } = parseCitationHref(href)
+        const occurrence = occurrenceKey ? citationOccurrenceByKey.get(occurrenceKey) : null
+        const occurrenceReviewStatus = occurrenceKey ? citationOccurrenceReviewsForDisplay[occurrenceKey] : undefined
+        const citationStatus = occurrenceReviewStatus === 'confirmed'
+          ? 'confirmed'
+          : getCitationVerificationMarkerStatus(activeRecord?.citationVerification, citationKey, occurrence?.sentence)
+        const isActiveCitation = citationKey === activeCitationKey
+          && (!occurrenceKey || occurrenceKey === activeCitationOccurrenceKey)
+        const citationTitle = citationStatus
+          ? `${getCitationMarkerDisplayLabel(citationStatus)}，点击查看引用核对详情`
+          : '查看引用定位'
         return (
           <button
             type="button"
-            className={`citation-link${citationKey === activeCitationKey ? ' active' : ''}`}
-            onClick={() => setActiveCitationKey(citationKey)}
+            className={`citation-link${isActiveCitation ? ' active' : ''}${citationStatus ? ` citation-link-${citationStatus}` : ''}`}
+            onClick={() => {
+              setActiveCitationKey(citationKey)
+              setActiveCitationOccurrenceKey(occurrenceKey)
+            }}
+            title={citationTitle}
+            aria-label={citationTitle}
           >
             {children}
           </button>
@@ -423,22 +602,29 @@ export default function StepAiIntegration({
       }
       return <a href={href}>{children}</a>
     },
-  }), [activeCitationKey])
-  const activeDisplayText = getAiIntegrationDisplayText(activeRecord)
+  }), [activeCitationKey, activeCitationOccurrenceKey, activeRecord, citationOccurrenceByKey, citationOccurrenceReviewsForDisplay])
   const renderedAnswer = useMemo(
-    () => activeRecord ? linkifyCitationMarkers(activeDisplayText, resolveCitation) : '',
+    () => activeRecord ? linkifyCitationMarkers(activeDisplayText, resolveCitation, { includeOccurrenceKeys: true }) : '',
     [activeDisplayText, activeRecord, resolveCitation],
   )
 
   useEffect(() => {
     setActiveCitationKey(null)
+    setActiveCitationOccurrenceKey(null)
   }, [activeRecord?.id])
 
   useEffect(() => {
     if (activeCitationKey && !citationKeySet.has(activeCitationKey)) {
       setActiveCitationKey(null)
+      setActiveCitationOccurrenceKey(null)
     }
   }, [activeCitationKey, citationKeySet])
+
+  useEffect(() => {
+    if (activeCitationOccurrenceKey && !citationOccurrenceByKey.has(activeCitationOccurrenceKey)) {
+      setActiveCitationOccurrenceKey(null)
+    }
+  }, [activeCitationOccurrenceKey, citationOccurrenceByKey])
 
   const originalContent = useMemo(() => {
     if (originalScope === 'none') return ''
@@ -474,6 +660,57 @@ export default function StepAiIntegration({
     if (guidelineReferenceChunks.length > 0) setReferenceMode('confirmed_chunks')
   }
   const activeReferenceMode: ReferenceMode = usingConfirmedReferenceChunks ? 'confirmed_chunks' : 'full'
+
+  const appendCitationReviewAction = (
+    record: AiIntegrationRecord,
+    reviewStatus: CitationOccurrenceReviewStatus,
+  ): AiIntegrationRecord => {
+    if (!activeCitationOccurrenceKey || !activeCitationKey) return record
+    const verificationStatus: CitationVerificationItemStatus | null =
+      getCitationVerificationMarkerStatus(record.citationVerification, activeCitationKey, activeCitationOccurrence?.sentence)
+      ?? activeCitationVerificationItems[0]?.status
+      ?? null
+    const action = {
+      id: `citation-review-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      review_status: reviewStatus,
+      occurrence_key: activeCitationOccurrenceKey,
+      citation_key: activeCitation?.citation_key ?? activeCitationKey,
+      anchor_key: activeCitation?.anchor_key ?? activeCitationKey,
+      sentence: activeCitationOccurrence?.sentence ?? '',
+      verification_status: verificationStatus,
+      reviewed_at: new Date().toISOString(),
+    }
+    return {
+      ...record,
+      citationReviewActions: [...(record.citationReviewActions ?? []), action],
+    }
+  }
+
+  const confirmActiveCitationOccurrence = () => {
+    if (!activeRecord || !activeCitationKey || !activeCitationOccurrenceKey) return
+    const nextReviews = {
+      ...(activeRecord.citationOccurrenceReviews ?? {}),
+      [activeCitationOccurrenceKey]: 'confirmed' as const,
+    }
+    onUpdateRecord(appendCitationReviewAction({
+      ...activeRecord,
+      citationOccurrenceReviews: nextReviews,
+    }, 'confirmed'))
+  }
+
+  const deleteActiveCitationOccurrence = () => {
+    if (!activeRecord || !activeCitationKey || !activeCitationOccurrenceKey) return
+    const nextDisplayText = removeCitationOccurrence(activeDisplayText, activeCitationOccurrenceKey, resolveCitation)
+    const nextReviews = { ...(activeRecord.citationOccurrenceReviews ?? {}) }
+    nextReviews[activeCitationOccurrenceKey] = 'rejected'
+    onUpdateRecord(appendCitationReviewAction({
+      ...activeRecord,
+      revisionText: nextDisplayText,
+      citationOccurrenceReviews: nextReviews,
+    }, 'rejected'))
+    setActiveCitationKey(null)
+    setActiveCitationOccurrenceKey(null)
+  }
 
   const setAllRefs = () => {
     setSelectedRefs(effectiveReferenceDocs.map(d => d.filename))
@@ -1191,7 +1428,13 @@ export default function StepAiIntegration({
               const comparing = compareRecordId === record.id
               const recordRevisionText = getAiIntegrationRevisionText(record)
               const priorityGuidelineDisplay = getPriorityGuidelineUsageDisplay(record.priorityGuidelineUsage)
-              const citationVerificationDisplay = getCitationVerificationDisplay(record.citationVerification)
+              const citationVerificationDisplay = expanded
+                ? getCitationVerificationDisplayForOccurrences(
+                  record.citationVerification,
+                  citationOccurrences,
+                  citationOccurrenceReviewsForDisplay,
+                )
+                : getCitationVerificationDisplay(record.citationVerification)
               return (
                 <article key={record.id} className={`ai-history-item${expanded ? ' expanded' : ''}`}>
                   <div className="ai-history-item-header">
@@ -1293,8 +1536,15 @@ export default function StepAiIntegration({
                           {activeCitation && (
                             <AiCitationPanel
                               anchor={activeCitation}
+                              occurrence={activeCitationOccurrence}
+                              occurrenceReviewStatus={activeCitationOccurrenceReviewStatus}
                               verificationItems={activeCitationVerificationItems}
-                              onClose={() => setActiveCitationKey(null)}
+                              onConfirmOccurrence={confirmActiveCitationOccurrence}
+                              onDeleteOccurrence={deleteActiveCitationOccurrence}
+                              onClose={() => {
+                                setActiveCitationKey(null)
+                                setActiveCitationOccurrenceKey(null)
+                              }}
                             />
                           )}
                         </div>

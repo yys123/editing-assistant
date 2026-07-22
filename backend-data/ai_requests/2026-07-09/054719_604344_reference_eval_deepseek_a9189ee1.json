@@ -1,0 +1,36 @@
+{
+  "id": "a9189ee1ed064891858590dc88cf74c0",
+  "created_at": "2026-07-09T05:47:19.604344+00:00",
+  "user_id": "3271b62a1c20474d9bf8ac4b82e52361",
+  "context": "reference_eval",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 4302,
+    "estimated_prompt_tokens": 2607,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.002607,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位循证医学文献评估专家，擅长评估医学参考文献的质量、权威性和适用性。请严格按照提供的评估标准进行客观评价。"
+        },
+        {
+          "role": "user",
+          "content": "请评估以下参考文献集合对于编写【血小板增多症（儿童和青少年）】临床词条的适用性。\n\n## 评估标准\n# 参考信息源评估标准\n\n## 1. 机构与发布者的权威性 (Authority)\n\n入选的资料必须由该疾病领域公认的顶级学术组织、政府卫生机构或权威专家组发布。\n\n- 国际顶级权威组织：针对特定疾病的全球倡议组织（如针对COPD的GOLD、针对哮喘的GINA）、国际公认的专科学会（如心血管领域的AHA/ACC、ESC；肿瘤领域的NCCN、ESMO；糖尿病领域的ADA、EASD等）。\n- 国内核心卫生与学术机构：国家卫生健康委员会（卫健委）发布的诊疗规范、中华医学会及其各专科分会、中国医师协会、中国抗癌协会（CSCO）等出具的指南与共识。\n\n评级：\n- 高：由上述国际顶级组织或国内核心机构发布\n- 中：由省级学会、知名专科医院专家组、二级学会发布\n- 低：来源不明、无明确发布机构、或非医学专业机构\n\n## 2. 文献类型与证据等级 (Evidence Level)\n\n按照循证医学证据等级优先级排序：\n- 第一顺位：临床实践指南（Clinical Practice Guidelines, CPGs），特别是基于GRADE系统评估的指南\n- 第二顺位：权威专家共识（Expert Consensus），用于补充指南未覆盖的边缘问题、新兴疗法\n- 第三顺位：顶级期刊的权威综述（State-of-the-Art Reviews），发表在《The Lancet》《NEJM》《JAMA》等顶级医学期刊\n\n## 3. 时效性与版本追踪 (Timeliness)\n\n- 最新版本原则：核心指南必须纳入该机构发布的最新版本\n- 年度更新追踪：每年更新的全球策略需纳入近3-5年的更新要点\n- 国内最新版兜底原则：若国内权威指南更新较慢，依然必须纳入作为国内临床实践基准，但需用最新国际指南补充前沿知识\n\n评级：\n- 最新：近2年内发布/更新\n- 较新：2-5年内发布\n- 陈旧：超过5年未更新\n\n## 4. 内容系统性与覆盖面 (Comprehensiveness)\n\n纳入的资料组合必须能够无死角地支撑词条模块结构：\n- 全流程覆盖：必须包含从\"预防/筛查\"到\"诊断/评估\"，再到\"综合管理/随访\"的全局性文件\n- 分级诊疗覆盖：既要有面向三甲医院专科医生的综合指南，也要有面向基层的管理指南\n\n## 5. 临床适用性与本地化 (Localization & Applicability)\n\n- 本土化校准：国际指南虽然前沿，但在流行病学特征、药物可及性、医疗体制上可能存在差异，必须将国内最新权威指南作为诊断标准和用药推荐的本土化校准基准\n- 可操作性：优先纳入包含明确诊断流程图（Algorithms）、药物剂量表、疗效评估量表的文献\n\n## 总体推荐等级\n\n- 强烈推荐：权威性高 + 证据等级高（指南/共识） + 时效性最新\n- 推荐：满足大部分标准，有一项稍弱\n- 可用：权威性或时效性一般，但内容有补充价值\n- 建议替换：权威性低、内容陈旧、或有更优替代文献\n\n\n## 待评估的参考文献（共 2 篇）\n### 文献 1: 84514-儿童血小板增多症诊断与治疗专家共识（2026）\n字数: 12020\n内容摘要:\n• 标准·方案·指南 •\n儿童血小板增多症诊断与治疗专家共识（2026）\n中华医学会儿科学分会血液学组 , 中国医师协会儿科医师分会血液学组 , 中华儿科杂志编辑委员会中华儿科杂志, 2026,64卷 网络预发表: 479-489.\n血小板增多症在儿科较常见，根据病因分为反应性、家族性和克隆性3类。儿童以反应性血小板增多症（reactive thrombocytosis，RT）最常见，多由感染、贫血、外伤或手术等诱发；家族性血小板增多症（familial thrombocytosis，FT）及血液肿瘤性疾病导致的克隆性血小板增多症相对少见。原发性血小板增多症（essential thrombocythemia，ET）是克隆性血小板增多症的罕见亚型，属于费城染色体阴性的骨髓增殖性肿瘤（myeloproliferative neoplasms，MPN）。0~20岁人群ET年发病率仅为0.6/10万 [1]，其特征为骨髓巨核细胞克隆性异常增生，导致外周血血小板计数（platelet，PLT）持续显著升高 [2,3]。RT、FT和其他克隆性血小板增多症统称为继发性血小板增多症，其治疗主要针对原发病，原发病控制后PLT多恢复正常 [4-6]。ET作为独立疾病，具有特异的发病机制及诊疗策略。由于儿童ET罕见，其诊断、危险分层、预后评估和治疗尚缺乏统一规范。为此，中华医学会儿科学分会血液学组、中国医师协会儿科医师分会血液学组和中华儿科杂志编辑委员会组织全国儿童血液、药学专家成立工作组，制订了“儿童血小板增多症诊断与治疗专家共识（2026）”（简称本共识），围绕儿童血小板增多症的诊断流程及儿童ET规范化管理提出推荐意见，旨在为临床实践提供指导。\n[H2] 一、共识制订过程\n1.共识制订原则：遵循“中国制订/修订临床诊疗指南的指导原则（2022版）”和《世界卫生组织指南制订手册》的制订流程及方法学标准 [7,8]。\n2.共识制订工作组：2025年12月，由中华医学会儿科分会血液学组、中国医师协会儿科分会血液学组和中华儿科杂志编辑委员会发起，邀请儿童血液专业、儿童药学专业、儿童血管外科领域43名专家组建共识专家组。全体成员均填写利益冲突声明表。\n3.使用及目标人群：本共识适用于从事临床工作的儿科、儿童血液专科医生及基层临床医生。目标人群为血小板增多症患儿（28日龄至18岁）。\n4. 证\n\n---\n\n### 文献 2: 79358-2025 BSH指南：无JAK2、CALR或MPL突变的血小板增多症的调查和管理\n字数: 77213\n内容摘要:\n[H2] METHODOLOGY\nThis guideline was compiled according to the BSH process at (https://b-s-h.org.uk/media/16732/bsh-guidance-development-process-dec-5-18.pdf). The Grading of Recommendations Assessment, Development and Evaluation (GRADE) nomenclature was used to evaluate the levels of evidence and to assess the strength of recommendations. The GRADE criteria can be found at http://www.gradeworkinggroup.org and are summarised in appendix 3 of the guidance document linked above. Literature review details are in the Supplementary Appendix.\n[H2] REVIEW OF THE MANUSCRIPT\nReview of the manuscript was performed by the British Society for Haematology (BSH) General Haematology Task Force and BSH Guidelines Committee. It was also on the members' section of the BSH website for comment. It has been reviewed by members of the UK Blood Cancer Research Network MPN Group, the NHS England Haematological Malignancies Genomics Working Group and patient representatives from MPN Voice; these organisations d\n\n## 输出要求\n请以JSON格式输出评估结果：\n{\n  \"item_evaluations\": [\n    {\n      \"filename\": \"文件名\",\n      \"authority_rating\": \"高/中/低\",\n      \"authority_note\": \"发布机构及权威性说明\",\n      \"evidence_level\": \"临床实践指南/专家共识/权威综述/教材/其他\",\n      \"evidence_note\": \"证据等级说明\",\n      \"timeliness_rating\": \"最新/较新/陈旧\",\n      \"timeliness_note\": \"时效性说明（含推测的发布年份）\",\n      \"overall_recommendation\": \"强烈推荐/推荐/可用/建议替换\",\n      \"summary\": \"一句话总评\"\n    }\n  ],\n  \"comprehensiveness\": \"这组文献对血小板增多症（儿童和青少年）词条各模块（基础知识→诊断→治疗→预后→预防）的覆盖情况评估\",\n  \"localization\": \"国际指南与国内指南的搭配是否合理，本土化校准是否充分\",\n  \"overall_assessment\": \"总体评估（2-3句话）\",\n  \"coverage_gaps\": [\"建议补充的文献类型1\", \"建议补充的文献类型2\"],\n  \"suggestions\": [\"具体改进建议1\", \"具体改进建议2\"]\n}\n\n评估要点：\n- 根据文件名和内容判断发布机构、文献类型、大致发布时间\n- 评估这组文献作为整体是否能支撑完整的词条编写\n- 指出覆盖面上的明显缺口（如缺少国内指南、缺少基层诊疗指南等）\n- 如果某篇文献质量明显不足，给出\"建议替换\"并说明理由\n- 对每篇文献的评估应简洁客观"
+        }
+      ],
+      "thinking": {
+        "type": "enabled"
+      },
+      "reasoning_effort": "high",
+      "max_tokens": 32768
+    }
+  }
+}

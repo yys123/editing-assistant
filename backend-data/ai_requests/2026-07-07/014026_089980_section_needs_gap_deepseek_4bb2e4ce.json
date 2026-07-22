@@ -1,0 +1,39 @@
+{
+  "id": "4bb2e4ce468d4c78b0ea642b131c60e5",
+  "created_at": "2026-07-07T01:40:26.089980+00:00",
+  "user_id": "3271b62a1c20474d9bf8ac4b82e52361",
+  "context": "section_needs_gap",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 1634,
+    "estimated_prompt_tokens": 1114,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.001114,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "请分析【妊娠剧吐】词条「二、发病机制」章节对以下用户需求的覆盖情况。\n\n## 章节内容\n1、遗传因素\n生长分化因子 15（growth differentiation factor 15，GDF15）在 NVP 和 HG 发病机制中发挥重要作用，胎儿 GDF15 水平和孕妇对其敏感性是决定孕期恶心呕吐的关键因素。\n(1) 胎儿产生的高水平 GDF15 是导致孕妇恶心呕吐的主要原因。胎盘基因激活时会产生 hCG 和 GDF15，其循环水平在妊娠早期迅速升高达到峰值，并引起食欲不振、味觉厌恶、恶心、呕吐和体重减轻。\n(2) 孕妇对激素 GDF15 的超敏反应与孕吐相关。一些影响 GDF15 表达的基因变异可降低孕前 GDF15 水平，增加孕期恶心呕吐风险。相反，先天性 GDF15 较高的妇女（如 β 地中海贫血患者）在妊娠期间的恶心呕吐发生率较低。\n(3) 在患有 HG 的家族中，与 GDF15 表达相关的遗传变异已被确定为 HG 最重要的遗传风险因素，并与后续妊娠中的疾病复发相关[⁹³⁻⁹⁴]。\n2、内分泌因素\n人类绒毛膜促性腺激素（human chorionic gonadotropin，HCG）在妊娠早期的浓度与 NVP 或妊娠剧吐症状的发生时间存在时间关联性，这一关联性曾引发学界假说：HCG 在 NVP 和妊娠剧吐的病因学中起核心作用；然而，支持该关联的证据尚未确凿，也未展现出明确的生物学合理性。内分泌因素在妊娠剧吐的病因学中并非主要因素。\n(1) 在住院的 HG 患者、服用 NVP 药物的患者以及妊娠中期呕吐的患者中，未发现 HCG 水平并未升高[⁹²]。\n(2) 即使在非常大规模的研究中，尚未发现任何与 HG 相关的 HCG 基因变异。\n3、胃肠道病因\n幽门螺杆菌的作用也被视为妊娠剧吐和妊娠期呕吐 NVP 的潜在机制之一。系统综述显示其中约半数研究未发现幽门螺杆菌与妊娠期呕吐风险存在关联，而半数研究则认为该细菌可能在该病症中发挥作用[¹⁰⁵]。\n\n## 需要评估的用户需求（共1类）\n- 需求主题：妊娠剧吐的病因与机制探讨（约15次提问）\n  代表性问题：妊娠期引起恶心呕吐的原因及机制、妊娠剧吐导致肝酶升高的可能机制是什么？\n\n请对每类用户需求，评估该章节内容的满足程度，以JSON格式输出：\n{\n  \"coverage_assessment\": \"对本章节整体覆盖情况的简评（1-2句话）\",\n  \"need_coverages\": [\n    {\n      \"topic\": \"需求主题（与上方完全一致）\",\n      \"coverage_level\": \"full\",\n      \"qa_frequency\": 50,\n      \"representative_questions\": [\"代表性问题1\", \"代表性问题2\"],\n      \"revision_suggestion\": \"\"\n    }\n  ]\n}\n\ncoverage_level取值规则：\n- \"full\"：章节已有完整内容，能清晰回答该类需求，用户无需查找其他内容\n- \"partial\"：有相关内容但不够完整，部分问题仍无法得到充分回答\n- \"missing\"：章节基本未涉及该类需求，用户无法从中获得有效信息\n\nrevision_suggestion填写规则：\n- coverage_level为\"full\"时，留空 \"\"\n- coverage_level为\"partial\"时：指出现有内容哪里不足，具体说明需要补充或完善什么\n- coverage_level为\"missing\"时：说明需要新增哪些内容来覆盖该需求\n\nrepresentative_questions：从该需求中选取1-2个最典型的实际问题\n"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      },
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "max_tokens": 32768
+    }
+  }
+}

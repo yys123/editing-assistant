@@ -1,0 +1,39 @@
+{
+  "id": "3fa636cc74284071a580c1b91636b1a0",
+  "created_at": "2026-06-20T06:48:32.051504+00:00",
+  "user_id": "6de61a06ea60457e9c150b49e2f46179",
+  "context": "reference_eval",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 6416,
+    "estimated_prompt_tokens": 3230,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.00323,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位循证医学文献评估专家，擅长评估医学参考文献的质量、权威性和适用性。请严格按照提供的评估标准进行客观评价。"
+        },
+        {
+          "role": "user",
+          "content": "请评估以下参考文献集合对于编写【慢性肾脏病血钾管理】临床词条的适用性。\n\n## 评估标准\n# 参考信息源评估标准\n\n## 1. 机构与发布者的权威性 (Authority)\n\n入选的资料必须由该疾病领域公认的顶级学术组织、政府卫生机构或权威专家组发布。\n\n- 国际顶级权威组织：针对特定疾病的全球倡议组织（如针对COPD的GOLD、针对哮喘的GINA）、国际公认的专科学会（如心血管领域的AHA/ACC、ESC；肿瘤领域的NCCN、ESMO；糖尿病领域的ADA、EASD等）。\n- 国内核心卫生与学术机构：国家卫生健康委员会（卫健委）发布的诊疗规范、中华医学会及其各专科分会、中国医师协会、中国抗癌协会（CSCO）等出具的指南与共识。\n\n评级：\n- 高：由上述国际顶级组织或国内核心机构发布\n- 中：由省级学会、知名专科医院专家组、二级学会发布\n- 低：来源不明、无明确发布机构、或非医学专业机构\n\n## 2. 文献类型与证据等级 (Evidence Level)\n\n按照循证医学证据等级优先级排序：\n- 第一顺位：临床实践指南（Clinical Practice Guidelines, CPGs），特别是基于GRADE系统评估的指南\n- 第二顺位：权威专家共识（Expert Consensus），用于补充指南未覆盖的边缘问题、新兴疗法\n- 第三顺位：顶级期刊的权威综述（State-of-the-Art Reviews），发表在《The Lancet》《NEJM》《JAMA》等顶级医学期刊\n\n## 3. 时效性与版本追踪 (Timeliness)\n\n- 最新版本原则：核心指南必须纳入该机构发布的最新版本\n- 年度更新追踪：每年更新的全球策略需纳入近3-5年的更新要点\n- 国内最新版兜底原则：若国内权威指南更新较慢，依然必须纳入作为国内临床实践基准，但需用最新国际指南补充前沿知识\n\n评级：\n- 最新：近2年内发布/更新\n- 较新：2-5年内发布\n- 陈旧：超过5年未更新\n\n## 4. 内容系统性与覆盖面 (Comprehensiveness)\n\n纳入的资料组合必须能够无死角地支撑词条模块结构：\n- 全流程覆盖：必须包含从\"预防/筛查\"到\"诊断/评估\"，再到\"综合管理/随访\"的全局性文件\n- 分级诊疗覆盖：既要有面向三甲医院专科医生的综合指南，也要有面向基层的管理指南\n\n## 5. 临床适用性与本地化 (Localization & Applicability)\n\n- 本土化校准：国际指南虽然前沿，但在流行病学特征、药物可及性、医疗体制上可能存在差异，必须将国内最新权威指南作为诊断标准和用药推荐的本土化校准基准\n- 可操作性：优先纳入包含明确诊断流程图（Algorithms）、药物剂量表、疗效评估量表的文献\n\n## 总体推荐等级\n\n- 强烈推荐：权威性高 + 证据等级高（指南/共识） + 时效性最新\n- 推荐：满足大部分标准，有一项稍弱\n- 可用：权威性或时效性一般，但内容有补充价值\n- 建议替换：权威性低、内容陈旧、或有更优替代文献\n\n\n## 待评估的参考文献（共 4 篇）\n### 文献 1: 50655-中国慢性肾脏病患者血钾管理实践专家共识\n字数: 120233\n内容摘要:\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\"><html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" /><meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0\"><title></title><link href=\"css/drugs_guide.css\" rel=\"stylesheet\" type=\"text/css\" /><script src=\"js/jquery-1.7.js\" type=\"text/javascript\"></script><script src=\"js/drugs_guide.js\" type=\"text/javascript\"></script><script src='https://player.polyv.net/script/polyvplayer.min.js'></script><script src=\"https://player.polyv.net/script/player.js\"></script><script src='js/drugs_guide_rest.js'></script><link href='css/drugs_guide_rest.css' rel=\"stylesheet\" type=\"text/css\" /><script type=\"text/javascript\">//设置web页面的背景（3种 经典 古典 温暖）/* function setBodyColor(backColor){\tif(backColor == 1){\t\tdocument.body.style.backgroundColor=\"#EEEEEE\";\t\t$(\".main\").css(\"background-c\n\n---\n\n### 文献 2: 50716-慢性肾脏病高钾血症风险评估及管理专家建议（2020版）\n字数: 58019\n内容摘要:\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\"><html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" /><meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0\"><title></title><link href=\"css/drugs_guide.css\" rel=\"stylesheet\" type=\"text/css\" /><script src=\"js/jquery-1.7.js\" type=\"text/javascript\"></script><script src=\"js/drugs_guide.js\" type=\"text/javascript\"></script><script src='https://player.polyv.net/script/polyvplayer.min.js'></script><script src=\"https://player.polyv.net/script/player.js\"></script><script src='js/drugs_guide_rest.js'></script><link href='css/drugs_guide_rest.css' rel=\"stylesheet\" type=\"text/css\" /><script type=\"text/javascript\">//设置web页面的背景（3种 经典 古典 温暖）/* function setBodyColor(backColor){\tif(backColor == 1){\t\tdocument.body.style.backgroundColor=\"#EEEEEE\";\t\t$(\".main\").css(\"background-c\n\n---\n\n### 文献 3: 76072-钾离子结合剂在慢性肾脏病患者高钾血症治疗中应用的中国专家共识（2025年版）\n字数: 14328\n内容摘要:\n<p style=\"text-align:right;text-indent:0;\">• 专家共识 •</p><p style=\"text-indent:0;\"><strong>钾离子结合剂在慢性肾脏病患者高钾血症治疗中应用的中国专家共识（2025年版）</strong></p><p style=\"text-indent:0;\">中国研究型医院学会肾脏病学专业委员会<br>中华肾脏病杂志, 2025,41(04): 297-305.</p><h2 data-section-index=\"1\">一、前言</h2><p><strong>1.慢性肾脏病（chronic kidney disease，CKD）合并高钾血症的流行病学：</strong>我国CKD患者高达1.32亿 <sup class=\"literature-sup\">[1]</sup>，患病人数仍在不断攀升。高钾血症（指血钾&gt;5.0 mmol/L）是CKD患者常见且可危及生命的电解质紊乱之一 <sup class=\"literature-sup\">[2]</sup>，CKD合并高钾血症可导致主要不良心血管事件发生率增加约90%，病死率增加约65% <sup class=\"literature-sup\">[3]</sup>。非透析CKD患者高钾血症患病率约为22.89% <sup class=\"literature-sup\">[4]</sup>，伴随肾功能恶化，高钾血症患病率增加，CKD 3a期、3b期、4期和5期非透析患者高钾血症患病率分别为13.22%、24.56%、43.65%和51.19%，维持性血液透析（maintenance hemodialysis，MHD）CKD患者高钾血症患病率高达75% <sup class=\"literature-sup\">[5]</sup>。此外，CKD 4期和5期患者使用肾素-血管紧张素-醛固酮系统抑制剂（renin-angiotensin-aldosterone system inhibitors，RAASi）后高钾血症的患病率更高，分别为51.00%和62.79% <sup class=\"literature-sup\">[5]</sup>。除患病率高外，近1/3高钾血症患者会出现高血钾的反复发作，分别有43%、57%和64%的患者会经历第2次、第3次和第4次\n\n---\n\n### 文献 4: 74487-高钾血症管理规范——多科室合作全流程管理模式\n字数: 15455\n内容摘要:\n<p style=\"text-align:right;text-indent:0;\">• 标准与规范 •</p><p style=\"text-indent:0;\"><strong>高钾血症管理规范——多科室合作全流程管理模式</strong></p><p style=\"text-indent:0;\">叶智明 , 蔡建芳 , 陈崴 , 程虹 , 何强 , 李荣山 , 李湘民 , 廖新学 , 毛志国 , 毛慧娟 , 谭宁 , 徐钢 , 詹红 , 张浩 , 张健 , 余学清 <br>中华肾脏病杂志, 2024,40(03): 245-254.</p><p>高钾血症定义为血清钾离子浓度&gt;5.0 mmol/L，轻度高钾血症通常无临床症状，急性的重度高钾血症则可能引起弛缓性麻痹、致死性心律失常，甚至心脏停搏等严重后果 <sup class=\"literature-sup\">[1-3]</sup>。高钾血症多发生于肾脏排钾障碍患者，如慢性肾脏病（chronic kidney disease，CKD）、心力衰竭（heart failure，HF）、难治性高血压、糖尿病（diabetes mellitus，DM）患者，多数患者还伴高脂血症、心脑血管疾病、呼吸疾病、消化疾病等 <sup class=\"literature-sup\">[4-6]</sup>。我国各级医疗机构的医务工作者对于高钾血症诊断标准的认识尚未统一，国内外主流指南共识建议血钾&gt;5.0 mmol/L为高钾血症诊断标准，而我国医院以&gt;5.3 mmol/L或&gt;5.5 mmol/L作为高钾血症诊断标准。</p><p>各科室均有合并CKD、HF、DM的患者，由于高钾血症涉及多种风险因素，作为高钾血症的高发人群，此类患者通常会接受肾素-血管紧张素-醛固酮系统抑制剂（renin angiotensin-aldosterone system inhibitors，RAASi）治疗，以延缓CKD进展和降低心血管事件风险。然而，这些药物可能会引发或加剧高钾血症 <sup class=\"literature-sup\">[6-9]</sup>。为了预防高钾血症复发，既往临床通常需要调整或停止RAASi治疗，而这却会对患者的心肾预后产生不良影响 <sup class=\"literature-sup\">[10]</sup\n\n## 输出要求\n请以JSON格式输出评估结果：\n{\n  \"item_evaluations\": [\n    {\n      \"filename\": \"文件名\",\n      \"authority_rating\": \"高/中/低\",\n      \"authority_note\": \"发布机构及权威性说明\",\n      \"evidence_level\": \"临床实践指南/专家共识/权威综述/教材/其他\",\n      \"evidence_note\": \"证据等级说明\",\n      \"timeliness_rating\": \"最新/较新/陈旧\",\n      \"timeliness_note\": \"时效性说明（含推测的发布年份）\",\n      \"overall_recommendation\": \"强烈推荐/推荐/可用/建议替换\",\n      \"summary\": \"一句话总评\"\n    }\n  ],\n  \"comprehensiveness\": \"这组文献对慢性肾脏病血钾管理词条各模块（基础知识→诊断→治疗→预后→预防）的覆盖情况评估\",\n  \"localization\": \"国际指南与国内指南的搭配是否合理，本土化校准是否充分\",\n  \"overall_assessment\": \"总体评估（2-3句话）\",\n  \"coverage_gaps\": [\"建议补充的文献类型1\", \"建议补充的文献类型2\"],\n  \"suggestions\": [\"具体改进建议1\", \"具体改进建议2\"]\n}\n\n评估要点：\n- 根据文件名和内容判断发布机构、文献类型、大致发布时间\n- 评估这组文献作为整体是否能支撑完整的词条编写\n- 指出覆盖面上的明显缺口（如缺少国内指南、缺少基层诊疗指南等）\n- 如果某篇文献质量明显不足，给出\"建议替换\"并说明理由\n- 对每篇文献的评估应简洁客观"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      },
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "max_tokens": 32768
+    }
+  }
+}

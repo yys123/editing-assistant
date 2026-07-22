@@ -1,0 +1,39 @@
+{
+  "id": "45e8b1c4bf63400b89349a0d71ca38aa",
+  "created_at": "2026-06-18T01:54:58.380664+00:00",
+  "user_id": "6de61a06ea60457e9c150b49e2f46179",
+  "context": "needs_merge_clusters",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 6242,
+    "estimated_prompt_tokens": 3680,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.00368,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "以下是对【自闭症】用户Q&A分批聚类后得到的多组需求类型（来自不同批次，可能有重复或相似主题）。\n\n- topic: 诊断与鉴别诊断\n  frequency: 45\n  covered_in_kb: True\n  coverage_notes: 知识库涵盖孤独症诊断标准及与语言发育迟缓、ADHD等的鉴别要点，但部分问题如退行性自闭症早期识别需补充\n  representative_questions: ['如何鉴别语言发育迟缓与孤独症谱系障碍？', '孤独症谱系障碍的鉴别诊断应重点考虑哪些疾病？', '诊断标准 孤独症 注意力缺陷/多动']\n- topic: 病因与发病机制\n  frequency: 40\n  covered_in_kb: True\n  coverage_notes: 知识库包含遗传、环境因素及脑肠轴等机制，但关于叶酸过量的具体影响和疫苗关联性需更新证据\n  representative_questions: ['孤独症的发病机制', '自闭症是基因问题吗', '叶酸与自闭症有关吗']\n- topic: 治疗与干预\n  frequency: 50\n  covered_in_kb: True\n  coverage_notes: 知识库覆盖药物治疗、行为干预及神经调控疗法，但部分新兴疗法如干细胞、脐带血治疗缺乏充分循证\n  representative_questions: ['孤独症的治疗进展', '自闭症治疗指南', '阿立哌唑用于孤独症相关激惹的循证证据']\n- topic: 共病与并发症管理\n  frequency: 30\n  covered_in_kb: True\n  coverage_notes: 知识库涵盖常见共病如癫痫、情绪障碍的用药，但免疫系统疾病和罕见遗传综合征的共病管理需补充\n  representative_questions: ['自闭症合并癫痫的药物治疗', '孤独症共患免疫系统疾病有哪些', '孤独症合并情绪不稳用药']\n- topic: 筛查与评估工具\n  frequency: 20\n  covered_in_kb: True\n  coverage_notes: 知识库包含常用量表及评分标准，但CARS等量表的临床证据更新需加强\n  representative_questions: ['ABC大于多少分考虑孤独症', '孤独症筛查量表', '孤独症cars量表怎么做']\n- topic: 预防与早期干预\n  frequency: 15\n  covered_in_kb: True\n  coverage_notes: 知识库涉及产前筛查和早期预警，但针对预防的具体措施（如叶酸补充）证据不足\n  representative_questions: ['自闭症该如何预防', '自闭症产检有机会查出来吗', '0-6岁儿童孤独症预警征筛查']\n- topic: 肠道菌群与饮食干预\n  frequency: 15\n  covered_in_kb: False\n  coverage_notes: 知识库对菌群移植和饮食干预的循证证据覆盖有限，需补充最新随机对照试验和安全性数据\n  representative_questions: ['肠道菌群移植治疗孤独症谱系障碍的有效性如何？', '自闭症肠道菌群移植术后，可以吃奥司他韦吗', '自闭症谱系障碍儿童可采取哪些饮食干预措施？']\n- topic: 遗传咨询与基因检测\n  frequency: 10\n  covered_in_kb: True\n  coverage_notes: 知识库涵盖常见基因如SHANK3、MECP2等，但对罕见基因变异指导用药的循证证据不足\n  representative_questions: ['自闭症基因检测可以查出来吗', '孤独症基因筛查主要针对哪些基因', 'kcnh5基因导致婴幼儿癫痫和自闭症，吃什么药']\n- topic: 特殊人群与罕见病\n  frequency: 10\n  covered_in_kb: False\n  coverage_notes: 知识库对罕见病合并孤独症的机制和处理缺乏专门内容，需补充相关指南和病例研究\n  representative_questions: ['杜氏肌营养不良合并孤独症病因', '德朗热综合征的孤独症症状与特发性孤独症在神经发育机制上有何不同？', '蚕豆病，自闭症儿童出现恶心呕吐，怎么处理']\n- topic: 用药安全与相互作用\n  frequency: 15\n  covered_in_kb: True\n  coverage_notes: 知识库涵盖常用药物安全性，但特定药物相互作用（如菌群移植后用药）需更新\n  representative_questions: ['自闭症儿童可以用孟鲁司特钠吗', '自闭症能吃晕车药吗？', '孤独症孩子可以用非那根吗']\n- topic: 自闭症/孤独症的诊断、评估与筛查\n  frequency: 40\n  covered_in_kb: True\n  coverage_notes: DSM-5诊断标准、ABC量表、早期筛查工具有充分循证依据，知识库已覆盖。\n  representative_questions: ['自闭症的诊断标准', '孤独症的评估标准', '如何早期识别自闭症谱系障碍的预警信号？']\n- topic: 饮食干预与食物不耐受管理\n  frequency: 35\n  covered_in_kb: True\n  coverage_notes: 饮食干预（如无麸质无酪蛋白饮食）有部分循证支持，但食物不耐受IgG检测的临床价值争议大，知识库需澄清。\n  representative_questions: ['自闭症谱系障碍儿童可以采取哪些饮食干预措施？', '自闭症儿童查食物不耐受IgG阳性，牛奶，鸡蛋都是1000多的值，要不要忌口，要不要回避这些食物。', '食物特异性IgG检测结果在自闭症谱系障碍治疗管理中的循证医学地位是什么？']\n- topic: 药物治疗与不良反应\n  frequency: 30\n  covered_in_kb: True\n  coverage_notes: 常用药物（利培酮、阿立哌唑、舍曲林等）的用法、机制及不良反应有充分循证依据，知识库已覆盖。\n  representative_questions: ['阿立哌唑口服溶液用于孤独症易激惹症状时，一日几次？', '舍曲林用于不典型孤独症的原理是？', '哪些抗癫痫药物可能加重孤独症谱系障碍的行为症状？']\n- topic: 病因、发病机制与遗传因素\n  frequency: 25\n  covered_in_kb: True\n  coverage_notes: 遗传、环境、免疫等病因机制有较多研究，但部分问题（如叶酸过量）证据尚不明确，知识库需谨慎表述。\n  representative_questions: ['自闭症的病因和发病机制', '自闭症有基因遗传吗？', '孕期叶酸过量和新生儿自闭症有关系吗？']\n- topic: 粪菌移植与肠道菌群干预\n  frequency: 15\n  covered_in_kb: False\n  coverage_notes: 粪菌移植仍属研究阶段，缺乏高质量循证证据，远期风险不明，知识库未有效覆盖。\n  representative_questions: ['自闭症 粪菌移植 护理', '粪菌移植技术在自闭症患儿治疗中的研究进展，其远期风险如何？', '自闭症肠道菌群移植有效吗？']\n- topic: 早期表现与鉴别诊断\n  frequency: 20\n  covered_in_kb: True\n  coverage_notes: 早期行为标志和共病鉴别有明确指南，知识库已覆盖。\n  representative_questions: ['自闭症一般不同月龄会有什么表现', '孤独症谱系障碍与注意缺陷多动障碍的鉴别诊断要点是什么？', '孤独症谱系疾病和社交恐惧症的鉴别']\n- topic: 非药物治疗与康复干预\n  frequency: 15\n  covered_in_kb: False\n  coverage_notes: 行为干预有充分循证，但经颅磁等物理治疗的长期安全性数据不足，知识库未完全覆盖。\n  representative_questions: ['孤独症的主流治疗方案', '早期行为干预对孤独症谱系障碍核心症状改善效果如何？', '经颅磁刺激治疗儿童孤独症谱系障碍的长期安全性数据有哪些？']\n- topic: 共病管理（癫痫、情绪障碍等）\n  frequency: 10\n  covered_in_kb: True\n  coverage_notes: 共病癫痫、情绪障碍的处理有临床指南，知识库已覆盖。\n  representative_questions: ['孤独症共病癫痫的初始抗癫痫药物如何选择？', '孤独症患儿情绪障碍，如何有效缓解', '遗传性癫痫合并自闭症 癫痫控制良好多久可以考虑减药']\n- topic: 预后、自然病程与长期管理\n  frequency: 5\n  covered_in_kb: True\n  coverage_notes: 预后和自然病程有长期随访数据，知识库已覆盖。\n  representative_questions: ['自闭症自然病程', '早期干预对孤独症谱系障碍的长期预后有何影响？', '自闭症有可能治愈吗？']\n- topic: 病因、危险因素与孕期相关因素\n  frequency: 20\n  covered_in_kb: True\n  coverage_notes: 知识库中病因和危险因素内容较丰富，但对部分新兴因素（如消毒液、孟鲁司特钠）覆盖可能不足。\n  representative_questions: ['自闭症跟哪些因素有关', '孕期补充叶酸与自闭症的关系', '分娩镇痛会增加新生儿自闭症的风险么']\n- topic: 诊断、评估与鉴别诊断\n  frequency: 18\n  covered_in_kb: True\n  coverage_notes: 诊断标准、量表解读和鉴别诊断内容充分，但个别量表阈值（如ADOS）可能需要补充。\n  representative_questions: ['如何诊断孤独症？', '孤独症ABC量表评分解读', '哪些检查可以鉴别自语自笑的精神分裂症与孤独症谱系障碍？']\n- topic: 治疗与干预方法（药物、非药物、新兴疗法）\n  frequency: 18\n  covered_in_kb: True\n  coverage_notes: 药物和经典干预方法覆盖好，但干细胞、菌群移植等新兴疗法证据较少，需谨慎。\n  representative_questions: ['自闭症的核心治疗干预方法有哪些？', '利培酮（Risperidone）治疗自闭症的用法是什么？', '干细胞治疗自闭症']\n- topic: 家庭干预与家长指导\n  frequency: 12\n  covered_in_kb: True\n  coverage_notes: 家庭干预内容较全面，但实操性建议可能需更具体细化。\n  representative_questions: ['家长如何能够早期发现孤独症？', '儿童孤独症如何建立规则意识，家庭干预的方法有哪些', '作为一个儿科医生，请给孤独症家长提供一些实用的可操作性的家庭治疗的建议']\n- topic: 临床表现与共病管理\n  frequency: 10\n  covered_in_kb: True\n  coverage_notes: 临床表现和常见共病（睡眠、情绪、攻击行为）内容覆盖良好。\n  representative_questions: ['孤独症临床表现', '如何评估孤独症谱系障碍的共病情况？', '孤独症儿童睡眠障碍治疗']\n- topic: 肠道菌群、益生菌与粪菌移植\n  frequency: 8\n  covered_in_kb: False\n  coverage_notes: 知识库中相关内容有限，缺乏高质量循证证据总结，需更新。\n  representative_questions: ['肠道菌群会影响孤独症', '补充益生菌可以降低ADHD和自闭症风险吗', '治疗儿童孤独症，菌群移植有效吗']\n- topic: 药物治疗细节与用药安全\n  frequency: 7\n  covered_in_kb: True\n  coverage_notes: 常见药物适应症和用法有覆盖，但个别药物（如托莫西汀）的详细用药指导可能需补充。\n  representative_questions: ['阿立哌唑用于自闭症儿童有什么适应症吗', '孩子八岁使用盐酸托莫西汀胶囊的用药问题', '孟鲁司特钠会导致自闭吗？']\n- topic: 早期识别与发育评估\n  frequency: 6\n  covered_in_kb: True\n  coverage_notes: 早期识别和发育评估内容较充分，但年龄下限和具体评估工具需明确。\n  representative_questions: ['如何进行自闭症谱系障碍的早期发育评估？', '几岁可以确诊孤独症', '发育迟滞的诊断，8月患儿可以诊断孤独症吗']\n- topic: 其他（罕见病因、中医、特殊检查等）\n  frequency: 6\n  covered_in_kb: False\n  coverage_notes: 这些问题较为特殊或小众，知识库覆盖不足，需查阅专项文献。\n  representative_questions: ['自闭症导致类石引起的巨结肠', '中医对于自闭症怎么处理', '14岁自闭症儿童做骨穿不能配合怎么办']\n\n请将相同或高度相似的需求主题合并，汇总频次，保留最有代表性的问题，以JSON格式输出最终聚类结果：\n{\n  \"clusters\": [\n    {\n      \"topic\": \"需求主题（简洁描述）\",\n      \"frequency\": <合并后的估计总频次>,\n      \"representative_questions\": [\"典型问题1\", \"典型问题2\", \"典型问题3\"],\n      \"covered_in_kb\": <true或false>,\n      \"coverage_notes\": \"覆盖情况说明\"\n    }\n  ]\n}\n\n要求：\n- 合并相同/相近主题，最终输出5-12个主要需求类型\n- frequency为各批次同类需求频次之和（估算）\n- 按最终频次从高到低排列\n- covered_in_kb：若任何批次标记为false则取false"
+        }
+      ],
+      "thinking": {
+        "type": "disabled"
+      },
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "max_tokens": 32768
+    }
+  }
+}

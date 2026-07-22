@@ -1,0 +1,36 @@
+{
+  "id": "dd9382986b864094ab2f57d645a9abf9",
+  "created_at": "2026-07-14T07:43:28.147128+00:00",
+  "user_id": "2f267864b31b4c96ab7bff7d2e5d5ddf",
+  "context": "section_needs_gap",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "audit": {
+    "prompt_chars": 1260,
+    "estimated_prompt_tokens": 886,
+    "context_window_tokens": 1000000,
+    "context_usage_ratio": 0.000886,
+    "warning": ""
+  },
+  "request": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "payload": {
+      "model": "deepseek-chat",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你是一位资深临床医学编辑，专注于面向临床医生的循证医学内容评估与改进。请严格按照要求的JSON格式输出，不要输出任何其他内容。"
+        },
+        {
+          "role": "user",
+          "content": "请分析【支气管肺发育不良】词条「五、早期感染的防治」章节对以下用户需求的覆盖情况。\n\n## 章节内容\n1、宫内感染和生后感染均与BPD密切相关。母亲绒毛膜炎使早产儿早发败血症、BPD的发生率和病死率增加[⁵⁵]，及时诊断与治疗早发败血症意义重大。\n 2、但应注意合理应用抗菌药物，避免不必要的广谱抗菌药物长时间暴露。有临床研究提示解脲脲原体宫内感染使早产儿BPD风险增加，但尚不能证实阿奇霉素等药物治疗的有效性[⁵⁶]。\n\n## 需要评估的用户需求（共1类）\n- 需求主题：抗感染治疗与定植鉴别（约30次提问）\n  代表性问题：早产儿支气管肺发育不良，痰培养到肺克、鲍曼，CRP升高，影像肺加重，该如何用药、极早产儿，肺支气管发育不良，痰培养ESBL阳性肺克，抗感染10天后感染指标好转，无发热，是否可考虑为定植菌停药？\n\n\n## ⚠️ 跨章节需求提示（重要）\n以下需求类型同时映射到了多个章节，请在给出修订建议时，仅聚焦「五、早期感染的防治」章节负责的具体内容，不要提出属于其他章节职责范围的建议（其他章节会单独处理各自部分）：\n- 「抗感染治疗与定植鉴别」同时映射到其他章节：四、药物治疗\n\n请针对本章节（五、早期感染的防治）给出章节专属的、差异化的修订建议，说明本章节在满足该用户需求方面应重点补充或完善什么。\n请对每类用户需求，评估该章节内容的满足程度，以JSON格式输出：\n{\n  \"coverage_assessment\": \"对本章节整体覆盖情况的简评（1-2句话）\",\n  \"need_coverages\": [\n    {\n      \"topic\": \"需求主题（与上方完全一致）\",\n      \"coverage_level\": \"full\",\n      \"qa_frequency\": 50,\n      \"representative_questions\": [\"代表性问题1\", \"代表性问题2\"],\n      \"revision_suggestion\": \"\"\n    }\n  ]\n}\n\ncoverage_level取值规则：\n- \"full\"：章节已有完整内容，能清晰回答该类需求，用户无需查找其他内容\n- \"partial\"：有相关内容但不够完整，部分问题仍无法得到充分回答\n- \"missing\"：章节基本未涉及该类需求，用户无法从中获得有效信息\n\nrevision_suggestion填写规则：\n- coverage_level为\"full\"时，留空 \"\"\n- coverage_level为\"partial\"时：指出现有内容哪里不足，具体说明需要补充或完善什么\n- coverage_level为\"missing\"时：说明需要新增哪些内容来覆盖该需求\n\nrepresentative_questions：从该需求中选取1-2个最典型的实际问题\n"
+        }
+      ],
+      "thinking": {
+        "type": "enabled"
+      },
+      "reasoning_effort": "high",
+      "max_tokens": 32768
+    }
+  }
+}

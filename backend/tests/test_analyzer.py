@@ -177,6 +177,44 @@ class MissingContentCoverageFilterTests(unittest.TestCase):
 
 
 class StyleFalsePositiveFilterTests(unittest.TestCase):
+    def test_drops_false_forbidden_phrase_issue_for_specific_guideline_attribution(self):
+        content = (
+            "2025 CSCO 指南[464]推荐将 XELOX 或 FP 联合帕博利珠单抗针对人群，"
+            "从 PD-L1 CPS≥10 分调整为≥5 分。"
+        )
+        issue = SectionIssue(
+            issue_type="style",
+            description=(
+                "存在“本指南”“本共识”等禁用词。例如，在“三、晚期胃癌的系统治疗”的"
+                "“一线治疗”中，出现“2025 CSCO 指南[464]推荐”，应改为“2025版CSCO指南推荐”。"
+            ),
+            severity="low",
+            examples=["2025 CSCO 指南[464]推荐"],
+            anchors=[analyzer.IssueAnchor(quote="2025 CSCO 指南[464]推荐")],
+            deduction_score=0.5,
+        )
+
+        analyzer._attach_issue_anchors([issue], content)
+        filtered = analyzer._drop_false_forbidden_self_reference_issues([issue], content)
+
+        self.assertEqual(filtered, [])
+
+    def test_keeps_real_forbidden_self_reference_issue(self):
+        content = "本指南推荐将 XELOX 或 FP 联合帕博利珠单抗用于一线治疗。"
+        issue = SectionIssue(
+            issue_type="style",
+            description="存在“本指南”等禁用词。",
+            severity="low",
+            examples=["本指南推荐"],
+            anchors=[analyzer.IssueAnchor(quote="本指南推荐")],
+            deduction_score=0.5,
+        )
+
+        analyzer._attach_issue_anchors([issue], content)
+        filtered = analyzer._drop_false_forbidden_self_reference_issues([issue], content)
+
+        self.assertEqual(filtered, [issue])
+
     def test_drops_false_heading_numbering_issue_when_parenthesized_heading_is_misread_as_arabic_heading(self):
         content = "\n".join([
             "## 二、 发病机制",
@@ -213,6 +251,50 @@ class StyleFalsePositiveFilterTests(unittest.TestCase):
         filtered = analyzer._drop_false_numbering_and_reference_style_issues([issue], content)
 
         self.assertEqual(filtered, [])
+
+
+class SectionForbiddenSelfReferenceFilterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_analyze_section_drops_false_forbidden_phrase_issue_for_specific_guideline_attribution(self):
+        issue_payload = {
+            "issue_type": "style",
+            "description": (
+                "存在“本指南”“本共识”等禁用词。例如，在“三、晚期胃癌的系统治疗”的"
+                "“一线治疗”中，出现“2025 CSCO 指南[464]推荐”，应改为“2025版CSCO指南推荐”。"
+            ),
+            "severity": "low",
+            "examples": ["2025 CSCO 指南[464]推荐"],
+            "anchors": [{"quote": "2025 CSCO 指南[464]推荐", "heading_hint": "一线治疗"}],
+            "deduction_score": 0.5,
+            "is_key_content": False,
+        }
+
+        async def fake_generate_json(prompt, system_instruction=None, context="unknown", text_generator=None, **kwargs):
+            if context == "section_issue_verify":
+                return {"verification_summary": "问题属实。", "issues": [issue_payload]}
+            return {"issues": [issue_payload]}
+
+        section = ArticleSection(
+            id="s1",
+            heading="三、晚期胃癌的系统治疗",
+            content=(
+                "### 一线治疗\n"
+                "2025 CSCO 指南[464]推荐将 XELOX 或 FP 联合帕博利珠单抗针对人群，"
+                "从 PD-L1 CPS≥10 分调整为≥5 分。"
+            ),
+            word_count=75,
+            level=1,
+        )
+
+        with patch.object(analyzer, "generate_json", side_effect=fake_generate_json):
+            result = await analyzer.analyze_section(
+                "胃癌",
+                section,
+                "质量标准",
+                "内容规范",
+                [],
+            )
+
+        self.assertEqual(result.issues, [])
 
 
 class DiseaseScopeIssueFilterTests(unittest.TestCase):

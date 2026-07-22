@@ -10,7 +10,7 @@ interface Props {
 export default function StepGuideLookup({
   title = 'AI查指南',
   description = '用 AI 检索临床指南与相关资料',
-  placeholder = '输入想要检索什么指南（请完整表述）',
+  placeholder = '输入想要检索什么指南（请完整表述），如“慢性肾脏病的国内外指南”',
   showHeader = true,
 }: Props) {
   return (
