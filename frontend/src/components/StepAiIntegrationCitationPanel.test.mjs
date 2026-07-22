@@ -209,6 +209,7 @@ assert.match(panelRule, /position:\s*fixed/, 'AI integration citation panel shou
 assert.match(panelRule, /top:\s*calc\(var\(--header-height\) \+ 16px\)/, 'desktop panel should sit below the fixed app header')
 assert.match(panelRule, /right:\s*24px/, 'desktop panel should stay inside the visible app gutter')
 assert.match(panelRule, /width:\s*var\(--ai-integration-citation-panel-width\)/, 'desktop panel width should match the reserved result safe lane')
+assert.match(panelRule, /(?:^|\n)\s*height:\s*calc\(100vh - var\(--header-height\) - 32px\)/, 'desktop panel should have a definite viewport-bound height so flex can keep review buttons visible')
 assert.match(panelRule, /max-height:\s*calc\(100vh - var\(--header-height\) - 32px\)/, 'desktop panel should fit within the viewport')
 assert.match(panelRule, /z-index:\s*35/, 'fixed panel should layer above the long AI result content')
 assert.match(panelRule, /display:\s*flex/, 'AI integration citation panel should be a flex column so only the detail body scrolls')

@@ -3693,6 +3693,7 @@ a.clinic-master-guide-title:hover {
   right: 24px;
   width: var(--ai-integration-citation-panel-width);
   max-width: calc(100vw - var(--sidebar-width) - 48px);
+  height: calc(100vh - var(--header-height) - 32px);
   max-height: calc(100vh - var(--header-height) - 32px);
   display: flex;
   flex-direction: column;
@@ -4636,6 +4637,7 @@ a.clinic-master-guide-title:hover {
     right: 16px;
     width: auto;
     max-width: none;
+    height: min(52vh, 420px);
     max-height: min(52vh, 420px);
     z-index: 60;
   }
