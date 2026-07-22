@@ -14,6 +14,7 @@ import {
   CITATION_MARKER_PATTERN,
   collectCitationOccurrences,
   createCitationResolver,
+  findCitationOccurrenceForAnchor,
   type CitationOccurrence,
   formatCitationSourceLabel,
   linkifyCitationMarkers,
@@ -561,11 +562,35 @@ export default function StepAiIntegration({
     () => new Map(citationOccurrences.map(occurrence => [occurrence.occurrence_key, occurrence])),
     [citationOccurrences],
   )
-  const activeCitationOccurrence = activeCitationOccurrenceKey
-    ? citationOccurrenceByKey.get(activeCitationOccurrenceKey) ?? null
-    : null
-  const activeCitationOccurrenceReviewStatus = activeCitationOccurrenceKey
-    ? citationOccurrenceReviewsForDisplay[activeCitationOccurrenceKey]
+  const activeCitationVerificationItemsForAnchor = useMemo(
+    () => activeCitation && activeRecord
+      ? getCitationVerificationItemsForAnchor(activeRecord.citationVerification, activeCitation)
+      : [],
+    [activeCitation, activeRecord],
+  )
+  const activeCitationOccurrence = useMemo(() => {
+    const keyedOccurrence = activeCitationOccurrenceKey
+      ? citationOccurrenceByKey.get(activeCitationOccurrenceKey) ?? null
+      : null
+    if (keyedOccurrence) return keyedOccurrence
+    if (!activeCitation || !activeCitationKey) return null
+    return findCitationOccurrenceForAnchor(
+      citationOccurrences,
+      activeCitationKey,
+      activeCitation,
+      activeCitationVerificationItemsForAnchor.map(item => item.sentence),
+    )
+  }, [
+    activeCitation,
+    activeCitationKey,
+    activeCitationOccurrenceKey,
+    activeCitationVerificationItemsForAnchor,
+    citationOccurrenceByKey,
+    citationOccurrences,
+  ])
+  const activeCitationOccurrenceKeyForReview = activeCitationOccurrence?.occurrence_key ?? activeCitationOccurrenceKey
+  const activeCitationOccurrenceReviewStatus = activeCitationOccurrenceKeyForReview
+    ? citationOccurrenceReviewsForDisplay[activeCitationOccurrenceKeyForReview]
     : undefined
   const activeCitationVerificationItems = useMemo(
     () => activeCitation && activeRecord
@@ -667,7 +692,7 @@ export default function StepAiIntegration({
     record: AiIntegrationRecord,
     reviewStatus: CitationOccurrenceReviewStatus,
   ): AiIntegrationRecord => {
-    if (!activeCitationOccurrenceKey || !activeCitationKey) return record
+    if (!activeCitationOccurrenceKeyForReview || !activeCitationKey) return record
     const verificationStatus: CitationVerificationItemStatus | null =
       getCitationVerificationMarkerStatus(record.citationVerification, activeCitationKey, activeCitationOccurrence?.sentence)
       ?? activeCitationVerificationItems[0]?.status
@@ -675,7 +700,7 @@ export default function StepAiIntegration({
     const action = {
       id: `citation-review-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       review_status: reviewStatus,
-      occurrence_key: activeCitationOccurrenceKey,
+      occurrence_key: activeCitationOccurrenceKeyForReview,
       citation_key: activeCitation?.citation_key ?? activeCitationKey,
       anchor_key: activeCitation?.anchor_key ?? activeCitationKey,
       sentence: activeCitationOccurrence?.sentence ?? '',
@@ -689,10 +714,10 @@ export default function StepAiIntegration({
   }
 
   const confirmActiveCitationOccurrence = () => {
-    if (!activeRecord || !activeCitationKey || !activeCitationOccurrenceKey) return
+    if (!activeRecord || !activeCitationKey || !activeCitationOccurrenceKeyForReview) return
     const nextReviews = {
       ...(activeRecord.citationOccurrenceReviews ?? {}),
-      [activeCitationOccurrenceKey]: 'confirmed' as const,
+      [activeCitationOccurrenceKeyForReview]: 'confirmed' as const,
     }
     onUpdateRecord(appendCitationReviewAction({
       ...activeRecord,
@@ -701,10 +726,10 @@ export default function StepAiIntegration({
   }
 
   const deleteActiveCitationOccurrence = () => {
-    if (!activeRecord || !activeCitationKey || !activeCitationOccurrenceKey) return
-    const nextDisplayText = removeCitationOccurrence(activeDisplayText, activeCitationOccurrenceKey, resolveCitation)
+    if (!activeRecord || !activeCitationKey || !activeCitationOccurrenceKeyForReview) return
+    const nextDisplayText = removeCitationOccurrence(activeDisplayText, activeCitationOccurrenceKeyForReview, resolveCitation)
     const nextReviews = { ...(activeRecord.citationOccurrenceReviews ?? {}) }
-    nextReviews[activeCitationOccurrenceKey] = 'rejected'
+    nextReviews[activeCitationOccurrenceKeyForReview] = 'rejected'
     onUpdateRecord(appendCitationReviewAction({
       ...activeRecord,
       revisionText: nextDisplayText,

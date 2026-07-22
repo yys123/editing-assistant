@@ -133,6 +133,16 @@ assert.match(
 )
 assert.match(
   stepSource,
+  /findCitationOccurrenceForAnchor/,
+  'AI citation panel should recover an occurrence when a repeated or suffixed citation opens without a current occurrence key',
+)
+assert.match(
+  stepSource,
+  /activeCitationOccurrenceKeyForReview/,
+  'AI citation review actions should use the recovered occurrence key when the clicked key is missing or stale',
+)
+assert.match(
+  stepSource,
   /appendCitationReviewAction\([\s\S]*'confirmed'\)/,
   'confirming a citation as ok should be recorded as a confirmed review action',
 )

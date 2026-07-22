@@ -30,6 +30,8 @@ type ReferenceSentence = {
   end: number
 }
 
+type CitationAnchorLike = Pick<ReferenceAnchor, 'citation_key' | 'anchor_key'>
+
 const SUPERSCRIPT_CITATION_CHARS: Record<string, string> = {
   '⁰': '0',
   '¹': '1',
@@ -117,6 +119,39 @@ function resolveCitationToken(token: string, context: string, resolveCitation: C
 
 function createCitationOccurrenceKey(index: number) {
   return `citation-occurrence-${index}`
+}
+
+function stripCitationAnchorSuffix(key: string) {
+  return key.replace(/~\d+$/, '')
+}
+
+function citationOccurrenceMatchesAnchor(
+  occurrence: CitationOccurrence,
+  activeCitationKey: string,
+  anchor: CitationAnchorLike,
+) {
+  const keys = [activeCitationKey, anchor.anchor_key, anchor.citation_key].filter(Boolean) as string[]
+  if (keys.some(key => occurrence.citation_key === key)) return true
+  const occurrenceBaseKey = stripCitationAnchorSuffix(occurrence.citation_key)
+  return keys.some(key => stripCitationAnchorSuffix(key) === occurrenceBaseKey)
+}
+
+export function findCitationOccurrenceForAnchor(
+  occurrences: CitationOccurrence[],
+  activeCitationKey: string,
+  anchor: CitationAnchorLike,
+  preferredSentences: string[] = [],
+): CitationOccurrence | null {
+  if (!activeCitationKey) return null
+  const candidates = occurrences.filter(occurrence => (
+    citationOccurrenceMatchesAnchor(occurrence, activeCitationKey, anchor)
+  ))
+  if (candidates.length === 0) return null
+  for (const sentence of preferredSentences) {
+    const match = candidates.find(occurrence => occurrence.sentence === sentence)
+    if (match) return match
+  }
+  return candidates[0]
 }
 
 function formatCitationHref(link: CitationLink, occurrenceKey?: string) {

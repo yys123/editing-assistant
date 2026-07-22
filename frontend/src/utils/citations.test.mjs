@@ -7,6 +7,7 @@ import {
   buildOriginalContentAnchorsFromSources,
   collectCitationOccurrences,
   createCitationResolver,
+  findCitationOccurrenceForAnchor,
   formatCitationSourceLabel,
   linkifyCitationMarkers,
   mergeReferenceAnchors,
@@ -498,6 +499,48 @@ assert.equal(
 assert.equal(
   linkifyCitationMarkers(groupedOccurrenceText, groupedOccurrenceResolver, { includeOccurrenceKeys: true }),
   '治疗建议需要综合判断[[1-3](#citation-1-3__occ__citation-occurrence-0)、[2-6](#citation-2-6__occ__citation-occurrence-1)]。',
+)
+
+const suffixedRangeAnchorOccurrences = collectCitationOccurrences(
+  '可将其分为全身性抗凝、局部抗凝及无抗凝剂三大类[1][3-23]。',
+  createCitationResolver([
+    {
+      citation_key: '1',
+      anchor_key: '1~351',
+      source_id: 1,
+      source_filename: '资料1.pdf',
+      source_ref_id: '',
+      quote: '抗凝分类总述。',
+      context_before: '',
+      context_after: '',
+      paragraph_index: -1,
+    },
+    {
+      citation_key: '3-23',
+      anchor_key: '3-23~1',
+      source_id: 3,
+      source_filename: '资料3.pdf',
+      source_ref_id: '23',
+      quote: 'RCA减少出血风险。',
+      context_before: '',
+      context_after: '',
+      paragraph_index: 0,
+    },
+  ]),
+)
+const recoveredRangeOccurrence = findCitationOccurrenceForAnchor(
+  suffixedRangeAnchorOccurrences,
+  '3-23~1',
+  { citation_key: '3-23', anchor_key: '3-23~1' },
+  ['可将其分为全身性抗凝、局部抗凝及无抗凝剂三大类[1][3-23]。'],
+)
+assert.equal(
+  recoveredRangeOccurrence?.occurrence_key,
+  'citation-occurrence-1',
+)
+assert.equal(
+  recoveredRangeOccurrence?.citation_key,
+  '3-23~1',
 )
 
 console.log('citation tests passed')
